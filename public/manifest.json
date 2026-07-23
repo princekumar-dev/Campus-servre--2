@@ -1,7 +1,7 @@
 {
-  "name": "MSEC Academics",
-  "short_name": "MSEC",
-  "description": "Venue Booking and Event Management Platform for MSEC",
+  "name": "CampusServe",
+  "short_name": "CampusServe",
+  "description": "Campus Management Platform for MSEC",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

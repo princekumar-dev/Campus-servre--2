@@ -110,7 +110,7 @@ self.addEventListener('push', (event) => {
   console.log('Service Worker: Push notification received', event);
   event.waitUntil((async () => {
     let notificationData = {
-      title: 'MSEC Academics',
+      title: 'CampusServe',
       body: 'You have a new notification',
       icon: '/images/android-chrome-192x192.png',
       badge: '/images/favicon-32x32.png',
@@ -182,7 +182,7 @@ self.addEventListener('push', (event) => {
     // Show notification
     const showPromise = (async () => {
       try {
-        await self.registration.showNotification(notificationData.title || 'MSEC Academics', notificationOptions);
+        await self.registration.showNotification(notificationData.title || 'CampusServe', notificationOptions);
       } catch (e) {
         // log but don't rethrow
         console.error('Error showing notification in SW:', e);

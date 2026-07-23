@@ -1,4 +1,4 @@
-# MSEC Academics UI/UX Design System Guide
+# CampusServe UI/UX Design System Guide
 
 This guide is a complete, end-to-end reference of every premium design element, typography effect, global animation, layout pattern, and button style used in the application. Use this to seamlessly replicate the high-end aesthetic on any other page.
 
@@ -44,7 +44,7 @@ This is a premium, animated text gradient used for important headings or brand n
 
 **JSX Usage:**
 ```jsx
-<h1 className="wave-text font-bold text-3xl">MSEC Academics</h1>
+<h1 className="wave-text font-bold text-3xl">CampusServe</h1>
 ```
 
 ---

@@ -1,5 +1,5 @@
 /**
- * Page-Specific Skeleton Loaders for MSEC Academics
+ * Page-Specific Skeleton Loaders for CampusServe
  * 
  * Each page has its own custom skeleton that matches its actual layout:
  * 
