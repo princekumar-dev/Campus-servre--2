@@ -175,14 +175,6 @@ function AppContent() {
 
   return (
     <>
-      {!isAuthPage && (
-        <a
-          href="#main-content"
-          className="fixed left-4 top-3 z-[100] -translate-y-20 rounded-xl bg-slate-950 px-4 py-2 text-sm font-bold text-white shadow-xl transition-transform focus:translate-y-0"
-        >
-          Skip to main content
-        </a>
-      )}
       <div
         className={`flex w-full flex-col ${isAuthPage ? 'relative auth-wrapper' : ''}`}
         style={{
