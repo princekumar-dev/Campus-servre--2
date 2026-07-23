@@ -1,10 +1,10 @@
-# MSEC Academics - Academic Management System
+# CampusServe - Campus Management System
 
-![MSEC Logo](public/images/mseclogo.png)
+![CampusServe Logo](public/images/mseclogo.png)
 
 ## 🎓 Overview
 
-**MSEC Academics** is a comprehensive web-based academic management system designed specifically for Meenakshi Sundararajan Engineering College (MSEC). The platform streamlines the process of marksheet generation, verification, approval, and dispatch through an intuitive interface for staff and department heads.
+**CampusServe** is a comprehensive web-based campus management system designed specifically for Mohamed Sathak Engineering College (MSEC). The platform streamlines the process of marksheet generation, verification, approval, and dispatch through an intuitive interface for staff and department heads.
 
 ## ✨ Features
 
@@ -67,7 +67,7 @@
 ## 🏗️ Architecture
 
 ```
-MSEC Academics/
+CampusServe/
 ├── Frontend (React + Vite) - Port 3000
 │   ├── Components (Header, Settings, ErrorBoundary)
 │   ├── Pages (Home, Login, Marksheets, ImportMarks, etc.)
@@ -99,8 +99,8 @@ MSEC Academics/
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/your-username/msec-academics.git
-   cd msec-academics
+   git clone https://github.com/princekumar-dev/Campus-servre--2.git
+   cd Campus-servre--2
    ```
 
 2. **Install dependencies**
@@ -418,7 +418,7 @@ Note: The `vite.config.js` only enables compression when `ENABLE_COMPRESSION=tru
 
 ## 🤝 Contributing
 
-We welcome contributions to improve MSEC Academics!
+We welcome contributions to improve CampusServe!
 
 1. **Fork the repository**
 2. **Create a feature branch**: `git checkout - b feature/amazing-feature`
@@ -461,4 +461,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **Built with ❤️ for MSEC Community**
 
-*MSEC Academics - Empowering Education Through Technology*
+*CampusServe - Empowering Education Through Technology*
