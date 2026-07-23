@@ -7,7 +7,7 @@ import { resolvePublicAppUrl } from '../lib/publicAppUrl.js'
 import { addProductIds } from '../lib/productId.js'
 import fs from 'fs'
 import path from 'path'
-import { createPoQrToken } from '../lib/poQrToken.js'
+import { createPoQrToken, hashPoQrToken } from '../lib/poQrToken.js'
 
 const LOGO_PATH = (() => {
   const logoPath = path.resolve(process.cwd(), 'public', 'images', 'mseclogo.png')
@@ -307,6 +307,10 @@ export default async function handler(req, res) {
       if (!po) return res.status(404).json({ success: false, error: 'Purchase Order not found' })
       po.items = addProductIds(po.items)
       const poQrToken = createPoQrToken(po._id)
+      await PurchaseOrder.updateOne(
+        { _id: po._id },
+        { $set: { qrTokenHash: hashPoQrToken(poQrToken), qrIssuedAt: new Date() } }
+      )
       const gateVerificationUrl = `${getPublicBaseUrl(req)}/gate/po/${po._id}?token=${encodeURIComponent(poQrToken)}`
       const gateQrImage = await QRCode.toBuffer(gateVerificationUrl, {
         type: 'png',

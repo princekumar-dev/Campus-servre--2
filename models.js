@@ -231,6 +231,8 @@ VendorSchema.index({ status: 1 })
 // ─── Purchase Order Schema ────────────────────────────────────────────────────
 const PurchaseOrderSchema = new mongoose.Schema({
   poNumber: { type: String, required: true, unique: true },
+  qrTokenHash: { type: String, select: false },
+  qrIssuedAt: { type: Date },
   requestId: { type: mongoose.Schema.Types.ObjectId, ref: 'ServiceRequest' },
   vendorId: { type: mongoose.Schema.Types.ObjectId, ref: 'Vendor', required: true },
   vendorName: { type: String, required: true },

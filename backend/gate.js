@@ -1,7 +1,7 @@
 import { connectToDatabase } from '../lib/mongo.js'
 import { GateEntry, DeliverySchedule, PurchaseOrder, User } from '../models.js'
 import crypto from 'crypto'
-import { verifyPoQrToken } from '../lib/poQrToken.js'
+import { verifyIssuedPoQrToken } from '../lib/poQrToken.js'
 import { addProductIds } from '../lib/productId.js'
 import { canReceivePo, getPoReceivingBlockReason, isSignedPoVerified } from '../lib/poReceiving.js'
 
@@ -28,7 +28,7 @@ export default async function handler(req, res) {
         return res.status(403).json({ success: false, error: 'Gate verification access is required' })
       }
 
-      const poId = verifyPoQrToken(token)
+      const poId = req.poQrAccess?.poId || await verifyIssuedPoQrToken(token)
       if (!poId) return res.status(400).json({ success: false, error: 'Invalid or altered purchase-order QR code' })
       if (req.poQrAccess && req.poQrAccess.poId !== poId) {
         return res.status(403).json({ success: false, error: 'QR access does not match this purchase order' })

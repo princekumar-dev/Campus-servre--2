@@ -1,6 +1,5 @@
 import { connectToDatabase } from '../lib/mongo.js'
 import { GoodsReceipt, PurchaseOrder, DeliverySchedule, User } from '../models.js'
-import { verifyPoQrToken } from '../lib/poQrToken.js'
 import { storeNotification } from '../lib/notificationService.js'
 import { getProductId } from '../lib/productId.js'
 import { canReceivePo, getPoReceivingBlockReason } from '../lib/poReceiving.js'
@@ -46,7 +45,7 @@ export default async function handler(req, res) {
       if (!bodyPoId || !items || !items.length) {
         return res.status(400).json({ success: false, error: 'poId and items are required' })
       }
-      if ((hasQrAccess || actorRole === 'gate') && verifyPoQrToken(qrToken) !== String(bodyPoId)) {
+      if ((hasQrAccess || actorRole === 'gate') && req.poQrAccess?.poId !== String(bodyPoId)) {
         return res.status(403).json({ success: false, error: 'A valid PO QR code is required for gate receipt entry' })
       }
 

@@ -6,7 +6,7 @@ import rateLimit from 'express-rate-limit';
 import { connectToDatabase } from './lib/mongo.js';
 import mongoose from 'mongoose';
 import { authenticate } from './lib/auth.js';
-import { verifyPoQrToken } from './lib/poQrToken.js';
+import { verifyIssuedPoQrToken } from './lib/poQrToken.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -134,7 +134,7 @@ app.use((req, res, next) => {
 });
 
 // JWT authentication middleware — applied to all /api routes except login
-app.use('/api', (req, res, next) => {
+app.use('/api', async (req, res, next) => {
   // Skip auth for OPTIONS preflight, login endpoint, and health/debug
   if (req.method === 'OPTIONS') return next();
   if (req.path === '/auth' && req.method === 'POST') return next();
@@ -145,14 +145,14 @@ app.use('/api', (req, res, next) => {
   // PO encoded in the QR and create a GRN only for that same PO; it does not
   // create a normal user session or unlock any other gate API.
   if (req.path === '/gate' && req.method === 'GET' && req.query.action === 'po-details') {
-    const qrPoId = verifyPoQrToken(req.query.token);
+    const qrPoId = await verifyIssuedPoQrToken(req.query.token);
     if (qrPoId) {
       req.poQrAccess = { poId: qrPoId };
       return next();
     }
   }
   if (req.path === '/grn' && req.method === 'POST') {
-    const qrPoId = verifyPoQrToken(req.body?.qrToken);
+    const qrPoId = await verifyIssuedPoQrToken(req.body?.qrToken);
     if (qrPoId && qrPoId === String(req.body?.poId || '')) {
       req.poQrAccess = { poId: qrPoId };
       return next();
