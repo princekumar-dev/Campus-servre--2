@@ -2,7 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { connectToDatabase } from './lib/mongo.js';
 import mongoose from 'mongoose';
 import { authenticate } from './lib/auth.js';
@@ -10,6 +10,11 @@ import { verifyIssuedPoQrToken } from './lib/poQrToken.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// Render terminates HTTPS in a single reverse-proxy hop. Trusting exactly that
+// hop lets Express derive req.ip from X-Forwarded-For without trusting arbitrary
+// client-supplied addresses.
+app.set('trust proxy', 1);
 
 // Security headers via helmet
 app.use(helmet({
@@ -23,6 +28,9 @@ const limiter = rateLimit({
   max: 100,
   standardHeaders: true,
   legacyHeaders: false,
+  // Use Express's proxy-aware client IP explicitly. This also prevents
+  // express-rate-limit from trying to interpret Render's Forwarded header.
+  keyGenerator: (req) => ipKeyGenerator(req.ip),
   message: { error: 'Too many requests, please try again later.' },
 });
 app.use('/api/', limiter);
