@@ -116,6 +116,29 @@ export default function GatePOVerification() {
     )
   }
 
+  if (!po.canReceive) {
+    return (
+      <div className="mx-auto max-w-xl overflow-hidden rounded-3xl border border-amber-200 bg-white shadow-sm">
+        <div className="bg-gradient-to-br from-amber-50 to-violet-50 p-8 text-center sm:p-10">
+          <ShieldCheck className="mx-auto mb-4 text-violet-600" size={46} />
+          <p className="font-mono text-xs font-black uppercase tracking-[0.18em] text-violet-700">Valid PO QR</p>
+          <h1 className="mt-2 text-2xl font-black text-slate-900">{po.poNumber}</h1>
+          <span className="mt-4 inline-flex rounded-full border border-amber-200 bg-amber-100 px-3 py-1 text-xs font-black text-amber-800">
+            {po.status.replace(/_/g, ' ')}
+          </span>
+          <p className="mx-auto mt-4 max-w-md text-sm leading-6 text-slate-600">{po.receivingMessage}</p>
+        </div>
+        <div className="space-y-3 border-t border-slate-100 p-6 text-sm">
+          <div className="flex justify-between gap-4"><span className="text-slate-500">Vendor</span><strong className="text-right text-slate-800">{po.vendorName}</strong></div>
+          <div className="flex justify-between gap-4"><span className="text-slate-500">Items</span><strong className="text-slate-800">{po.items?.length || 0}</strong></div>
+          <div className="rounded-xl bg-amber-50 p-4 text-xs leading-5 text-amber-800">
+            Complete the PO approval and vendor-acceptance workflow. Scan this same QR again after the PO becomes active.
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="mx-auto max-w-5xl space-y-5">
       <div className="rounded-2xl border border-violet-200 bg-gradient-to-r from-violet-700 to-indigo-700 p-5 text-white shadow-lg">

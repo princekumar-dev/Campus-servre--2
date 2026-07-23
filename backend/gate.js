@@ -35,9 +35,7 @@ export default async function handler(req, res) {
 
       const po = await PurchaseOrder.findById(poId).lean()
       if (!po) return res.status(404).json({ success: false, error: 'Purchase Order not found' })
-      if (!['ACTIVE', 'PARTIALLY_FULFILLED'].includes(po.status)) {
-        return res.status(409).json({ success: false, error: `This PO is ${po.status.replace(/_/g, ' ').toLowerCase()} and cannot receive goods` })
-      }
+      const canReceive = ['ACTIVE', 'PARTIALLY_FULFILLED'].includes(po.status)
 
       return res.json({
         success: true,
@@ -45,6 +43,10 @@ export default async function handler(req, res) {
           _id: po._id,
           poNumber: po.poNumber,
           status: po.status,
+          canReceive,
+          receivingMessage: canReceive
+            ? 'This purchase order is ready for gate verification'
+            : `This purchase order is ${po.status.replace(/_/g, ' ').toLowerCase()} and is not ready to receive goods`,
           vendorName: po.vendorName,
           vendorEmail: po.vendorEmail,
           deliveryAddress: po.deliveryAddress,
