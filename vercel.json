@@ -5,7 +5,7 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://academics-2.onrender.com/api/$1"
+      "destination": "https://campus-servre-2.onrender.com/api/$1"
     },
     {
       "source": "/(.*)",

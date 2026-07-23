@@ -2,9 +2,12 @@
   "name": "msec-campusserve",
   "version": "1.0.0",
   "type": "module",
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "dev": "vite",
-    "build": "node node_modules/vite/bin/vite.js build && echo 'Build completed successfully'",
+    "build": "vite build",
     "convert-images": "node scripts/convert-images.js",
     "build:ci": "ENABLE_COMPRESSION=true npm run build",
     "preview": "node node_modules/vite/bin/vite.js preview",
@@ -12,8 +15,6 @@
     "dev:full": "concurrently \"npm run server\" \"npm run dev\"",
     "warm-tunnel": "node scripts/warm-tunnel.js",
     "dev:warm": "concurrently \"npm run server\" \"npm run dev\" \"npm run warm-tunnel\"",
-    "clean": "rmdir /s /q dist 2>nul || echo \"Directory already clean\"",
-    "prebuild": "npm run clean",
     "seed-users": "node seed-users.js",
     "test": "vitest",
     "test:ui": "vitest --ui",

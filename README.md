@@ -151,7 +151,7 @@ MSEC Academics/
 
 6. **Access the application**
    - Frontend: `http://localhost:3000`
-   - Backend API: `https://academics-kxqc.onrender.com/`
+   - Backend API: `https://campus-servre-2.onrender.com/`
 
 ## 📁 Project Structure
 
