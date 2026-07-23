@@ -35,7 +35,8 @@ export default async function handler(req, res) {
 
     // ── POST /api/grn — Create GRN ────────────────────────────────────────────
     if (req.method === 'POST' && !id) {
-      if (!['gate', 'receiving_officer', 'manager', 'admin', 'super_admin'].includes(actorRole)) {
+      const hasQrAccess = Boolean(req.poQrAccess)
+      if (!hasQrAccess && !['gate', 'receiving_officer', 'manager', 'admin', 'super_admin'].includes(actorRole)) {
         return res.status(403).json({ success: false, error: 'You are not authorized to record a GRN' })
       }
 
@@ -43,9 +44,12 @@ export default async function handler(req, res) {
       if (!bodyPoId || !items || !items.length) {
         return res.status(400).json({ success: false, error: 'poId and items are required' })
       }
-      if (actorRole === 'gate' && verifyPoQrToken(qrToken) !== String(bodyPoId)) {
+      if ((hasQrAccess || actorRole === 'gate') && verifyPoQrToken(qrToken) !== String(bodyPoId)) {
         return res.status(403).json({ success: false, error: 'A valid PO QR code is required for gate receipt entry' })
       }
+
+      const receiptActorId = hasQrAccess ? `po-qr:${bodyPoId}` : actorId
+      const receiptActorName = hasQrAccess ? 'Gate QR verification' : actorName
 
       const po = await PurchaseOrder.findById(bodyPoId)
       if (!po) return res.status(404).json({ success: false, error: 'PO not found' })
@@ -120,7 +124,7 @@ export default async function handler(req, res) {
 
       const grn = new GoodsReceipt({
         grnNumber, poId: bodyPoId, poNumber: po.poNumber, deliveryScheduleId,
-        grnType, status: 'DRAFT', receivedBy: actorId, receivedByName: actorName,
+        grnType, status: 'DRAFT', receivedBy: receiptActorId, receivedByName: receiptActorName,
         source: qrToken ? 'PO_QR' : 'MANUAL',
         gateVerifiedAt: qrToken ? new Date() : undefined,
         remarks, items: processedItems
@@ -130,7 +134,7 @@ export default async function handler(req, res) {
       // Update PO status
       const oldPoStatus = po.status
       po.status = grnType === 'FINAL' ? 'FULFILLED' : 'PARTIALLY_FULFILLED'
-      po.statusHistory.push({ oldStatus: oldPoStatus, newStatus: po.status, actorId, actorName, comment: `${grnType} GRN created: ${grnNumber}`, createdAt: new Date() })
+      po.statusHistory.push({ oldStatus: oldPoStatus, newStatus: po.status, actorId: receiptActorId, actorName: receiptActorName, comment: `${grnType} GRN created: ${grnNumber}`, createdAt: new Date() })
       await po.save()
 
       // Update delivery schedule status
@@ -139,7 +143,7 @@ export default async function handler(req, res) {
         if (ds) {
           const oldDsStatus = ds.status
           ds.status = grnType === 'FINAL' ? 'FULLY_RECEIVED' : 'PARTIALLY_RECEIVED'
-          ds.statusHistory.push({ oldStatus: oldDsStatus, newStatus: ds.status, actorId, actorName, comment: `${grnType} GRN recorded`, createdAt: new Date() })
+          ds.statusHistory.push({ oldStatus: oldDsStatus, newStatus: ds.status, actorId: receiptActorId, actorName: receiptActorName, comment: `${grnType} GRN recorded`, createdAt: new Date() })
           await ds.save()
         }
       }

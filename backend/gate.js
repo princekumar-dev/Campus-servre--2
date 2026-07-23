@@ -22,12 +22,15 @@ export default async function handler(req, res) {
 
     // ── GET /api/gate?action=po-details&token=... — PO QR landing data ───────
     if (req.method === 'GET' && action === 'po-details') {
-      if (!['gate', 'super_admin', 'receiving_officer', 'manager'].includes(actorRole)) {
+      if (!req.poQrAccess && !['gate', 'super_admin', 'receiving_officer', 'manager'].includes(actorRole)) {
         return res.status(403).json({ success: false, error: 'Gate verification access is required' })
       }
 
       const poId = verifyPoQrToken(token)
       if (!poId) return res.status(400).json({ success: false, error: 'Invalid or altered purchase-order QR code' })
+      if (req.poQrAccess && req.poQrAccess.poId !== poId) {
+        return res.status(403).json({ success: false, error: 'QR access does not match this purchase order' })
+      }
 
       const po = await PurchaseOrder.findById(poId).lean()
       if (!po) return res.status(404).json({ success: false, error: 'Purchase Order not found' })

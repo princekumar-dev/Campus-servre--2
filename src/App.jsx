@@ -226,7 +226,8 @@ function AppContent() {
                   
                   {/* Gate routes */}
                   <Route path="/gate" element={<ProtectedRoute allowedRoles={['admin', 'super_admin', 'gate']}><GateScanner /></ProtectedRoute>} />
-                  <Route path="/gate/po/:id" element={<ProtectedRoute allowedRoles={['gate', 'super_admin', 'receiving_officer', 'manager']}><GatePOVerification /></ProtectedRoute>} />
+                  {/* The signed token in a printed PO provides access only to this verification screen. */}
+                  <Route path="/gate/po/:id" element={<GatePOVerification />} />
                   <Route path="/gate/dashboard" element={<ProtectedRoute allowedRoles={['admin', 'super_admin', 'gate']}><GateDashboard /></ProtectedRoute>} />
                   <Route path="/gate/history" element={<ProtectedRoute allowedRoles={['admin', 'super_admin', 'gate']}><GateHistory /></ProtectedRoute>} />
                   <Route path="/gate/vehicles" element={<ProtectedRoute allowedRoles={['admin', 'super_admin', 'gate']}><GateVehicles /></ProtectedRoute>} />

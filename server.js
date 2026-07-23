@@ -6,6 +6,7 @@ import rateLimit from 'express-rate-limit';
 import { connectToDatabase } from './lib/mongo.js';
 import mongoose from 'mongoose';
 import { authenticate } from './lib/auth.js';
+import { verifyPoQrToken } from './lib/poQrToken.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -139,6 +140,25 @@ app.use('/api', (req, res, next) => {
   if (req.path === '/auth' && req.method === 'POST') return next();
   if (req.path === '/health') return next();
   if (req.path === '/debug') return next();
+
+  // A signed PO QR is a narrowly scoped gate credential. It may read only the
+  // PO encoded in the QR and create a GRN only for that same PO; it does not
+  // create a normal user session or unlock any other gate API.
+  if (req.path === '/gate' && req.method === 'GET' && req.query.action === 'po-details') {
+    const qrPoId = verifyPoQrToken(req.query.token);
+    if (qrPoId) {
+      req.poQrAccess = { poId: qrPoId };
+      return next();
+    }
+  }
+  if (req.path === '/grn' && req.method === 'POST') {
+    const qrPoId = verifyPoQrToken(req.body?.qrToken);
+    if (qrPoId && qrPoId === String(req.body?.poId || '')) {
+      req.poQrAccess = { poId: qrPoId };
+      return next();
+    }
+  }
+
   authenticate(req, res, next);
 });
 
