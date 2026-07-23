@@ -213,7 +213,7 @@ function Header() {
       <div className={`${isAuthPage ? 'hidden' : 'flex'} items-center justify-end gap-1 lg:hidden`}>
         {user && <button onClick={toggleNotifications} className={`relative flex flex-shrink-0 items-center justify-center rounded-lg p-1.5 text-[#111418] transition-colors duration-200 sm:p-2 ${isNotificationsOpen ? 'bg-violet-100 text-violet-700' : 'hover:bg-violet-50'}`} aria-label="Notifications" aria-expanded={isNotificationsOpen}><Bell className="h-5 w-5 sm:h-6 sm:w-6" />{notifCount > 0 && <span className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full border border-white bg-violet-600 px-0.5 text-[8px] font-black text-white">{notifCount > 9 ? '9+' : notifCount}</span>}</button>}
         {user && (
-          <button onClick={() => setIsSettingsOpen(true)} className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border-2 border-white bg-slate-900 text-sm font-black text-white shadow-md shadow-slate-300/70 transition-colors active:bg-black sm:h-11 sm:w-11 sm:text-base" aria-label="Open account settings">
+          <button onClick={() => setIsSettingsOpen(true)} className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border-2 border-violet-100 bg-gradient-to-br from-violet-400 via-violet-500 to-purple-500 text-sm font-black text-white shadow-md shadow-violet-200/80 transition-[filter,box-shadow] active:brightness-95 sm:h-11 sm:w-11 sm:text-base" aria-label="Open account settings">
             {(user.name || user.email || 'U').charAt(0).toUpperCase()}
           </button>
         )}
