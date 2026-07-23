@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAlert } from '../components/AlertContext'
 import ModalShell from '../components/ModalShell'
+import ConfirmDialog from '../components/ConfirmDialog'
 import apiClient from '../utils/apiClient'
 import { getAuthOrNull } from '../utils/auth'
 import { Users, Plus, Trash2, Shield, Mail, Phone, Building2, Search } from 'lucide-react'
@@ -16,9 +17,11 @@ function AdminUsers() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'requester', department: '', phoneNumber: '' })
   const [creating, setCreating] = useState(false)
+  const [pendingDelete, setPendingDelete] = useState(null)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
-    if (!auth || auth.role !== 'admin') {
+    if (!auth || !['admin', 'super_admin'].includes(auth.role)) {
       navigate('/dashboard')
       return
     }
@@ -60,16 +63,23 @@ function AdminUsers() {
     }
   }
 
-  const handleDeleteUser = async (userId) => {
-    if (!confirm('Are you sure you want to delete this user?')) return
+  const handleDeleteUser = async () => {
+    if (!pendingDelete) return
+    const userId = pendingDelete.id || pendingDelete._id
+    setDeleting(true)
     try {
       const res = await apiClient.del(`/api/users?id=${userId}`, { body: { userId: auth.id } })
       if (res.success) {
         showSuccess('Deleted', 'User removed')
         setUsers(current => current.filter(user => user.id !== userId && user._id !== userId))
+        setPendingDelete(null)
+      } else {
+        showError('Unable to delete user', res.error || 'Please try again.')
       }
     } catch (err) {
       showError('Error', 'Failed to delete user')
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -162,8 +172,9 @@ function AdminUsers() {
                   <td className="px-4 py-3 text-right">
                     {user.id !== auth.id && (
                       <button
-                        onClick={() => handleDeleteUser(user.id)}
+                        onClick={() => setPendingDelete(user)}
                         className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        aria-label={`Delete ${user.name || 'user'}`}
                       >
                         <Trash2 size={14} />
                       </button>
@@ -202,6 +213,15 @@ function AdminUsers() {
             </div>
         </ModalShell>
       )}
+      <ConfirmDialog
+        open={Boolean(pendingDelete)}
+        title="Remove user?"
+        description={`${pendingDelete?.name || pendingDelete?.email || 'This user'} will immediately lose access to CampusServe. This action cannot be undone.`}
+        confirmLabel="Remove user"
+        onConfirm={handleDeleteUser}
+        onCancel={() => !deleting && setPendingDelete(null)}
+        loading={deleting}
+      />
     </div>
   )
 }

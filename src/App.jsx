@@ -86,9 +86,9 @@ const RedirectIfAuthenticated = ({ children }) => {
 
 function AppContent() {
   const location = useLocation()
-  const isAuthPage = location.pathname === '/login' || location.pathname === '/signup'
+  const isAuthPage = ['/login', '/signup', '/forgot-password'].includes(location.pathname)
   const auth = getAuthOrNull()
-  const roleClass = auth?.role ? `role-${auth.role}` : '' || location.pathname === '/forgot-password'
+  const roleClass = auth?.role ? `role-${auth.role}` : ''
 
   // A modal or interrupted navigation can leave an inline scroll lock behind.
   // Pages use normal window scrolling, so always release that lock on route changes.
@@ -175,6 +175,14 @@ function AppContent() {
 
   return (
     <>
+      {!isAuthPage && (
+        <a
+          href="#main-content"
+          className="fixed left-4 top-3 z-[100] -translate-y-20 rounded-xl bg-slate-950 px-4 py-2 text-sm font-bold text-white shadow-xl transition-transform focus:translate-y-0"
+        >
+          Skip to main content
+        </a>
+      )}
       <div
         className={`flex w-full flex-col ${isAuthPage ? 'relative auth-wrapper' : ''}`}
         style={{
@@ -184,13 +192,13 @@ function AppContent() {
         {isAuthPage && <div className="pointer-events-none fixed inset-0 z-0 bg-black/40" />}
         <div className={`layout-container flex min-h-screen flex-col max-w-full ${isAuthPage ? 'relative z-10' : `app-shell text-slate-800 ${roleClass}`}`}>
           <Header />
-          <main className="flex w-full flex-1 justify-center">
+          <main id="main-content" tabIndex="-1" className="flex w-full flex-1 justify-center outline-none">
             <div className={`layout-content-container flex min-w-0 w-full max-w-[1600px] flex-col px-3 py-4 sm:px-5 sm:py-6 lg:px-6 xl:px-8 page-enter ${!isAuthPage ? 'pb-24 md:pb-8' : ''}`}>
               <Suspense fallback={
                 <div className="flex items-center justify-center min-h-[60vh]">
                   <div className="bg-white rounded-2xl shadow-lg px-10 py-10 flex flex-col items-center gap-4">
                     <div className="w-10 h-10 border-2 border-violet-100 border-t-violet-500 rounded-full animate-spin"></div>
-                    <p className="text-gray-500 text-sm font-medium">Loading dashboard...</p>
+                    <p className="text-gray-500 text-sm font-medium">Loading workspace…</p>
                   </div>
                 </div>
               }>
