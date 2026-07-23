@@ -14,20 +14,41 @@ import {
 
 const router = express.Router()
 
-// VAPID Keys from environment variables
-const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || 'BI3ZQwdtuxxYpepMvZjy5xkuzLbnsjG8J1jfBkGMi0AzbhWDocIASZkq6ocisfwCTnYCHuogo_O-PJSuyfGWwkU'
-const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || 'hfn59n2ZF4qdGGl1kiuZ_zglStMTBIqN0CxC49jXUMc'
+// VAPID keys must be generated as a matching pair (for example with
+// `npx web-push generate-vapid-keys`) and configured in the environment.
+const VAPID_PUBLIC_KEY = String(process.env.VAPID_PUBLIC_KEY || '').trim()
+const VAPID_PRIVATE_KEY = String(process.env.VAPID_PRIVATE_KEY || '').trim()
+let pushNotificationsEnabled = false
 
-// Configure web-push
-webpush.setVapidDetails(
-  'mailto:support@msecconnect.edu',
-  VAPID_PUBLIC_KEY,
-  VAPID_PRIVATE_KEY
-)
+if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
+  try {
+    webpush.setVapidDetails(
+      process.env.VAPID_SUBJECT || 'mailto:support@msecconnect.edu',
+      VAPID_PUBLIC_KEY,
+      VAPID_PRIVATE_KEY
+    )
+    pushNotificationsEnabled = true
+  } catch (error) {
+    console.error(`⚠️ Push notifications disabled: invalid VAPID configuration (${error.message})`)
+  }
+} else {
+  console.warn('⚠️ Push notifications disabled: VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY are required')
+}
+
+const requirePushConfiguration = (res) => {
+  if (pushNotificationsEnabled) return true
+  res.status(503).json({
+    success: false,
+    message: 'Push notifications are not configured on the server'
+  })
+  return false
+}
 
 // Subscribe to push notifications (status -> active)
 router.post('/subscribe', async (req, res) => {
   try {
+    if (!requirePushConfiguration(res)) return
+
     const { subscription, userEmail } = req.body
 
     if (!subscription || !userEmail) {
@@ -113,6 +134,8 @@ router.post('/unsubscribe', async (req, res) => {
 // Send notification to specific user (only active status)
 router.post('/send', async (req, res) => {
   try {
+    if (!requirePushConfiguration(res)) return
+
     const { userEmail, title, body, url, icon, badge } = req.body
 
     if (!userEmail || !title || !body) {
@@ -164,6 +187,8 @@ router.post('/send', async (req, res) => {
 // Broadcast notification to all users (only active status)
 router.post('/broadcast', async (req, res) => {
   try {
+    if (!requirePushConfiguration(res)) return
+
     // Only admin can broadcast
     const userRole = req.user ? req.user.role : ''
     if (!['admin', 'super_admin'].includes(userRole)) {
@@ -346,6 +371,7 @@ router.delete('/:id', async (req, res) => {
 
 // Get VAPID public key
 router.get('/vapid-public-key', (req, res) => {
+  if (!requirePushConfiguration(res)) return
   res.json({ success: true, publicKey: VAPID_PUBLIC_KEY })
 })
 
