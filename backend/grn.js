@@ -2,6 +2,7 @@ import { connectToDatabase } from '../lib/mongo.js'
 import { GoodsReceipt, PurchaseOrder, DeliverySchedule, User } from '../models.js'
 import { verifyPoQrToken } from '../lib/poQrToken.js'
 import { storeNotification } from '../lib/notificationService.js'
+import { getProductId } from '../lib/productId.js'
 
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end()
@@ -104,6 +105,8 @@ export default async function handler(req, res) {
 
         processedItems.push({
           ...item,
+          productId: getProductId(poItem),
+          poItemId: String(poItem._id),
           quantityDeliveredNow: deliveredNow,
           quantityAcceptedNow: acceptedNow,
           quantityDamaged: damaged,

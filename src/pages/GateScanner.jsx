@@ -147,8 +147,8 @@ function ResultCard({ result, onClear, onReject }) {
             <div className="pt-3 border-t border-emerald-100">
               <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Expected Items</div>
               {delivery.items.map((item, idx) => (
-                <div key={idx} className="text-xs text-slate-600 flex justify-between">
-                  <span>{item.description}</span>
+                <div key={idx} className="text-xs text-slate-600 flex justify-between gap-3">
+                  <span><span className="mr-2 font-mono font-bold text-violet-700">{item.productId || '—'}</span>{item.description}</span>
                   <span className="font-semibold">{item.quantityExpected} {item.unit}</span>
                 </div>
               ))}

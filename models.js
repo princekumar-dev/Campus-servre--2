@@ -245,6 +245,7 @@ const PurchaseOrderSchema = new mongoose.Schema({
   deliveryAddress: { type: String, required: true },
   deliveryLocation: { type: String },
   items: [{
+    productId: { type: String, trim: true, uppercase: true },
     description: { type: String, required: true },
     specification: { type: String },
     brand: { type: String },
@@ -339,6 +340,7 @@ const DeliveryScheduleSchema = new mongoose.Schema({
   passUsageCount: { type: Number, default: 0 },
   passRevoked: { type: Boolean, default: false },
   items: [{
+    productId: { type: String },
     description: { type: String },
     quantityExpected: { type: Number },
     unit: { type: String }
@@ -392,6 +394,8 @@ const GoodsReceiptSchema = new mongoose.Schema({
   receivedAt: { type: Date, default: Date.now },
   remarks: { type: String },
   items: [{
+    productId: { type: String },
+    poItemId: { type: String },
     poItemDescription: { type: String },
     quantityOrdered: { type: Number },
     quantityPreviouslyAccepted: { type: Number, default: 0 },

@@ -3,6 +3,7 @@ import { ServiceRequest, PurchaseOrder } from '../models.js'
 import PDFDocument from 'pdfkit'
 import sharp from 'sharp'
 import QRCode from 'qrcode'
+import { addProductIds } from '../lib/productId.js'
 import fs from 'fs'
 import path from 'path'
 import { createPoQrToken } from '../lib/poQrToken.js'
@@ -306,6 +307,7 @@ export default async function handler(req, res) {
     if (type === 'purchase-order') {
       const po = await PurchaseOrder.findById(id).lean()
       if (!po) return res.status(404).json({ success: false, error: 'Purchase Order not found' })
+      po.items = addProductIds(po.items)
       const poQrToken = createPoQrToken(po._id)
       const gateVerificationUrl = `${getPublicBaseUrl(req)}/gate/po/${po._id}?token=${encodeURIComponent(poQrToken)}`
       const gateQrImage = await QRCode.toBuffer(gateVerificationUrl, {
@@ -417,7 +419,7 @@ export default async function handler(req, res) {
       }
       drawTableHeader()
       ;(po.items || []).forEach((item, index) => {
-        const description = [item.description, item.specification, item.brand, item.model].filter(Boolean).join(' | ')
+        const description = [`Product ID: ${item.productId}`, item.description, item.specification, item.brand, item.model].filter(Boolean).join(' | ')
         const rowHeight = Math.max(34, doc.heightOfString(description, { width: widths[1] - 10 }) + 14)
         if (doc.y + rowHeight > 720) {
           doc.addPage(); drawHeader('PURCHASE ORDER'); drawTableHeader()

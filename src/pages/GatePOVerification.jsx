@@ -31,6 +31,7 @@ export default function GatePOVerification() {
       setPo(result.data)
       setItems((result.data.items || []).map(item => ({
         poItemId: item.itemId,
+        productId: item.productId,
         poItemDescription: item.description,
         quantityOrdered: item.quantityOrdered,
         quantityPreviouslyAccepted: item.quantityAccepted || 0,
@@ -156,6 +157,7 @@ export default function GatePOVerification() {
             <div key={item.poItemId || index} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
               <div className="mb-3 flex flex-col justify-between gap-2 sm:flex-row">
                 <div>
+                  <p className="mb-1 font-mono text-[11px] font-bold text-violet-700">{item.productId}</p>
                   <h3 className="font-bold text-slate-800">{item.poItemDescription}</h3>
                   <p className="text-xs text-slate-500">{po.items[index]?.specification || 'No additional specification'}</p>
                 </div>

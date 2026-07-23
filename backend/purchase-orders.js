@@ -1,5 +1,6 @@
 import { PurchaseOrder, Vendor, User, ServiceRequest } from '../models.js'
 import { connectToDatabase } from '../lib/mongo.js'
+import { addProductIds, generateProductId, getProductId } from '../lib/productId.js'
 
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end()
@@ -25,6 +26,7 @@ export default async function handler(req, res) {
       if (id) {
         const po = await PurchaseOrder.findById(id).lean()
         if (!po) return res.status(404).json({ success: false, error: 'PO not found' })
+        po.items = addProductIds(po.items)
         return res.json({ success: true, data: po })
       }
       const filter = {}
@@ -37,6 +39,7 @@ export default async function handler(req, res) {
         if (vendorDocs.length > 0) filter.vendorId = vendorDocs[0]._id
       }
       const pos = await PurchaseOrder.find(filter).sort({ createdAt: -1 }).lean()
+      pos.forEach(po => { po.items = addProductIds(po.items) })
       return res.json({ success: true, data: pos, total: pos.length })
     }
 
@@ -65,6 +68,7 @@ export default async function handler(req, res) {
         const existingPo = await PurchaseOrder.findOne({ requestId }).lean()
         // Repeated clicks reopen the order already generated for this request.
         if (existingPo) {
+          existingPo.items = addProductIds(existingPo.items)
           return res.status(200).json({
             success: true,
             data: existingPo,
@@ -92,7 +96,7 @@ export default async function handler(req, res) {
         const lineTax = (lineSubtotal - lineDiscount) * (taxRate / 100)
         const lineTotal = lineSubtotal - lineDiscount + lineTax
         subtotal += lineSubtotal; discountTotal += lineDiscount; taxTotal += lineTax
-        return { ...item, quantityOrdered: qty, unitPrice: price, taxRate, discount, lineTotal, quantityAccepted: 0, quantityRemaining: qty }
+        return { ...item, productId: generateProductId(), quantityOrdered: qty, unitPrice: price, taxRate, discount, lineTotal, quantityAccepted: 0, quantityRemaining: qty }
       })
       const dc = Number(deliveryCharge || 0)
       const grandTotal = subtotal - discountTotal + taxTotal + dc
@@ -207,6 +211,13 @@ export default async function handler(req, res) {
       if (!po) return res.status(404).json({ success: false, error: 'PO not found' })
       if (!['DRAFT', 'REVISION_REQUIRED'].includes(po.status)) {
         return res.status(400).json({ success: false, error: 'Only DRAFT or REVISION_REQUIRED POs can be edited' })
+      }
+      if (req.body.items) {
+        const existingProductIds = new Map(po.items.map(item => [String(item._id), getProductId(item)]))
+        req.body.items = req.body.items.map(item => ({
+          ...item,
+          productId: existingProductIds.get(String(item._id || '')) || generateProductId()
+        }))
       }
       const allowed = ['items', 'deliveryAddress', 'deliveryLocation', 'expectedDeliveryDate', 'paymentTerms', 'warrantyTerms', 'notes', 'deliveryCharge']
       allowed.forEach(f => { if (req.body[f] !== undefined) po[f] = req.body[f] })

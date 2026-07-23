@@ -2,6 +2,7 @@ import { connectToDatabase } from '../lib/mongo.js'
 import { GateEntry, DeliverySchedule, PurchaseOrder, User } from '../models.js'
 import crypto from 'crypto'
 import { verifyPoQrToken } from '../lib/poQrToken.js'
+import { addProductIds } from '../lib/productId.js'
 
 const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex')
 
@@ -49,8 +50,9 @@ export default async function handler(req, res) {
           deliveryAddress: po.deliveryAddress,
           deliveryLocation: po.deliveryLocation,
           expectedDeliveryDate: po.expectedDeliveryDate,
-          items: (po.items || []).map(item => ({
+          items: addProductIds(po.items || []).map(item => ({
             itemId: item._id,
+            productId: item.productId,
             description: item.description,
             specification: item.specification,
             brand: item.brand,
@@ -188,7 +190,7 @@ async function recordEntry(ds, method, decision, reason, actorId, actorName, act
       deliveryPersonName: ds.deliveryPersonName, vehicleNumber: ds.vehicleNumber,
       scheduledDate: ds.scheduledDate, slotStart: ds.slotStart, slotEnd: ds.slotEnd,
       deliveryLocation: ds.deliveryLocation, poNumber: ds.poNumber,
-      items: ds.items.map(i => ({ description: i.description, quantityExpected: i.quantityExpected, unit: i.unit }))
+      items: ds.items.map(i => ({ productId: i.productId, description: i.description, quantityExpected: i.quantityExpected, unit: i.unit }))
     }
   })
 }

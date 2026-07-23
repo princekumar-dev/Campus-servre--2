@@ -32,6 +32,8 @@ function CreateGRNModal({ onClose, onSaved }) {
     setSelectedPO(po)
     if (po) {
       setItems(po.items.map(item => ({
+        productId: item.productId,
+        poItemId: item._id,
         poItemDescription: item.description,
         quantityOrdered: item.quantityOrdered,
         quantityPreviouslyAccepted: item.quantityAccepted || 0,
@@ -102,7 +104,10 @@ function CreateGRNModal({ onClose, onSaved }) {
                   return (
                     <div key={idx} className="p-4 bg-slate-50 rounded-xl border border-slate-100 space-y-3">
                       <div className="flex items-center justify-between">
-                        <span className="font-semibold text-slate-800 text-sm">{item.poItemDescription}</span>
+                        <div>
+                          <div className="font-mono text-[11px] font-bold text-violet-700">{item.productId}</div>
+                          <span className="font-semibold text-slate-800 text-sm">{item.poItemDescription}</span>
+                        </div>
                         <div className="text-xs text-slate-400 space-x-2">
                           <span>Ordered: <strong className="text-slate-600">{item.quantityOrdered}</strong></span>
                           <span>Previously: <strong className="text-violet-600">{item.quantityPreviouslyAccepted}</strong></span>
@@ -185,6 +190,7 @@ function GRNCard({ grn }) {
             <table className="w-full text-xs text-left">
               <thead>
                 <tr className="text-[11px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">
+                  <th className="pb-2">Product ID</th>
                   <th className="pb-2">Item</th>
                   <th className="pb-2 text-right">Delivered</th>
                   <th className="pb-2 text-right text-emerald-600">Accepted</th>
@@ -196,6 +202,7 @@ function GRNCard({ grn }) {
               <tbody className="divide-y divide-slate-50">
                 {(grn.items || []).map((item, idx) => (
                   <tr key={idx} className="hover:bg-slate-50/50">
+                    <td className="whitespace-nowrap py-2 pr-4 font-mono font-bold text-violet-700">{item.productId || '—'}</td>
                     <td className="py-2 font-medium text-slate-800">{item.poItemDescription}</td>
                     <td className="py-2 text-right text-slate-600">{item.quantityDeliveredNow}</td>
                     <td className="py-2 text-right text-emerald-600 font-bold">{item.quantityAcceptedNow}</td>

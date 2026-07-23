@@ -1,6 +1,7 @@
 import { connectToDatabase } from '../lib/mongo.js'
 import { DeliverySchedule, PurchaseOrder, GateEntry, User, DeliveryPerson, Vehicle } from '../models.js'
 import crypto from 'crypto'
+import { addProductIds } from '../lib/productId.js'
 
 const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex')
 const genRandom = (len) => crypto.randomBytes(len).toString('hex').slice(0, len)
@@ -77,13 +78,29 @@ export default async function handler(req, res) {
       const year = new Date().getFullYear()
       const rnd = Math.floor(Math.random() * 900000) + 100000
       const deliveryNumber = `DEL-${year}-${rnd}`
+      const poItemsWithIds = addProductIds(po.items)
+      const scheduledItems = Array.isArray(items) && items.length
+        ? items.map(item => {
+            const poItem = poItemsWithIds.find(candidate =>
+              String(candidate._id) === String(item.poItemId || '') ||
+              candidate.productId === item.productId ||
+              candidate.description === item.description
+            )
+            return { ...item, productId: poItem?.productId || item.productId }
+          })
+        : poItemsWithIds.map(item => ({
+            productId: item.productId,
+            description: item.description,
+            quantityExpected: item.quantityRemaining || item.quantityOrdered,
+            unit: item.unit
+          }))
 
       const ds = new DeliverySchedule({
         deliveryNumber, poId, poNumber: po.poNumber, vendorId: po.vendorId, vendorName: po.vendorName,
         deliveryPersonId: deliveryPersonId || null, deliveryPersonName: dpName, deliveryPersonPhone: dpPhone,
         vehicleId: vehicleId || null, vehicleNumber: vNumber,
         scheduledDate: new Date(scheduledDate), slotStart, slotEnd, deliveryLocation, challanNumber,
-        items: items || po.items.map(i => ({ description: i.description, quantityExpected: i.quantityRemaining || i.quantityOrdered, unit: i.unit })),
+        items: scheduledItems,
         status: 'SCHEDULED',
         statusHistory: [{ oldStatus: '', newStatus: 'SCHEDULED', actorId, actorName, comment: 'Delivery scheduled', createdAt: new Date() }]
       })

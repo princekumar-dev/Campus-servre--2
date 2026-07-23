@@ -254,6 +254,7 @@ export default function PurchaseOrderDetails() {
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-slate-100 text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  <th className="px-6 py-3">Product ID</th>
                   <th className="px-6 py-3">Description</th>
                   <th className="px-6 py-3 text-right">Ordered</th>
                   <th className="px-6 py-3 text-right">Accepted</th>
@@ -268,6 +269,7 @@ export default function PurchaseOrderDetails() {
                   const progress = ((item.quantityOrdered - remaining) / item.quantityOrdered) * 100
                   return (
                     <tr key={idx} className="hover:bg-slate-50/50">
+                      <td className="whitespace-nowrap px-6 py-4 font-mono text-xs font-bold text-violet-700">{item.productId || '—'}</td>
                       <td className="px-6 py-4">
                         <div className="font-semibold text-slate-800">{item.description}</div>
                         {item.specification && <div className="text-xs text-slate-400 mt-0.5">{item.specification}</div>}
