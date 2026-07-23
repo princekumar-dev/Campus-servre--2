@@ -1,0 +1,243 @@
+import { getUserFriendlyMessage } from './apiErrorMessages'
+import { getAuthOrNull } from './auth'
+
+const inFlight = new Map();
+const cache = new Map();
+
+function buildUrl(url) {
+  if (!url) return url;
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  const origin = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+  const path = url.startsWith('/') ? url : `/${url}`;
+  return `${origin}${path}`;
+}
+
+function getAuthHeaders() {
+  const auth = getAuthOrNull();
+  if (!auth || !auth.token) return {};
+  
+  return {
+    'Authorization': `Bearer ${auth.token}`,
+    'X-User-Id': auth.id || '',
+    'X-User-Role': auth.role || '',
+    'X-User-Email': auth.email || ''
+  };
+}
+
+async function request(method, url, opts = {}) {
+  const {
+    cache: useCache = true,
+    ttl = method === 'GET' ? 60 * 1000 : 0, // Cache GET requests for 60s, don't cache mutations
+    // Increase default timeout to 90s to handle batch operations
+    // Batch verify/dispatch operations can take 30-60s or more depending on server load
+    timeout = method === 'GET' ? 60 * 1000 : 90 * 1000, // GET: 60s, POST/PATCH: 90s
+    dedupe = true,
+    retry = method === 'GET' ? 2 : 0, // Retry GET requests, not mutations
+    retryDelay = 500,
+    body,
+    headers,
+    raw = false,
+    responseType = 'json',
+    // dispatch: whether to dispatch client-side events after non-GET mutations
+    // dispatchEvent: string or array of events to dispatch (overrides auto-mapping)
+    dispatch = true,
+    dispatchEvent = null,
+  } = opts;
+
+  const bodyKey = body && !(body instanceof FormData) && !raw ? JSON.stringify(body) : (body instanceof FormData ? '[FormData]' : '');
+  const key = `${method}:${url}:${bodyKey}`;
+
+  if (useCache && cache.has(key)) {
+    const entry = cache.get(key);
+    if (Date.now() - entry.ts < (entry.ttl || ttl)) return entry.data;
+    cache.delete(key);
+  }
+
+  // Track active API requests globally
+  let activeCount = Number(window.__activeApiRequests || 0) + 1;
+  window.__activeApiRequests = activeCount;
+  try {
+    window.dispatchEvent(new CustomEvent('apiProgress', { detail: { count: activeCount } }));
+  } catch (e) {}
+
+  if (dedupe && inFlight.has(key)) {
+    // Make sure we decrement if we return a deduped request early because that promise will also hit the finally
+    activeCount = Math.max(0, Number(window.__activeApiRequests || 0) - 1);
+    window.__activeApiRequests = activeCount;
+    try {
+      window.dispatchEvent(new CustomEvent('apiProgress', { detail: { count: activeCount } }));
+    } catch (e) {}
+    return inFlight.get(key);
+  }
+
+  const p = (async () => {
+    let attempt = 0;
+    while (true) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => {
+        try {
+          controller.abort(new DOMException(`Request timeout of ${timeout}ms exceeded`, 'TimeoutError'));
+        } catch (e) {
+          controller.abort();
+        }
+      }, timeout);
+      try {
+        let fetchBody;
+        const contentTypeHeader = {};
+
+        if (body && !(body instanceof FormData) && !raw) {
+          fetchBody = JSON.stringify(body);
+          contentTypeHeader['Content-Type'] = 'application/json';
+        } else {
+          fetchBody = body;
+        }
+
+        const authHeaders = getAuthHeaders();
+        const mergedHeaders = Object.assign({}, authHeaders, headers || {}, contentTypeHeader);
+
+        const res = await fetch(buildUrl(url), {
+          method,
+          headers: mergedHeaders,
+          body: fetchBody,
+          signal: controller.signal,
+        });
+
+        clearTimeout(timer);
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => null);
+          
+          // If 401, clear stale auth and redirect to login
+          if (res.status === 401) {
+            try {
+              localStorage.removeItem('auth')
+              localStorage.removeItem('isLoggedIn')
+              localStorage.removeItem('userRole')
+              localStorage.removeItem('userId')
+              window.dispatchEvent(new Event('authStateChanged'))
+              if (window.location.pathname !== '/login') {
+                window.location.href = '/login'
+              }
+            } catch (e) {}
+          }
+          
+          const e = new Error();
+          e.status = res.status;
+          e.data = errData;
+          e.message = getUserFriendlyMessage(
+            { ...e, status: res.status, data: errData },
+            'Request failed. Please try again.'
+          );
+          throw e;
+        }
+
+        let data = null;
+        if (responseType === 'json') {
+          data = await res.json().catch(() => null);
+        } else if (responseType === 'blob') {
+          data = await res.blob();
+        } else if (responseType === 'arrayBuffer') {
+          data = await res.arrayBuffer();
+        } else if (responseType === 'text') {
+          data = await res.text();
+        }
+
+        if (useCache && responseType === 'json') {
+          cache.set(key, { ts: Date.now(), data, ttl });
+        }
+
+        // Invalidate cached GET responses after successful mutations to avoid stale UI
+        if (method !== 'GET') {
+          try { cache.clear(); } catch (e) { /* ignore */ }
+        }
+
+        // After successful mutations (non-GET), optionally dispatch client-side events
+        try {
+          if (method !== 'GET' && dispatch) {
+            // Determine events to dispatch
+            let events = []
+            if (dispatchEvent) {
+              events = Array.isArray(dispatchEvent) ? dispatchEvent : [dispatchEvent]
+            } else {
+              const lower = buildUrl(url).toLowerCase()
+              if (lower.includes('/api/requests')) events.push('requestsUpdated')
+              if (lower.includes('/api/leaves')) events.push('notificationsUpdated')
+              if (lower.includes('/api/staff-approval')) events.push('notificationsUpdated')
+              if (lower.includes('/api/notifications')) events.push('notificationsUpdated')
+              if (lower.includes('/api/quotations') || lower.includes('/api/work-orders')) events.push('requestsUpdated', 'notificationsUpdated')
+            }
+
+            // Dispatch unique events
+            Array.from(new Set(events)).forEach(ev => {
+              try { window.dispatchEvent(new Event(ev)) } catch (e) { /* ignore */ }
+            })
+          }
+        } catch (e) {
+          // Non-fatal
+          console.debug('apiClient dispatch error', e)
+        }
+
+        return data;
+      } catch (err) {
+        // Always clear the timeout, even on error
+        clearTimeout(timer);
+        
+        // Check if this is an abort/timeout error
+        const isAbort = err && (
+          err.name === 'AbortError' ||
+          err.name === 'TimeoutError' ||
+          (err.message && err.message.includes('aborted'))
+        );
+        
+        attempt += 1;
+
+        if (isAbort) {
+          const timeoutErr = new Error(`Request timeout of ${timeout}ms exceeded`);
+          timeoutErr.name = 'TimeoutError';
+          timeoutErr.code = 'ETIMEDOUT';
+          throw timeoutErr;
+        }
+        
+        // Client errors are deterministic. Retrying them (especially 429s) only
+        // consumes more of the rate-limit budget and delays the useful error.
+        // Retry only network failures and transient server errors.
+        const isRetryable = !err?.status || err.status >= 500;
+        if (!isRetryable || attempt > retry) {
+          throw err;
+        }
+        
+        // wait with exponential backoff before retrying
+        const delay = Math.max(0, retryDelay * Math.pow(2, attempt - 1));
+        await new Promise(r => setTimeout(r, delay));
+        // continue to next attempt
+      }
+    }
+  })();
+
+  inFlight.set(key, p);
+  // Keep the inFlight entry until the promise fully settles. Previously
+  // the entry was deleted inside the retry loop's finally, which allowed
+  // duplicate requests to start while retries were still ongoing.
+  const cleanup = () => {
+    try { inFlight.delete(key); } catch (e) { /* ignore */ }
+    const updatedCount = Math.max(0, Number(window.__activeApiRequests || 0) - 1);
+    window.__activeApiRequests = updatedCount;
+    try {
+      window.dispatchEvent(new CustomEvent('apiProgress', { detail: { count: updatedCount } }));
+    } catch (e) {}
+  };
+  // `p.finally(cleanup)` creates a second rejected promise when the request
+  // fails. If nobody observes that derived promise the browser reports an
+  // "Uncaught (in promise)" even though the caller handled the original one.
+  p.then(cleanup, cleanup);
+
+  return p;
+}
+
+export default {
+  get: (url, opts) => request('GET', url, opts),
+  post: (url, body, opts = {}) => request('POST', url, Object.assign({}, opts, { body })),
+  put: (url, body, opts = {}) => request('PUT', url, Object.assign({}, opts, { body })),
+  patch: (url, body, opts = {}) => request('PATCH', url, Object.assign({}, opts, { body })),
+  del: (url, opts) => request('DELETE', url, opts),
+};
