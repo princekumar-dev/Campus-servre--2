@@ -127,6 +127,7 @@ function Header() {
           <Link className={linkClass('/requests')} to="/requests">Assigned Requests</Link>
           <Link className={linkClass('/vendors')} to="/vendors">Vendors</Link>
           <Link className={linkClass('/purchase-orders')} to="/purchase-orders">Purchase Orders</Link>
+          <Link className={linkClass('/grn')} to="/grn">GRN</Link>
         </>
       )}
 

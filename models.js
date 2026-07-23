@@ -385,6 +385,8 @@ const GoodsReceiptSchema = new mongoose.Schema({
   deliveryScheduleId: { type: mongoose.Schema.Types.ObjectId, ref: 'DeliverySchedule' },
   grnType: { type: String, enum: ['PARTIAL', 'FINAL', 'REJECTION', 'RETURN'], required: true },
   status: { type: String, enum: ['DRAFT', 'FINALIZED'], default: 'DRAFT' },
+  source: { type: String, enum: ['MANUAL', 'PO_QR'], default: 'MANUAL' },
+  gateVerifiedAt: { type: Date },
   receivedBy: { type: String },
   receivedByName: { type: String },
   receivedAt: { type: Date, default: Date.now },

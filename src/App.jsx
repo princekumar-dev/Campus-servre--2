@@ -39,6 +39,7 @@ const GateScanner = lazy(() => import('./pages/GateScanner'))
 const GateDashboard = lazy(() => import('./pages/GateDashboard'))
 const GateHistory = lazy(() => import('./pages/GateHistory'))
 const GateVehicles = lazy(() => import('./pages/GateVehicles'))
+const GatePOVerification = lazy(() => import('./pages/GatePOVerification'))
 const GRN = lazy(() => import('./pages/GRN'))
 const VendorDashboard = lazy(() => import('./pages/VendorDashboard'))
 const VendorInvoices = lazy(() => import('./pages/VendorInvoices'))
@@ -59,10 +60,12 @@ const RootRedirect = () => {
 
 // Protected route wrapper with optional role checks
 const ProtectedRoute = ({ children, allowedRoles }) => {
+  const location = useLocation()
   const parsed = getAuthOrNull()
   if (!parsed || !parsed.isAuthenticated) {
     clearStoredAuth()
-    return <Navigate to="/login" replace />
+    const next = `${location.pathname}${location.search}`
+    return <Navigate to={`/login?next=${encodeURIComponent(next)}`} replace />
   }
   
   if (allowedRoles && !allowedRoles.includes(parsed.role)) {
@@ -223,12 +226,13 @@ function AppContent() {
                   
                   {/* Gate routes */}
                   <Route path="/gate" element={<ProtectedRoute allowedRoles={['admin', 'super_admin', 'gate']}><GateScanner /></ProtectedRoute>} />
+                  <Route path="/gate/po/:id" element={<ProtectedRoute allowedRoles={['gate', 'super_admin', 'receiving_officer', 'manager']}><GatePOVerification /></ProtectedRoute>} />
                   <Route path="/gate/dashboard" element={<ProtectedRoute allowedRoles={['admin', 'super_admin', 'gate']}><GateDashboard /></ProtectedRoute>} />
                   <Route path="/gate/history" element={<ProtectedRoute allowedRoles={['admin', 'super_admin', 'gate']}><GateHistory /></ProtectedRoute>} />
                   <Route path="/gate/vehicles" element={<ProtectedRoute allowedRoles={['admin', 'super_admin', 'gate']}><GateVehicles /></ProtectedRoute>} />
                   
                   {/* GRN routes */}
-                  <Route path="/grn" element={<ProtectedRoute allowedRoles={['super_admin', 'receiving_officer', 'accounts']}><GRN /></ProtectedRoute>} />
+                  <Route path="/grn" element={<ProtectedRoute allowedRoles={['super_admin', 'receiving_officer', 'accounts', 'manager']}><GRN /></ProtectedRoute>} />
                   
                   {/* Vendor Portal */}
                   <Route path="/vendor/dashboard" element={<ProtectedRoute allowedRoles={['vendor']}><VendorDashboard /></ProtectedRoute>} />

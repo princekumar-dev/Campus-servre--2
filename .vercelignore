@@ -1,0 +1,16 @@
+# CampusServe's API runs as one Express service on Render. Vercel hosts only
+# the Vite frontend and forwards /api/* through vercel.json, so backend source
+# files must not be detected and packaged as Vercel serverless functions.
+api/
+backend/
+lib/
+scripts/
+models.js
+server.js
+seed-users.js
+
+# Local-only development and agent metadata
+.agents/
+.vscode/
+node_modules/
+dist/

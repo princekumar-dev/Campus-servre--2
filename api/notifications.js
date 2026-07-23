@@ -8,6 +8,7 @@ import {
   getAllActiveSubscriptions,
   storeNotification,
   getUserNotifications,
+  getUnreadNotificationCount,
   markNotificationAsRead
 } from '../lib/notificationService.js'
 
@@ -242,8 +243,9 @@ router.get('/user/:email', async (req, res) => {
   }
 })
 
-// Mark notification as read
-router.put('/:id/read', async (req, res) => {
+// Mark notification as read. The web client uses PATCH, while PUT remains
+// supported for backwards compatibility with older clients.
+const handleMarkNotificationAsRead = async (req, res) => {
   try {
     const { id } = req.params
 
@@ -264,8 +266,39 @@ router.put('/:id/read', async (req, res) => {
     console.error('Mark as read error:', error)
     res.status(500).json({ 
       success: false, 
-      message: 'Internal server error' 
+      message: 'Internal server error'
     })
+  }
+}
+
+router.put('/:id/read', handleMarkNotificationAsRead)
+router.patch('/:id/read', handleMarkNotificationAsRead)
+
+// Identify which user owns a browser push endpoint.
+router.post('/subscription-check', async (req, res) => {
+  try {
+    const endpoint = String(req.body?.endpoint || '').trim()
+    if (!endpoint) {
+      return res.status(400).json({ success: false, message: 'endpoint is required' })
+    }
+
+    const mongoose = await connectToDatabase()
+    const subscription = await mongoose.connection.db.collection('push_subscriptions').findOne(
+      { 'subscription.endpoint': endpoint },
+      { projection: { userEmail: 1, active: 1, status: 1 } }
+    )
+
+    if (!subscription) return res.json({ success: true, found: false })
+
+    return res.json({
+      success: true,
+      found: true,
+      userEmail: subscription.userEmail,
+      active: subscription.active === true || subscription.status === 'active'
+    })
+  } catch (error) {
+    console.error('Subscription check error:', error)
+    return res.status(500).json({ success: false, message: 'Internal server error' })
   }
 })
 
@@ -322,9 +355,8 @@ router.get('/', async (req, res, next) => {
     try {
       const userEmail = req.headers['x-user-email']
       if (!userEmail) return res.json({ success: true, unreadCount: 0 })
-      const result = await getUserNotifications(userEmail, 100)
-      const unread = (result.notifications || []).filter(n => !n.read).length
-      return res.json({ success: true, unreadCount: unread })
+      const result = await getUnreadNotificationCount(userEmail)
+      return res.json({ success: result.success, unreadCount: result.unreadCount || 0 })
     } catch (err) { return res.json({ success: true, unreadCount: 0 }) }
   }
   next()

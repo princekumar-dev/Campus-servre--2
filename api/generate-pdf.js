@@ -2,8 +2,10 @@ import { connectToDatabase } from '../lib/mongo.js'
 import { ServiceRequest, PurchaseOrder } from '../models.js'
 import PDFDocument from 'pdfkit'
 import sharp from 'sharp'
+import QRCode from 'qrcode'
 import fs from 'fs'
 import path from 'path'
+import { createPoQrToken } from '../lib/poQrToken.js'
 
 const LOGO_PATH = (() => {
   const logoPath = path.resolve(process.cwd(), 'public', 'images', 'mseclogo.png')
@@ -18,6 +20,14 @@ const PDF = {
 
 const money = value => `Rs. ${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const dateText = value => value ? new Date(value).toLocaleDateString('en-IN') : 'Not specified'
+
+function getPublicBaseUrl(req) {
+  const configured = process.env.FRONTEND_URL || process.env.PUBLIC_BASE_URL
+  if (configured) return configured.replace(/\/+$/, '')
+  const protocol = String(req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0]
+  const host = String(req.headers['x-forwarded-host'] || req.headers.host || '').split(',')[0]
+  return `${protocol}://${host}`.replace(/\/+$/, '')
+}
 
 function drawInstitutionHeader(doc, title, reference = '') {
   const left = doc.page.margins.left
@@ -128,10 +138,13 @@ function addPageFooters(doc) {
   const right = doc.page.width - doc.page.margins.right
   for (let page = pages.start; page < pages.start + pages.count; page++) {
     doc.switchToPage(page)
-    doc.strokeColor(PDF.border).lineWidth(0.7).moveTo(left, 792).lineTo(right, 792).stroke()
+    // Keep the footer inside PDFKit's printable area. Drawing text below the
+    // bottom margin makes PDFKit add a new overflow page for every footer.
+    const footerY = doc.page.height - doc.page.margins.bottom - 12
+    doc.strokeColor(PDF.border).lineWidth(0.7).moveTo(left, footerY - 6).lineTo(right, footerY - 6).stroke()
     doc.fillColor(PDF.muted).font('Helvetica').fontSize(7)
-      .text('System-generated official document | MSEC CampusServe', left, 800, { width: 360 })
-    doc.text(`Page ${page + 1} of ${pages.count}`, right - 100, 800, { width: 100, align: 'right' })
+      .text('System-generated official document | MSEC CampusServe', left, footerY, { width: 360, lineBreak: false })
+    doc.text(`Page ${page + 1} of ${pages.count}`, right - 100, footerY, { width: 100, align: 'right', lineBreak: false })
   }
 }
 
@@ -148,7 +161,16 @@ async function loadEvidenceImage(url) {
       input = Buffer.from(bytes)
     } else return null
     // PDFKit accepts JPEG/PNG; normalize WEBP and camera formats safely.
-    return await sharp(input).rotate().jpeg({ quality: 82 }).toBuffer()
+    const buffer = await sharp(input).rotate().jpeg({ quality: 82 }).toBuffer()
+    // Validate the image has actual content (check size and dimensions)
+    if (buffer.length < 1024) {
+      return null
+    }
+    const metadata = await sharp(buffer).metadata()
+    if (!metadata.width || !metadata.height || metadata.width < 10 || metadata.height < 10) {
+      return null
+    }
+    return buffer
   } catch (error) {
     console.warn('Skipping unreadable PO evidence image:', error.message)
     return null
@@ -284,10 +306,26 @@ export default async function handler(req, res) {
     if (type === 'purchase-order') {
       const po = await PurchaseOrder.findById(id).lean()
       if (!po) return res.status(404).json({ success: false, error: 'Purchase Order not found' })
+      const poQrToken = createPoQrToken(po._id)
+      const gateVerificationUrl = `${getPublicBaseUrl(req)}/gate/po/${po._id}?token=${encodeURIComponent(poQrToken)}`
+      const gateQrImage = await QRCode.toBuffer(gateVerificationUrl, {
+        type: 'png',
+        width: 220,
+        margin: 1,
+        errorCorrectionLevel: 'M'
+      })
       const linkedRequest = po.requestId ? await ServiceRequest.findById(po.requestId).lean() : null
-      const photoEvidence = (linkedRequest?.evidence || []).filter(item =>
-        ['ISSUE_PHOTO', 'WORK_PHOTO'].includes(item.kind) || /^data:image\//.test(item.url || '')
-      )
+      const photoEvidence = (linkedRequest?.evidence || []).filter(item => {
+        const url = item.url || ''
+        if (!url || url.length < 20) return false
+        if (/^data:image\/(jpeg|png|webp);base64,/.test(url)) {
+          return url.length > 50
+        }
+        if (/^https?:\/\//.test(url)) {
+          return /\.(jpg|jpeg|png|webp|gif|bmp|svg)(\?|$)/i.test(url) || url.includes('image')
+        }
+        return false
+      })
       const attachedImages = []
       for (const evidence of photoEvidence) {
         const image = await loadEvidenceImage(evidence.url)
@@ -326,8 +364,12 @@ export default async function handler(req, res) {
         const logoWidth = 64
         const logoHeight = 70
         const textX = left + logoWidth + 14
-        const textWidth = width - logoWidth - 14
+        const qrSize = 58
+        const textWidth = width - logoWidth - qrSize - 24
         if (LOGO_PATH) doc.image(LOGO_PATH, left, headerTop, { width: logoWidth, height: logoHeight })
+        doc.image(gateQrImage, right - qrSize, headerTop, { width: qrSize, height: qrSize })
+        doc.fillColor(PDF.muted).font('Helvetica-Bold').fontSize(5.5)
+          .text('GATE VERIFY', right - qrSize, headerTop + qrSize + 2, { width: qrSize, align: 'center', lineBreak: false })
         doc.fillColor(PDF.ink).font('Helvetica-Bold').fontSize(13)
           .text('MEENAKSHI SUNDARARAJAN ENGINEERING COLLEGE', textX, headerTop + 2, { width: textWidth, align: 'center' })
         doc.fillColor(PDF.muted).font('Helvetica').fontSize(7.5)
@@ -440,10 +482,13 @@ export default async function handler(req, res) {
       const pages = doc.bufferedPageRange()
       for (let page = pages.start; page < pages.start + pages.count; page++) {
         doc.switchToPage(page)
-        doc.strokeColor(PDF.border).lineWidth(0.6).moveTo(left, 797).lineTo(right, 797).stroke()
+        // Footer text must remain above the bottom margin or PDFKit will
+        // silently append blank overflow pages.
+        const footerY = doc.page.height - doc.page.margins.bottom - 12
+        doc.strokeColor(PDF.border).lineWidth(0.6).moveTo(left, footerY - 6).lineTo(right, footerY - 6).stroke()
         doc.fillColor(PDF.muted).font('Helvetica').fontSize(7)
-          .text(`System-generated official document · ${new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}`, left, 807, { width: 350 })
-        doc.text(`Page ${page + 1} of ${pages.count}`, 450, 807, { width: 103, align: 'right' })
+          .text(`System-generated official document · ${new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}`, left, footerY, { width: 350, lineBreak: false })
+        doc.text(`Page ${page + 1} of ${pages.count}`, 450, footerY, { width: 103, align: 'right', lineBreak: false })
       }
       doc.end()
       return

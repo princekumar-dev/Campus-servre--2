@@ -1,5 +1,7 @@
 import { connectToDatabase } from '../lib/mongo.js'
 import { GoodsReceipt, PurchaseOrder, DeliverySchedule, User } from '../models.js'
+import { verifyPoQrToken } from '../lib/poQrToken.js'
+import { storeNotification } from '../lib/notificationService.js'
 
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end()
@@ -9,6 +11,7 @@ export default async function handler(req, res) {
   }
 
   const actorId = req.user ? req.user.id : (req.headers['x-user-id'] || 'system')
+  const actorRole = req.user ? req.user.role : (req.headers['x-user-role'] || '')
   const actor = req.user || await User.findById(actorId).lean()
   const actorName = actor ? actor.name : 'Unknown'
 
@@ -32,13 +35,23 @@ export default async function handler(req, res) {
 
     // ── POST /api/grn — Create GRN ────────────────────────────────────────────
     if (req.method === 'POST' && !id) {
-      const { poId: bodyPoId, deliveryScheduleId, items, remarks } = req.body
+      if (!['gate', 'receiving_officer', 'manager', 'admin', 'super_admin'].includes(actorRole)) {
+        return res.status(403).json({ success: false, error: 'You are not authorized to record a GRN' })
+      }
+
+      const { poId: bodyPoId, deliveryScheduleId, items, remarks, qrToken } = req.body
       if (!bodyPoId || !items || !items.length) {
         return res.status(400).json({ success: false, error: 'poId and items are required' })
+      }
+      if (actorRole === 'gate' && verifyPoQrToken(qrToken) !== String(bodyPoId)) {
+        return res.status(403).json({ success: false, error: 'A valid PO QR code is required for gate receipt entry' })
       }
 
       const po = await PurchaseOrder.findById(bodyPoId)
       if (!po) return res.status(404).json({ success: false, error: 'PO not found' })
+      if (!['ACTIVE', 'PARTIALLY_FULFILLED'].includes(po.status)) {
+        return res.status(409).json({ success: false, error: `GRN cannot be created while PO is ${po.status.replace(/_/g, ' ').toLowerCase()}` })
+      }
 
       // Validate quantities per spec:
       // accepted + damaged + rejected <= delivered
@@ -51,14 +64,25 @@ export default async function handler(req, res) {
         const damaged = Number(item.quantityDamaged || 0)
         const rejected = Number(item.quantityRejected || 0)
 
+        if (![deliveredNow, acceptedNow, damaged, rejected].every(Number.isFinite) || [deliveredNow, acceptedNow, damaged, rejected].some(value => value < 0)) {
+          return res.status(400).json({ success: false, error: `Quantities must be valid non-negative numbers for item: ${item.poItemDescription}` })
+        }
         if (acceptedNow + damaged + rejected > deliveredNow) {
           return res.status(400).json({ success: false, error: `Accepted + Damaged + Rejected cannot exceed Delivered for item: ${item.poItemDescription}` })
         }
 
         // Find PO item and check cumulative
-        const poItem = po.items.find(pi => pi.description === item.poItemDescription)
-        if (poItem) {
-          const prevAccepted = Number(item.quantityPreviouslyAccepted || 0)
+        const poItem = po.items.find(pi =>
+          (item.poItemId && String(pi._id) === String(item.poItemId)) ||
+          (!item.poItemId && pi.description === item.poItemDescription)
+        )
+        if (!poItem) {
+          return res.status(400).json({ success: false, error: `PO item was not found: ${item.poItemDescription}` })
+        }
+        {
+          // Always use the server's current accepted quantity. Do not trust a
+          // stale or edited client-side "previously accepted" value.
+          const prevAccepted = Number(poItem.quantityAccepted || 0)
           const cumulativeAccepted = prevAccepted + acceptedNow
           if (cumulativeAccepted > poItem.quantityOrdered) {
             return res.status(400).json({ success: false, error: `Cumulative accepted quantity exceeds ordered for: ${item.poItemDescription}` })
@@ -71,6 +95,7 @@ export default async function handler(req, res) {
           poItem.quantityAccepted = cumulativeAccepted
           poItem.quantityRemaining = remaining
           item.quantityRemaining = remaining
+          item.quantityPreviouslyAccepted = prevAccepted
         }
 
         processedItems.push({
@@ -80,6 +105,9 @@ export default async function handler(req, res) {
           quantityDamaged: damaged,
           quantityRejected: rejected
         })
+      }
+      if (!processedItems.some(item => item.quantityDeliveredNow > 0)) {
+        return res.status(400).json({ success: false, error: 'Enter a delivered quantity for at least one item' })
       }
 
       // Determine GRN type
@@ -93,6 +121,8 @@ export default async function handler(req, res) {
       const grn = new GoodsReceipt({
         grnNumber, poId: bodyPoId, poNumber: po.poNumber, deliveryScheduleId,
         grnType, status: 'DRAFT', receivedBy: actorId, receivedByName: actorName,
+        source: qrToken ? 'PO_QR' : 'MANUAL',
+        gateVerifiedAt: qrToken ? new Date() : undefined,
         remarks, items: processedItems
       })
       await grn.save()
@@ -112,6 +142,22 @@ export default async function handler(req, res) {
           ds.statusHistory.push({ oldStatus: oldDsStatus, newStatus: ds.status, actorId, actorName, comment: `${grnType} GRN recorded`, createdAt: new Date() })
           await ds.save()
         }
+      }
+
+      // Make gate-created receipts immediately visible to the responsible
+      // managers through their notification bell and the shared GRN section.
+      if (qrToken) {
+        const managers = await User.find({ role: { $in: ['manager', 'super_admin'] }, isActive: true })
+          .select('email')
+          .lean()
+        await Promise.allSettled(managers.map(manager => storeNotification({
+          userEmail: manager.email,
+          title: `Gate GRN created: ${grnNumber}`,
+          body: `${po.poNumber} from ${po.vendorName} was manually verified at the gate.`,
+          url: '/grn',
+          type: 'gate_grn_created',
+          data: { grnId: grn._id, poId: po._id, poNumber: po.poNumber }
+        })))
       }
 
       return res.status(201).json({ success: true, data: grn, grnType, poStatus: po.status })

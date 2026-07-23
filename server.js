@@ -188,11 +188,11 @@ import paymentsHandler from './api/payments.js';
 import reportsHandler from './api/reports.js';
 import generatePdfHandler from './api/generate-pdf.js';
 import notificationsRouter from './api/notifications.js';
-import vendorsHandler from './api/vendors.js';
-import purchaseOrdersHandler from './api/purchase-orders.js';
-import deliveriesHandler from './api/deliveries.js';
-import gateHandler from './api/gate.js';
-import grnHandler from './api/grn.js';
+import vendorsHandler from './backend/vendors.js';
+import purchaseOrdersHandler from './backend/purchase-orders.js';
+import deliveriesHandler from './backend/deliveries.js';
+import gateHandler from './backend/gate.js';
+import grnHandler from './backend/grn.js';
 
 // Debug endpoint to verify server is updated
 app.get('/api/debug', (req, res) => {

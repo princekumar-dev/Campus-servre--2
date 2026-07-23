@@ -504,7 +504,7 @@ class PushNotificationManager {
       }
       
       // Ask server who this subscription belongs to
-      const data = await apiClient.post('/api/subscription-check', { endpoint: subscription.endpoint })
+      const data = await apiClient.post('/api/notifications/subscription-check', { endpoint: subscription.endpoint })
 
       if (data.found) {
         console.log(`🔍 This browser is subscribed as: ${data.userEmail}`);

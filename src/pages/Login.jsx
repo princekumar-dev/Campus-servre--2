@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { useAlert } from '../components/AlertContext'
 import apiClient from '../utils/apiClient'
 import { Lock } from 'lucide-react'
@@ -9,6 +9,7 @@ function Login() {
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { showSuccess, showError } = useAlert()
 
   const handleLogin = async (e) => {
@@ -40,7 +41,11 @@ function Login() {
         
         window.dispatchEvent(new Event('authStateChanged'))
         showSuccess('Welcome Back!', `Logged in successfully as ${res.user.name}`)
-        navigate('/dashboard')
+        const requestedPath = searchParams.get('next') || ''
+        const safeNextPath = requestedPath.startsWith('/') && !requestedPath.startsWith('//')
+          ? requestedPath
+          : '/dashboard'
+        navigate(safeNextPath, { replace: true })
       } else {
         showError('Login Failed', res.error || 'Invalid credentials')
       }

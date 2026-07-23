@@ -1,6 +1,7 @@
 import { connectToDatabase } from '../lib/mongo.js'
 import { GateEntry, DeliverySchedule, PurchaseOrder, User } from '../models.js'
 import crypto from 'crypto'
+import { verifyPoQrToken } from '../lib/poQrToken.js'
 
 const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex')
 
@@ -14,9 +15,51 @@ export default async function handler(req, res) {
   const actorId = req.user ? req.user.id : (req.headers['x-user-id'] || 'system')
   const actor = req.user || await User.findById(actorId).lean()
   const actorName = actor ? actor.name : 'Unknown'
+  const actorRole = req.user?.role || req.headers['x-user-role'] || ''
 
   try {
-    const { action } = req.query
+    const { action, token } = req.query
+
+    // ── GET /api/gate?action=po-details&token=... — PO QR landing data ───────
+    if (req.method === 'GET' && action === 'po-details') {
+      if (!['gate', 'super_admin', 'receiving_officer', 'manager'].includes(actorRole)) {
+        return res.status(403).json({ success: false, error: 'Gate verification access is required' })
+      }
+
+      const poId = verifyPoQrToken(token)
+      if (!poId) return res.status(400).json({ success: false, error: 'Invalid or altered purchase-order QR code' })
+
+      const po = await PurchaseOrder.findById(poId).lean()
+      if (!po) return res.status(404).json({ success: false, error: 'Purchase Order not found' })
+      if (!['ACTIVE', 'PARTIALLY_FULFILLED'].includes(po.status)) {
+        return res.status(409).json({ success: false, error: `This PO is ${po.status.replace(/_/g, ' ').toLowerCase()} and cannot receive goods` })
+      }
+
+      return res.json({
+        success: true,
+        data: {
+          _id: po._id,
+          poNumber: po.poNumber,
+          status: po.status,
+          vendorName: po.vendorName,
+          vendorEmail: po.vendorEmail,
+          deliveryAddress: po.deliveryAddress,
+          deliveryLocation: po.deliveryLocation,
+          expectedDeliveryDate: po.expectedDeliveryDate,
+          items: (po.items || []).map(item => ({
+            itemId: item._id,
+            description: item.description,
+            specification: item.specification,
+            brand: item.brand,
+            model: item.model,
+            unit: item.unit,
+            quantityOrdered: item.quantityOrdered,
+            quantityAccepted: item.quantityAccepted || 0,
+            quantityRemaining: item.quantityRemaining ?? item.quantityOrdered
+          }))
+        }
+      })
+    }
 
     // ── GET /api/gate?action=today — Today's entries ────────────────────────
     if (req.method === 'GET' && action === 'today') {
