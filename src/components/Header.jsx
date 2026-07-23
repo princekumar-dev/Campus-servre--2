@@ -1,6 +1,6 @@
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { useEffect, useRef, useState } from 'react'
-import { Bell, ChevronDown, ClipboardList, LogOut, Menu, PlusCircle, X, ShoppingCart, Building2, Truck, QrCode, ClipboardCheck } from 'lucide-react'
+import { Bell, ChevronDown, ClipboardList, PlusCircle, ShoppingCart, Building2, Truck, QrCode, ClipboardCheck } from 'lucide-react'
 import { getAuthOrNull } from '../utils/auth'
 import Settings from './Settings'
 import CampusServeNotifications from './CampusServeNotifications'
@@ -15,11 +15,9 @@ export const isNavPathActive = (currentPath, navPath) => {
 
 function Header() {
   const location = useLocation()
-  const navigate = useNavigate()
   const isAuthPage = ['/login', '/signup'].includes(location.pathname)
   const [user, setUser] = useState(null)
   const [showDropdown, setShowDropdown] = useState(false)
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
   const [notifCount, setNotifCount] = useState(0)
@@ -65,7 +63,6 @@ function Header() {
   }, [])
 
   useEffect(() => {
-    setIsMobileMenuOpen(false)
     setShowDropdown(false)
     setIsSettingsOpen(false)
     setIsNotificationsOpen(false)
@@ -73,14 +70,7 @@ function Header() {
 
   const toggleNotifications = () => {
     setIsSettingsOpen(false)
-    setIsMobileMenuOpen(false)
     setIsNotificationsOpen(value => !value)
-  }
-
-  const handleLogout = () => {
-    ;['auth', 'isLoggedIn', 'userEmail', 'userRole', 'userId'].forEach((key) => localStorage.removeItem(key))
-    window.dispatchEvent(new Event('authStateChanged'))
-    navigate('/login')
   }
 
   const linkClass = (path) => {
@@ -223,27 +213,11 @@ function Header() {
       <div className={`${isAuthPage ? 'hidden' : 'flex'} items-center justify-end gap-1 lg:hidden`}>
         {user && <button onClick={toggleNotifications} className={`relative flex flex-shrink-0 items-center justify-center rounded-lg p-1.5 text-[#111418] transition-colors duration-200 sm:p-2 ${isNotificationsOpen ? 'bg-violet-100 text-violet-700' : 'hover:bg-violet-50'}`} aria-label="Notifications" aria-expanded={isNotificationsOpen}><Bell className="h-5 w-5 sm:h-6 sm:w-6" />{notifCount > 0 && <span className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full border border-white bg-violet-600 px-0.5 text-[8px] font-black text-white">{notifCount > 9 ? '9+' : notifCount}</span>}</button>}
         {user && (
-          <button onClick={() => setIsSettingsOpen(true)} className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-purple-700 text-xs font-bold text-white sm:h-9 sm:w-9" aria-label="Open account settings">
+          <button onClick={() => setIsSettingsOpen(true)} className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border-2 border-white bg-slate-900 text-sm font-black text-white shadow-md shadow-slate-300/70 transition-colors active:bg-black sm:h-11 sm:w-11 sm:text-base" aria-label="Open account settings">
             {(user.name || user.email || 'U').charAt(0).toUpperCase()}
           </button>
         )}
-        <button onClick={() => setIsMobileMenuOpen((value) => !value)} className="flex flex-shrink-0 items-center justify-center rounded-lg p-1.5 text-[#111418] transition-colors duration-200 hover:bg-violet-50 sm:p-2" aria-label="Toggle navigation menu" aria-expanded={isMobileMenuOpen}>
-          {isMobileMenuOpen ? <X className="h-5 w-5 sm:h-6 sm:w-6" /> : <Menu className="h-5 w-5 sm:h-6 sm:w-6" />}
-        </button>
       </div>
-
-      {user && isMobileMenuOpen && (
-        <div className="absolute left-0 right-0 top-[calc(100%+8px)] mx-1 overflow-hidden rounded-2xl premium-card p-4 shadow-glass-lg lg:hidden">
-          <nav className="flex flex-col gap-1 [&>a]:rounded-xl [&>a]:px-3 [&>a]:py-2.5">{navigation}</nav>
-          <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3 sm:hidden">
-            <div className="flex min-w-0 items-center gap-2.5">
-              <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-violet-600 text-xs font-black text-white">{(user.name || user.email || 'U').charAt(0).toUpperCase()}</span>
-              <span className="min-w-0"><span className="block truncate text-xs font-bold text-slate-800">{user.email}</span><span className="block text-[10px] capitalize text-violet-600">{user.role}</span></span>
-            </div>
-            <button onClick={handleLogout} className="rounded-lg p-2.5 text-rose-600 hover:bg-rose-50" aria-label="Log out"><LogOut size={18} /></button>
-          </div>
-        </div>
-      )}
 
       {user && isSettingsOpen && (
         <Settings
