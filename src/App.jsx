@@ -218,8 +218,8 @@ function AppContent() {
                   <Route path="/vendors" element={<ProtectedRoute allowedRoles={['super_admin', 'manager']}><Vendors /></ProtectedRoute>} />
                   
                   {/* Purchase Orders */}
-                  <Route path="/purchase-orders" element={<ProtectedRoute allowedRoles={['super_admin', 'manager', 'vendor']}><PurchaseOrders /></ProtectedRoute>} />
-                  <Route path="/purchase-orders/:id" element={<ProtectedRoute allowedRoles={['super_admin', 'manager', 'vendor']}><PurchaseOrderDetails /></ProtectedRoute>} />
+                  <Route path="/purchase-orders" element={<ProtectedRoute allowedRoles={['admin', 'super_admin', 'manager', 'vendor']}><PurchaseOrders /></ProtectedRoute>} />
+                  <Route path="/purchase-orders/:id" element={<ProtectedRoute allowedRoles={['admin', 'super_admin', 'manager', 'vendor']}><PurchaseOrderDetails /></ProtectedRoute>} />
                   
                   {/* Delivery routes */}
                   <Route path="/deliveries" element={<ProtectedRoute allowedRoles={['super_admin', 'receiving_officer', 'vendor']}><Deliveries /></ProtectedRoute>} />

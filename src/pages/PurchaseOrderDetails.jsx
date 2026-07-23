@@ -3,25 +3,25 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useAlert } from '../components/AlertContext'
 import apiClient from '../utils/apiClient'
 import { getAuthOrNull } from '../utils/auth'
-import { ArrowLeft, Send, CheckCircle, XCircle, RefreshCw, Package, Truck, FileText, Clock, AlertCircle, Download } from 'lucide-react'
+import { ArrowLeft, Send, CheckCircle, XCircle, RefreshCw, Package, Truck, FileText, Clock, AlertCircle, Download, Upload, Eye, ShieldCheck } from 'lucide-react'
 
 const statusConfig = {
   DRAFT: { label: 'Draft', color: 'bg-slate-100 text-slate-600 border-slate-200', step: 0 },
   SUBMITTED_FOR_APPROVAL: { label: 'Pending Approval', color: 'bg-amber-50 text-amber-700 border-amber-200', step: 1 },
   APPROVED: { label: 'Approved', color: 'bg-blue-50 text-blue-700 border-blue-200', step: 2 },
-  SENT_TO_VENDOR: { label: 'Sent to Vendor', color: 'bg-violet-50 text-violet-700 border-violet-200', step: 3 },
-  VENDOR_ACCEPTED: { label: 'Vendor Accepted', color: 'bg-teal-50 text-teal-700 border-teal-200', step: 4 },
-  ACTIVE: { label: 'Active', color: 'bg-emerald-50 text-emerald-700 border-emerald-200', step: 4 },
-  PARTIALLY_FULFILLED: { label: 'Partially Fulfilled', color: 'bg-indigo-50 text-indigo-700 border-indigo-200', step: 5 },
-  FULFILLED: { label: 'Fulfilled', color: 'bg-emerald-100 text-emerald-800 border-emerald-300', step: 6 },
-  CLOSED: { label: 'Closed', color: 'bg-slate-100 text-slate-500 border-slate-200', step: 7 },
+  SENT_TO_VENDOR: { label: 'Sent to Vendor', color: 'bg-violet-50 text-violet-700 border-violet-200', step: 2 },
+  VENDOR_ACCEPTED: { label: 'Vendor Accepted', color: 'bg-teal-50 text-teal-700 border-teal-200', step: 2 },
+  ACTIVE: { label: 'Verified & Active', color: 'bg-emerald-50 text-emerald-700 border-emerald-200', step: 2 },
+  PARTIALLY_FULFILLED: { label: 'Partially Fulfilled', color: 'bg-indigo-50 text-indigo-700 border-indigo-200', step: 3 },
+  FULFILLED: { label: 'Fulfilled', color: 'bg-emerald-100 text-emerald-800 border-emerald-300', step: 4 },
+  CLOSED: { label: 'Closed', color: 'bg-slate-100 text-slate-500 border-slate-200', step: 5 },
   REVISION_REQUIRED: { label: 'Revision Required', color: 'bg-orange-50 text-orange-700 border-orange-200', step: 1 },
   REJECTED: { label: 'Rejected', color: 'bg-rose-50 text-rose-700 border-rose-200', step: -1 },
   VENDOR_REJECTED: { label: 'Vendor Rejected', color: 'bg-rose-100 text-rose-800 border-rose-300', step: -1 },
   CANCELLED: { label: 'Cancelled', color: 'bg-slate-100 text-slate-400 border-slate-200', step: -1 },
 }
 
-const poSteps = ['Draft', 'Submitted', 'Approved', 'Sent to Vendor', 'Active', 'Partial Delivery', 'Fulfilled', 'Closed']
+const poSteps = ['Draft', 'Signed PO Uploaded', 'Verified & Active', 'Partial Receipt', 'GRN Fulfilled', 'Closed']
 
 function StatusTimeline({ currentStatus }) {
   const cfg = statusConfig[currentStatus] || {}
@@ -70,6 +70,7 @@ export default function PurchaseOrderDetails() {
   const [actionLoading, setActionLoading] = useState(false)
   const [pdfLoading, setPdfLoading] = useState(false)
   const [comment, setComment] = useState('')
+  const [signedUpload, setSignedUpload] = useState(null)
   const [activeTab, setActiveTab] = useState('Overview')
   const { showSuccess, showError } = useAlert()
   const auth = getAuthOrNull()
@@ -93,10 +94,38 @@ export default function PurchaseOrderDetails() {
     setActionLoading(true)
     try {
       const res = await apiClient.post(`/api/purchase-orders?id=${id}&action=${action}`, payload)
-      if (res.success) { showSuccess('Success', `PO ${action} action completed`); fetchPO(); setComment('') }
-      else showError('Action Failed', res.error)
+      if (res.success) { showSuccess('Success', `PO ${action.replace(/-/g, ' ')} completed`); fetchPO(); setComment(''); return true }
+      showError('Action Failed', res.error)
     } catch (err) { showError('Error', err.message) }
     finally { setActionLoading(false) }
+    return false
+  }
+
+  const selectSignedPoPhoto = (event) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      return showError('Invalid Photo', 'Use a JPG, PNG, or WebP image of the signed PO')
+    }
+    if (file.size > 4 * 1024 * 1024) {
+      return showError('Photo Too Large', 'The signed PO photo must be 4 MB or smaller')
+    }
+    const reader = new FileReader()
+    reader.onerror = () => showError('Upload Failed', 'The selected photo could not be read')
+    reader.onload = () => setSignedUpload({
+      name: file.name,
+      url: String(reader.result),
+      mimeType: file.type,
+      size: file.size
+    })
+    reader.readAsDataURL(file)
+  }
+
+  const uploadSignedPo = async () => {
+    if (!signedUpload) return showError('Photo Required', 'Select the signed official PO photo first')
+    const completed = await doAction('upload-signed-po', { document: signedUpload })
+    if (completed) setSignedUpload(null)
   }
 
   const downloadPdf = async () => {
@@ -129,7 +158,7 @@ export default function PurchaseOrderDetails() {
   if (isLoading) return <div className="flex items-center justify-center min-h-[50vh]"><div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-violet-500" /></div>
   if (!po) return <div className="text-center py-20 text-slate-400">PO not found</div>
 
-  const tabs = ['Overview', 'Items', 'History']
+  const tabs = ['Overview', 'Items', 'Signed PO', 'History']
   const cfg = statusConfig[po.status] || {}
 
   return (
@@ -163,35 +192,51 @@ export default function PurchaseOrderDetails() {
       <StatusTimeline currentStatus={po.status} />
 
       {/* Workflow Action Cards */}
-      {false && isManager && po.status === 'DRAFT' && (
+      {isManager && (
+        ['DRAFT', 'REVISION_REQUIRED'].includes(po.status) ||
+        (['ACTIVE', 'PARTIALLY_FULFILLED'].includes(po.status) && po.signedPo?.status !== 'VERIFIED')
+      ) && (
         <div className="bg-white p-6 rounded-xl border border-violet-200 shadow-sm space-y-4 text-left">
-          <h3 className="text-sm font-bold text-slate-800">Submit for Admin Approval</h3>
-          <p className="text-xs text-slate-500">Review the PO details and submit for admin approval when ready.</p>
-          <button onClick={() => doAction('submit')} disabled={actionLoading} className="bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs py-2.5 px-6 rounded-lg transition-all disabled:opacity-50 flex items-center space-x-2">
-            <Send size={14} /><span>{actionLoading ? 'Submitting...' : 'Submit for Approval'}</span>
-          </button>
-        </div>
-      )}
-
-      {false && isAdmin && po.status === 'SUBMITTED_FOR_APPROVAL' && (
-        <div className="bg-white p-6 rounded-xl border border-amber-200 shadow-sm space-y-4 text-left">
-          <h3 className="text-sm font-bold text-amber-700 flex items-center space-x-2"><AlertCircle size={16} /><span>Admin Approval Required</span></h3>
-          <textarea rows={2} placeholder="Enter approval decision notes..." value={comment} onChange={e => setComment(e.target.value)} className="w-full bg-slate-50 border-none rounded-lg p-2.5 text-sm focus:outline-none resize-none" />
-          <div className="flex flex-wrap gap-2">
-            <button onClick={() => doAction('approve', { comment })} disabled={actionLoading} className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-xs font-bold transition-all disabled:opacity-50">✓ Approve PO</button>
-            <button onClick={() => doAction('request-revision', { comment: comment || 'Please revise' })} disabled={actionLoading || !comment} className="bg-amber-500 hover:bg-amber-400 text-white px-4 py-2 rounded-lg text-xs font-bold transition-all disabled:opacity-50">↺ Request Revision</button>
-            <button onClick={() => doAction('reject', { comment: comment || 'Rejected by admin' })} disabled={actionLoading || !comment} className="bg-rose-600 hover:bg-rose-500 text-white px-4 py-2 rounded-lg text-xs font-bold transition-all disabled:opacity-50">✗ Reject</button>
+          <div>
+            <h3 className="flex items-center gap-2 text-sm font-black text-slate-800"><Upload size={17} className="text-violet-600" />Upload Signed Official PO</h3>
+            <p className="mt-1 text-xs text-slate-500">Download the PO, obtain the required official signatures, then upload a clear photo for admin verification.</p>
           </div>
+          {po.status === 'REVISION_REQUIRED' && po.signedPo?.verificationComment && (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700"><strong>Previous upload rejected:</strong> {po.signedPo.verificationComment}</div>
+          )}
+          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-violet-200 bg-violet-50/60 p-5 text-sm font-bold text-violet-700 hover:bg-violet-50">
+            <Upload size={18} />
+            <span>{signedUpload ? 'Choose another photo' : 'Select signed PO photo'}</span>
+            <input type="file" accept="image/jpeg,image/png,image/webp" onChange={selectSignedPoPhoto} className="hidden" />
+          </label>
+          {signedUpload && (
+            <div className="flex flex-col gap-4 rounded-xl border border-slate-200 p-4 sm:flex-row sm:items-center">
+              <img src={signedUpload.url} alt="Signed PO preview" className="h-28 w-full rounded-lg bg-slate-50 object-contain sm:w-40" />
+              <div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-slate-800">{signedUpload.name}</p><p className="text-xs text-slate-500">{(signedUpload.size / 1024 / 1024).toFixed(2)} MB</p></div>
+              <button onClick={uploadSignedPo} disabled={actionLoading} className="inline-flex items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 py-2.5 text-xs font-black text-white hover:bg-violet-700 disabled:opacity-50">
+                <Send size={14} />{actionLoading ? 'Uploading...' : 'Upload for Verification'}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
-      {false && isManager && po.status === 'APPROVED' && (
-        <div className="bg-white p-6 rounded-xl border border-blue-200 shadow-sm space-y-4 text-left">
-          <h3 className="text-sm font-bold text-blue-700">Send PO to Vendor</h3>
-          <p className="text-xs text-slate-500">PO approved. Send to vendor <strong>{po.vendorName}</strong> ({po.vendorEmail}) to proceed with order.</p>
-          <button onClick={() => doAction('send-to-vendor')} disabled={actionLoading} className="bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs py-2.5 px-6 rounded-lg transition-all disabled:opacity-50 flex items-center space-x-2">
-            <Send size={14} /><span>{actionLoading ? 'Sending...' : 'Send to Vendor'}</span>
-          </button>
+      {isAdmin && po.status === 'SUBMITTED_FOR_APPROVAL' && po.signedPo?.url && (
+        <div className="bg-white p-6 rounded-xl border border-amber-200 shadow-sm space-y-4 text-left">
+          <h3 className="text-sm font-bold text-amber-700 flex items-center space-x-2"><ShieldCheck size={16} /><span>Verify Signed Official PO</span></h3>
+          <div className="flex flex-col gap-4 rounded-xl border border-slate-200 p-4 sm:flex-row sm:items-center">
+            <img src={po.signedPo.url} alt="Uploaded signed PO" className="h-36 w-full rounded-lg bg-slate-50 object-contain sm:w-48" />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-bold text-slate-800">{po.signedPo.name}</p>
+              <p className="mt-1 text-xs text-slate-500">Uploaded by {po.signedPo.uploadedBy} · {new Date(po.signedPo.uploadedAt).toLocaleString('en-IN')}</p>
+              <a href={po.signedPo.url} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-violet-700"><Eye size={14} />Open full photo</a>
+            </div>
+          </div>
+          <textarea rows={2} placeholder="Verification notes or rejection reason..." value={comment} onChange={e => setComment(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm focus:outline-none focus:border-violet-400 resize-none" />
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => doAction('verify-signed-po', { comment })} disabled={actionLoading} className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-xs font-bold transition-all disabled:opacity-50">✓ Verify & Activate PO</button>
+            <button onClick={() => doAction('reject-signed-po', { comment })} disabled={actionLoading || !comment.trim()} className="bg-rose-600 hover:bg-rose-500 text-white px-4 py-2 rounded-lg text-xs font-bold transition-all disabled:opacity-50">✗ Reject Photo</button>
+          </div>
         </div>
       )}
 
@@ -290,6 +335,52 @@ export default function PurchaseOrderDetails() {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {activeTab === 'Signed PO' && (
+        <div className="premium-card overflow-hidden">
+          <div className="flex items-center justify-between border-b border-slate-100 p-5">
+            <div>
+              <h3 className="font-bold text-slate-800">Signed Official Purchase Order</h3>
+              <p className="mt-1 text-xs text-slate-500">This verified artifact controls whether gate receiving and GRN creation are permitted.</p>
+            </div>
+            <span className={`rounded-full border px-3 py-1 text-xs font-black ${
+              po.signedPo?.status === 'VERIFIED' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' :
+              po.signedPo?.status === 'PENDING_VERIFICATION' ? 'border-amber-200 bg-amber-50 text-amber-700' :
+              po.signedPo?.status === 'REJECTED' ? 'border-rose-200 bg-rose-50 text-rose-700' :
+              'border-slate-200 bg-slate-50 text-slate-500'
+            }`}>{po.signedPo?.status?.replace(/_/g, ' ') || 'NOT UPLOADED'}</span>
+          </div>
+          {po.signedPo?.url ? (
+            <div className="grid gap-6 p-5 lg:grid-cols-[minmax(0,1fr)_300px]">
+              <a href={po.signedPo.url} target="_blank" rel="noreferrer" className="group overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
+                <img src={po.signedPo.url} alt="Signed official PO" className="max-h-[560px] w-full object-contain transition-transform group-hover:scale-[1.01]" />
+              </a>
+              <div className="space-y-3 text-sm">
+                {[
+                  ['File', po.signedPo.name],
+                  ['Uploaded by', po.signedPo.uploadedBy],
+                  ['Uploaded at', po.signedPo.uploadedAt ? new Date(po.signedPo.uploadedAt).toLocaleString('en-IN') : '—'],
+                  ['Verified by', po.signedPo.verifiedBy || 'Pending'],
+                  ['Verified at', po.signedPo.verifiedAt ? new Date(po.signedPo.verifiedAt).toLocaleString('en-IN') : '—'],
+                  ['Decision notes', po.signedPo.verificationComment || '—']
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-xl bg-slate-50 p-3">
+                    <div className="text-[11px] font-black uppercase tracking-wider text-slate-400">{label}</div>
+                    <div className="mt-1 break-words font-semibold text-slate-800">{value}</div>
+                  </div>
+                ))}
+                <a href={po.signedPo.url} target="_blank" rel="noreferrer" className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-xs font-black text-white hover:bg-violet-700"><Eye size={15} />Open Full Photo</a>
+              </div>
+            </div>
+          ) : (
+            <div className="p-10 text-center">
+              <FileText className="mx-auto text-slate-300" size={42} />
+              <p className="mt-3 font-bold text-slate-700">No signed PO uploaded</p>
+              <p className="mt-1 text-xs text-slate-500">The responsible manager must upload the officially signed PO photo.</p>
+            </div>
+          )}
         </div>
       )}
 

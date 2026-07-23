@@ -3,6 +3,7 @@ import { GateEntry, DeliverySchedule, PurchaseOrder, User } from '../models.js'
 import crypto from 'crypto'
 import { verifyPoQrToken } from '../lib/poQrToken.js'
 import { addProductIds } from '../lib/productId.js'
+import { canReceivePo, getPoReceivingBlockReason, isSignedPoVerified } from '../lib/poReceiving.js'
 
 const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex')
 
@@ -35,7 +36,8 @@ export default async function handler(req, res) {
 
       const po = await PurchaseOrder.findById(poId).lean()
       if (!po) return res.status(404).json({ success: false, error: 'Purchase Order not found' })
-      const canReceive = ['ACTIVE', 'PARTIALLY_FULFILLED'].includes(po.status)
+      const signedPoVerified = isSignedPoVerified(po)
+      const canReceive = canReceivePo(po)
 
       return res.json({
         success: true,
@@ -43,10 +45,11 @@ export default async function handler(req, res) {
           _id: po._id,
           poNumber: po.poNumber,
           status: po.status,
+          signedPoStatus: po.signedPo?.status || 'NOT_UPLOADED',
           canReceive,
           receivingMessage: canReceive
             ? 'This purchase order is ready for gate verification'
-            : `This purchase order is ${po.status.replace(/_/g, ' ').toLowerCase()} and is not ready to receive goods`,
+            : getPoReceivingBlockReason(po),
           vendorName: po.vendorName,
           vendorEmail: po.vendorEmail,
           deliveryAddress: po.deliveryAddress,

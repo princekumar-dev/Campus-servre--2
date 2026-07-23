@@ -93,7 +93,10 @@ function Header() {
 
       {/* Admin - limited to approval/monitoring */}
       {user.role === 'admin' && (
-        <Link className={linkClass('/requests')} to="/requests">Request Triage</Link>
+        <>
+          <Link className={linkClass('/requests')} to="/requests">Request Triage</Link>
+          <Link className={linkClass('/purchase-orders')} to="/purchase-orders">PO Verification</Link>
+        </>
       )}
 
       {/* Super Admin - full access */}

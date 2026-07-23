@@ -1,6 +1,7 @@
 import { PurchaseOrder, Vendor, User, ServiceRequest } from '../models.js'
 import { connectToDatabase } from '../lib/mongo.js'
 import { addProductIds, generateProductId, getProductId } from '../lib/productId.js'
+import { storeNotification } from '../lib/notificationService.js'
 
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end()
@@ -38,7 +39,7 @@ export default async function handler(req, res) {
         const vendorDocs = await Vendor.find({ email: actor?.email }).lean()
         if (vendorDocs.length > 0) filter.vendorId = vendorDocs[0]._id
       }
-      const pos = await PurchaseOrder.find(filter).sort({ createdAt: -1 }).lean()
+      const pos = await PurchaseOrder.find(filter).select('-signedPo.url -documentUrl').sort({ createdAt: -1 }).lean()
       pos.forEach(po => { po.items = addProductIds(po.items) })
       return res.json({ success: true, data: pos, total: pos.length })
     }
@@ -109,7 +110,7 @@ export default async function handler(req, res) {
         poNumber, requestId, vendorId, vendorName: vendor.legalName, vendorEmail: vendor.email,
         items: processedItems, subtotal, taxTotal, discountTotal, deliveryCharge: dc, grandTotal,
         deliveryAddress, deliveryLocation, expectedDeliveryDate, paymentTerms: paymentTerms || 'Net 30',
-        warrantyTerms, notes, createdBy: actorName, status: 'DRAFT',
+        warrantyTerms, notes, createdBy: actorName, createdById: actorId, status: 'DRAFT',
         statusHistory: [{ oldStatus: '', newStatus: 'DRAFT', actorId, actorName, comment: 'PO created as draft', createdAt: new Date() }]
       })
       await po.save()
@@ -131,6 +132,9 @@ export default async function handler(req, res) {
 
       // Role authorization for PO actions
       const poRoles = {
+        'upload-signed-po': ['manager'],
+        'verify-signed-po': ['admin', 'super_admin'],
+        'reject-signed-po': ['admin', 'super_admin'],
         'approve': ['admin', 'super_admin'],
         'reject': ['admin', 'super_admin'],
         'request-revision': ['admin', 'super_admin'],
@@ -142,7 +146,68 @@ export default async function handler(req, res) {
         }
       }
 
-      if (action === 'submit') {
+      if (action === 'upload-signed-po') {
+        if (!['DRAFT', 'REVISION_REQUIRED', 'ACTIVE', 'PARTIALLY_FULFILLED'].includes(po.status) || po.signedPo?.status === 'VERIFIED') {
+          return res.status(409).json({ success: false, error: 'This purchase order is not eligible for a signed PO upload' })
+        }
+        if (
+          (po.createdById && String(po.createdById) !== String(actorId)) ||
+          (!po.createdById && po.createdBy && po.createdBy !== actorName)
+        ) {
+          return res.status(403).json({ success: false, error: 'Only the manager who generated this PO can upload its signed copy' })
+        }
+        const { name, url, mimeType, size } = req.body?.document || {}
+        const allowedTypes = ['image/jpeg', 'image/png', 'image/webp']
+        const parsedSize = Number(size || 0)
+        if (!name || !url || !allowedTypes.includes(mimeType) || !url.startsWith(`data:${mimeType};base64,`)) {
+          return res.status(400).json({ success: false, error: 'Upload a valid JPG, PNG, or WebP photo of the signed PO' })
+        }
+        if (!Number.isFinite(parsedSize) || parsedSize <= 0 || parsedSize > 4 * 1024 * 1024 || url.length > 5.7 * 1024 * 1024) {
+          return res.status(413).json({ success: false, error: 'The signed PO photo must be 4 MB or smaller' })
+        }
+        po.signedPo = {
+          name: String(name).slice(0, 160),
+          url,
+          mimeType,
+          size: parsedSize,
+          status: 'PENDING_VERIFICATION',
+          previousPoStatus: oldStatus,
+          uploadedBy: actorName,
+          uploadedById: actorId,
+          uploadedAt: new Date()
+        }
+        po.status = 'SUBMITTED_FOR_APPROVAL'
+        pushHistory(po, oldStatus, po.status, `Signed official PO uploaded: ${String(name).slice(0, 160)}. Awaiting verification.`)
+      }
+      else if (action === 'verify-signed-po') {
+        if (po.status !== 'SUBMITTED_FOR_APPROVAL' || !po.signedPo?.url || po.signedPo?.status !== 'PENDING_VERIFICATION') {
+          return res.status(409).json({ success: false, error: 'A pending signed PO upload is required before verification' })
+        }
+        po.signedPo.status = 'VERIFIED'
+        po.signedPo.verifiedBy = actorName
+        po.signedPo.verifiedById = actorId
+        po.signedPo.verifiedAt = new Date()
+        po.signedPo.verificationComment = req.body.comment || 'Signed official PO verified'
+        po.approvedBy = actorName
+        po.approvedAt = new Date()
+        po.status = po.signedPo.previousPoStatus === 'PARTIALLY_FULFILLED' ? 'PARTIALLY_FULFILLED' : 'ACTIVE'
+        pushHistory(po, oldStatus, po.status, `Signed official PO verified by ${actorName}. PO activated for QR receiving.${req.body.comment ? ` ${req.body.comment}` : ''}`)
+      }
+      else if (action === 'reject-signed-po') {
+        if (po.status !== 'SUBMITTED_FOR_APPROVAL' || !po.signedPo?.url) {
+          return res.status(409).json({ success: false, error: 'A signed PO awaiting verification is required' })
+        }
+        const decisionComment = String(req.body.comment || '').trim()
+        if (!decisionComment) return res.status(400).json({ success: false, error: 'A rejection reason is required' })
+        po.signedPo.status = 'REJECTED'
+        po.signedPo.verifiedBy = actorName
+        po.signedPo.verifiedById = actorId
+        po.signedPo.verifiedAt = new Date()
+        po.signedPo.verificationComment = decisionComment
+        po.status = 'REVISION_REQUIRED'
+        pushHistory(po, oldStatus, po.status, `Signed PO rejected by ${actorName}: ${decisionComment}`)
+      }
+      else if (action === 'submit') {
         if (po.status !== 'DRAFT' && po.status !== 'REVISION_REQUIRED') {
           return res.status(400).json({ success: false, error: 'Only DRAFT or REVISION_REQUIRED POs can be submitted' })
         }
@@ -151,10 +216,16 @@ export default async function handler(req, res) {
       }
       else if (action === 'approve') {
         if (po.status !== 'SUBMITTED_FOR_APPROVAL') return res.status(400).json({ success: false, error: 'PO must be in SUBMITTED_FOR_APPROVAL state' })
-        po.status = 'APPROVED'
+        if (!po.signedPo?.url) return res.status(400).json({ success: false, error: 'The manager must upload the signed official PO before approval' })
+        po.status = 'ACTIVE'
+        po.signedPo.status = 'VERIFIED'
+        po.signedPo.verifiedBy = actorName
+        po.signedPo.verifiedById = actorId
+        po.signedPo.verifiedAt = new Date()
+        po.signedPo.verificationComment = req.body.comment || 'Signed official PO verified'
         po.approvedBy = actorName
         po.approvedAt = new Date()
-        pushHistory(po, oldStatus, 'APPROVED', `PO approved by ${actorName}. Total: ₹${po.grandTotal.toFixed(2)}`)
+        pushHistory(po, oldStatus, 'ACTIVE', `Signed official PO verified and activated by ${actorName}. Total: ₹${po.grandTotal.toFixed(2)}`)
       }
       else if (action === 'reject') {
         const { comment } = req.body
@@ -202,6 +273,32 @@ export default async function handler(req, res) {
       }
 
       await po.save()
+      if (action === 'upload-signed-po') {
+        const approvers = await User.find({ role: { $in: ['admin', 'super_admin'] }, isActive: true }).select('email').lean()
+        await Promise.allSettled(approvers.map(approver => storeNotification({
+          userEmail: approver.email,
+          title: `Signed PO awaiting verification: ${po.poNumber}`,
+          body: `${actorName} uploaded the signed official PO for ${po.vendorName}.`,
+          url: `/purchase-orders/${po._id}`,
+          type: 'signed_po_uploaded',
+          data: { poId: po._id, poNumber: po.poNumber }
+        })))
+      }
+      if (['verify-signed-po', 'reject-signed-po'].includes(action) && po.createdById) {
+        const manager = await User.findById(po.createdById).select('email').lean()
+        if (manager?.email) {
+          await storeNotification({
+            userEmail: manager.email,
+            title: action === 'verify-signed-po' ? `PO verified and active: ${po.poNumber}` : `Signed PO needs revision: ${po.poNumber}`,
+            body: action === 'verify-signed-po'
+              ? 'The signed official PO was verified. Gate QR receiving and GRN creation are now enabled.'
+              : `The signed PO was rejected: ${po.signedPo.verificationComment}`,
+            url: `/purchase-orders/${po._id}`,
+            type: action === 'verify-signed-po' ? 'signed_po_verified' : 'signed_po_rejected',
+            data: { poId: po._id, poNumber: po.poNumber }
+          }).catch(error => console.warn('Unable to store signed PO workflow notification:', error.message))
+        }
+      }
       return res.json({ success: true, data: po })
     }
 

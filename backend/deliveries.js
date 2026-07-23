@@ -2,6 +2,7 @@ import { connectToDatabase } from '../lib/mongo.js'
 import { DeliverySchedule, PurchaseOrder, GateEntry, User, DeliveryPerson, Vehicle } from '../models.js'
 import crypto from 'crypto'
 import { addProductIds } from '../lib/productId.js'
+import { canReceivePo, getPoReceivingBlockReason } from '../lib/poReceiving.js'
 
 const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex')
 const genRandom = (len) => crypto.randomBytes(len).toString('hex').slice(0, len)
@@ -61,8 +62,8 @@ export default async function handler(req, res) {
 
       const po = await PurchaseOrder.findById(poId).lean()
       if (!po) return res.status(404).json({ success: false, error: 'PO not found' })
-      if (!['ACTIVE', 'PARTIALLY_FULFILLED'].includes(po.status)) {
-        return res.status(400).json({ success: false, error: 'PO must be ACTIVE or PARTIALLY_FULFILLED to schedule delivery' })
+      if (!canReceivePo(po)) {
+        return res.status(409).json({ success: false, error: getPoReceivingBlockReason(po) })
       }
 
       let dpName = '', dpPhone = '', vNumber = ''

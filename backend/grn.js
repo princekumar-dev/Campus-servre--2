@@ -3,6 +3,7 @@ import { GoodsReceipt, PurchaseOrder, DeliverySchedule, User } from '../models.j
 import { verifyPoQrToken } from '../lib/poQrToken.js'
 import { storeNotification } from '../lib/notificationService.js'
 import { getProductId } from '../lib/productId.js'
+import { canReceivePo, getPoReceivingBlockReason } from '../lib/poReceiving.js'
 
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end()
@@ -54,8 +55,8 @@ export default async function handler(req, res) {
 
       const po = await PurchaseOrder.findById(bodyPoId)
       if (!po) return res.status(404).json({ success: false, error: 'PO not found' })
-      if (!['ACTIVE', 'PARTIALLY_FULFILLED'].includes(po.status)) {
-        return res.status(409).json({ success: false, error: `GRN cannot be created while PO is ${po.status.replace(/_/g, ' ').toLowerCase()}` })
+      if (!canReceivePo(po)) {
+        return res.status(409).json({ success: false, error: getPoReceivingBlockReason(po) })
       }
 
       // Validate quantities per spec:
