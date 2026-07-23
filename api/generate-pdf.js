@@ -344,20 +344,33 @@ export default async function handler(req, res) {
       doc.pipe(res)
 
       const left = 42, right = 553, width = right - left
+      const PO = {
+        black: '#111111',
+        ink: '#202020',
+        muted: '#6b6b6b',
+        line: '#d8d5ce',
+        soft: '#f8f7f4',
+        accent: '#9a6518',
+        accentSoft: '#f5ecdc',
+        white: '#ffffff'
+      }
+      const monochromeLogo = LOGO_PATH
+        ? await sharp(LOGO_PATH).grayscale().png().toBuffer()
+        : null
       const sectionTitle = title => {
         const y = doc.y
-        doc.roundedRect(left, y, width, 24, 4).fill('#f5f3ff')
-        doc.rect(left, y, 4, 24).fill(PDF.purple)
-        doc.fillColor(PDF.darkPurple).font('Helvetica-Bold').fontSize(9)
-          .text(title.toUpperCase(), left + 13, y + 8, { characterSpacing: 0.45 })
-        doc.y = y + 32
+        doc.rect(left, y + 3, 18, 2).fill(PO.accent)
+        doc.fillColor(PO.black).font('Helvetica-Bold').fontSize(8)
+          .text(title.toUpperCase(), left, y + 9, { characterSpacing: 1.15 })
+        doc.strokeColor(PO.black).lineWidth(0.8).moveTo(left, y + 21).lineTo(right, y + 21).stroke()
+        doc.y = y + 30
       }
       const field = (label, value, x, y, fieldWidth = 245) => {
         const previousY = doc.y
         const labelWidth = Math.min(100, fieldWidth * 0.41)
-        doc.fillColor(PDF.muted).font('Helvetica-Bold').fontSize(7.2)
-          .text(label.toUpperCase(), x, y, { width: labelWidth, characterSpacing: 0.25 })
-        doc.fillColor(PDF.ink).font('Helvetica-Bold').fontSize(8.5)
+        doc.fillColor(PO.muted).font('Helvetica-Bold').fontSize(6.8)
+          .text(label.toUpperCase(), x, y, { width: labelWidth, characterSpacing: 0.55 })
+        doc.fillColor(PO.ink).font('Helvetica-Bold').fontSize(8.3)
           .text(String(value || 'N/A'), x + labelWidth, y - 1, { width: fieldWidth - labelWidth })
         doc.y = previousY
       }
@@ -368,27 +381,28 @@ export default async function handler(req, res) {
         const textX = left + logoWidth + 14
         const qrSize = 58
         const textWidth = width - logoWidth - qrSize - 24
-        if (LOGO_PATH) doc.image(LOGO_PATH, left, headerTop, { width: logoWidth, height: logoHeight })
+        if (monochromeLogo) doc.image(monochromeLogo, left, headerTop, { width: logoWidth, height: logoHeight })
         doc.image(gateQrImage, right - qrSize, headerTop, { width: qrSize, height: qrSize })
-        doc.fillColor(PDF.muted).font('Helvetica-Bold').fontSize(5.5)
+        doc.fillColor(PO.muted).font('Helvetica-Bold').fontSize(5.5)
           .text('GATE VERIFY', right - qrSize, headerTop + qrSize + 2, { width: qrSize, align: 'center', lineBreak: false })
-        doc.fillColor(PDF.ink).font('Helvetica-Bold').fontSize(13)
+        doc.fillColor(PO.black).font('Helvetica-Bold').fontSize(12.5)
           .text('MEENAKSHI SUNDARARAJAN ENGINEERING COLLEGE', textX, headerTop + 2, { width: textWidth, align: 'center' })
-        doc.fillColor(PDF.muted).font('Helvetica').fontSize(7.5)
+        doc.fillColor(PO.muted).font('Helvetica').fontSize(7.2)
           .text('AN AUTONOMOUS INSTITUTION AFFILIATED TO ANNA UNIVERSITY', textX, headerTop + 22, { width: textWidth, align: 'center' })
         doc.text('363, Arcot Road, Kodambakkam, Chennai - 600024', textX, headerTop + 35, { width: textWidth, align: 'center' })
-        doc.fillColor(PDF.purple).font('Helvetica-Bold').fontSize(9)
+        doc.fillColor(PO.black).font('Helvetica-Bold').fontSize(7.5)
           .text('MSEC CAMPUSSERVE', textX, headerTop + 50, { width: textWidth, align: 'center', characterSpacing: 0.6 })
-        doc.roundedRect(textX + 112, headerTop + 65, textWidth - 224, 22, 4).fill(PDF.purple)
-        doc.fillColor(PDF.white).fontSize(9).text(subtitle, textX + 112, headerTop + 72, { width: textWidth - 224, align: 'center', characterSpacing: 0.5 })
-        doc.strokeColor(PDF.purple).lineWidth(1.2).moveTo(left, headerTop + 98).lineTo(right, headerTop + 98).stroke()
+        doc.fillColor(PO.black).font('Times-Bold').fontSize(15)
+          .text(subtitle, textX + 70, headerTop + 67, { width: textWidth - 140, align: 'center', characterSpacing: 1.25 })
+        doc.strokeColor(PO.black).lineWidth(1).moveTo(left, headerTop + 96).lineTo(right, headerTop + 96).stroke()
+        doc.strokeColor(PO.accent).lineWidth(2).moveTo(left, headerTop + 96).lineTo(left + 54, headerTop + 96).stroke()
         doc.y = headerTop + 110
       }
 
       drawHeader('PURCHASE ORDER')
       const summaryY = doc.y
-      doc.roundedRect(left, summaryY, width, 58, 5).fillAndStroke(PDF.stripe, PDF.border)
-      doc.strokeColor(PDF.border).moveTo(297.5, summaryY + 8).lineTo(297.5, summaryY + 50).stroke()
+      doc.rect(left, summaryY, width, 58).fillAndStroke(PO.soft, PO.line)
+      doc.strokeColor(PO.line).moveTo(297.5, summaryY + 8).lineTo(297.5, summaryY + 50).stroke()
       field('PO Number', po.poNumber, left + 12, summaryY + 11, 230)
       field('Issue Date', dateText(po.createdAt), 310, summaryY + 11, 230)
       field('Request Reference', linkedRequest?.requestNumber || 'Direct purchase', left + 12, summaryY + 35, 230)
@@ -397,8 +411,8 @@ export default async function handler(req, res) {
 
       sectionTitle('Vendor and delivery information')
       const detailsY = doc.y
-      doc.roundedRect(left, detailsY, 247, 65, 5).fillAndStroke(PDF.white, PDF.border)
-      doc.roundedRect(306, detailsY, 247, 65, 5).fillAndStroke(PDF.white, PDF.border)
+      doc.rect(left, detailsY, 247, 65).fillAndStroke(PO.white, PO.line)
+      doc.rect(306, detailsY, 247, 65).fillAndStroke(PO.white, PO.line)
       field('Vendor', po.vendorName, left + 10, detailsY + 12, 227)
       field('Email', po.vendorEmail || 'N/A', left + 10, detailsY + 40, 227)
       field('Deliver To', po.deliveryAddress, 316, detailsY + 12, 227)
@@ -410,12 +424,12 @@ export default async function handler(req, res) {
       const widths = [28, 222, 55, 75, 60, 71]
       const drawTableHeader = () => {
         const y = doc.y
-        doc.rect(left, y, width, 30).fillAndStroke(PDF.indigo, PDF.indigo)
+        doc.rect(left, y, width, 28).fillAndStroke(PO.black, PO.black)
         ;['#', 'Description / Specification', 'Qty', 'Unit Price', 'Tax', 'Amount'].forEach((label, i) =>
-          doc.fillColor(PDF.white).font('Helvetica-Bold').fontSize(7.5).text(label, columns[i] + 4, y + 10, { width: widths[i] - 8, align: i >= 2 ? 'right' : 'left' })
+          doc.fillColor(PO.white).font('Helvetica-Bold').fontSize(7.2).text(label, columns[i] + 4, y + 9, { width: widths[i] - 8, align: i >= 2 ? 'right' : 'left', characterSpacing: 0.25 })
         )
-        columns.slice(1).forEach(x => doc.strokeColor('#58549a').lineWidth(0.5).moveTo(x, y).lineTo(x, y + 30).stroke())
-        doc.y = y + 30
+        columns.slice(1).forEach(x => doc.strokeColor('#4b4b4b').lineWidth(0.4).moveTo(x, y).lineTo(x, y + 28).stroke())
+        doc.y = y + 28
       }
       drawTableHeader()
       ;(po.items || []).forEach((item, index) => {
@@ -425,10 +439,10 @@ export default async function handler(req, res) {
           doc.addPage(); drawHeader('PURCHASE ORDER'); drawTableHeader()
         }
         const y = doc.y
-        doc.rect(left, y, width, rowHeight).fillAndStroke(index % 2 ? PDF.stripe : PDF.white, PDF.border)
-        columns.slice(1).forEach(x => doc.strokeColor(PDF.border).lineWidth(0.5).moveTo(x, y).lineTo(x, y + rowHeight).stroke())
+        doc.rect(left, y, width, rowHeight).fillAndStroke(index % 2 ? PO.soft : PO.white, PO.line)
+        columns.slice(1).forEach(x => doc.strokeColor(PO.line).lineWidth(0.4).moveTo(x, y).lineTo(x, y + rowHeight).stroke())
         const values = [String(index + 1), description, `${item.quantityOrdered} ${item.unit}`, money(item.unitPrice), `${Number(item.taxRate || 0)}%`, money(item.lineTotal)]
-        values.forEach((value, i) => doc.fillColor(PDF.text).font(i === 1 ? 'Helvetica' : 'Helvetica-Bold').fontSize(8)
+        values.forEach((value, i) => doc.fillColor(i === 5 ? PO.accent : PO.ink).font(i === 1 ? 'Helvetica' : 'Helvetica-Bold').fontSize(8)
           .text(value, columns[i] + 4, y + 9, { width: widths[i] - 8, align: i >= 2 ? 'right' : 'left' }))
         doc.y = y + rowHeight
       })
@@ -436,7 +450,7 @@ export default async function handler(req, res) {
       if (doc.y > 650) { doc.addPage(); drawHeader('PURCHASE ORDER - SUMMARY') }
       const totalsY = doc.y + 10
       const totalX = 340
-      doc.roundedRect(totalX, totalsY, 213, 107, 5).fillAndStroke(PDF.stripe, PDF.border)
+      doc.rect(totalX, totalsY, 213, 107).fillAndStroke(PO.white, PO.line)
       ;[
         ['Subtotal', money(po.subtotal)],
         ['Discount', `- ${money(po.discountTotal)}`],
@@ -444,22 +458,22 @@ export default async function handler(req, res) {
         ['Delivery', money(po.deliveryCharge)]
       ].forEach(([label, value], index) => {
         const rowY = totalsY + 11 + (index * 17)
-        doc.fillColor(PDF.muted).font('Helvetica').fontSize(8).text(label, totalX + 12, rowY, { width: 92 })
-        doc.fillColor(PDF.ink).font('Helvetica-Bold').text(value, totalX + 108, rowY, { width: 92, align: 'right' })
+        doc.fillColor(PO.muted).font('Helvetica').fontSize(8).text(label, totalX + 12, rowY, { width: 92 })
+        doc.fillColor(PO.ink).font('Helvetica-Bold').text(value, totalX + 108, rowY, { width: 92, align: 'right' })
       })
       const grandTotalY = totalsY + 76
-      doc.roundedRect(totalX + 6, grandTotalY, 201, 25, 4).fill(PDF.purple)
-      doc.fillColor(PDF.white).font('Helvetica-Bold').fontSize(9).text('GRAND TOTAL', totalX + 16, grandTotalY + 8)
+      doc.rect(totalX + 6, grandTotalY, 201, 25).fillAndStroke(PO.accentSoft, PO.accent)
+      doc.fillColor(PO.accent).font('Helvetica-Bold').fontSize(9).text('GRAND TOTAL', totalX + 16, grandTotalY + 8)
       doc.text(money(po.grandTotal), totalX + 108, grandTotalY + 8, { width: 88, align: 'right' })
       doc.y = totalsY + 119
 
       sectionTitle('Commercial terms')
       const termsY = doc.y
-      doc.roundedRect(left, termsY, width, 58, 5).fillAndStroke(PDF.stripe, PDF.border)
+      doc.rect(left, termsY, width, 58).fillAndStroke(PO.soft, PO.line)
       field('Payment', po.paymentTerms || 'Net 30', left + 12, termsY + 11, 240)
       field('Warranty', po.warrantyTerms || 'As per vendor/manufacturer warranty', 306, termsY + 11, 235)
-      doc.fillColor(PDF.muted).font('Helvetica-Bold').fontSize(7.2).text('NOTES', left + 12, termsY + 36, { width: 62 })
-      doc.fillColor(PDF.text).font('Helvetica').fontSize(7.8).text(po.notes || 'Supply must conform to the specifications and quantities stated in this purchase order.', left + 75, termsY + 35, { width: width - 87, height: 18, ellipsis: true })
+      doc.fillColor(PO.muted).font('Helvetica-Bold').fontSize(7.2).text('NOTES', left + 12, termsY + 36, { width: 62 })
+      doc.fillColor(PO.ink).font('Helvetica').fontSize(7.8).text(po.notes || 'Supply must conform to the specifications and quantities stated in this purchase order.', left + 75, termsY + 35, { width: width - 87, height: 18, ellipsis: true })
       doc.y = termsY + 77
       const signatureY = Math.min(doc.y + 33, 756)
       const signatureWidth = 170
@@ -467,17 +481,17 @@ export default async function handler(req, res) {
         [left + 18, 'Prepared by', 'Purchase Department'],
         [right - signatureWidth - 18, 'Authorized signatory', 'For MSEC']
       ].forEach(([x, label, caption]) => {
-        doc.strokeColor(PDF.border).lineWidth(0.8).moveTo(x, signatureY).lineTo(x + signatureWidth, signatureY).stroke()
-        doc.fillColor(PDF.ink).font('Helvetica-Bold').fontSize(7.5).text(label, x, signatureY + 7, { width: signatureWidth, align: 'center' })
-        doc.fillColor(PDF.muted).font('Helvetica').fontSize(6.8).text(caption, x, signatureY + 19, { width: signatureWidth, align: 'center' })
+        doc.strokeColor(PO.black).lineWidth(0.7).moveTo(x, signatureY).lineTo(x + signatureWidth, signatureY).stroke()
+        doc.fillColor(PO.black).font('Times-Bold').fontSize(8).text(label, x, signatureY + 7, { width: signatureWidth, align: 'center' })
+        doc.fillColor(PO.muted).font('Helvetica').fontSize(6.8).text(caption, x, signatureY + 19, { width: signatureWidth, align: 'center' })
       })
 
       attachedImages.forEach(({ evidence, image }, index) => {
         doc.addPage(); drawHeader(`ATTACHED EVIDENCE ${index + 1}`)
-        doc.fillColor('#172033').font('Helvetica-Bold').fontSize(12).text(evidence.name || `Request photo ${index + 1}`)
-        doc.fillColor('#64748b').font('Helvetica').fontSize(8).text(`${(evidence.kind || 'PHOTO').replace(/_/g, ' ')}${evidence.note ? ` - ${evidence.note}` : ''}`)
+        doc.fillColor(PO.black).font('Times-Bold').fontSize(12).text(evidence.name || `Request photo ${index + 1}`)
+        doc.fillColor(PO.muted).font('Helvetica').fontSize(8).text(`${(evidence.kind || 'PHOTO').replace(/_/g, ' ')}${evidence.note ? ` - ${evidence.note}` : ''}`)
         const imageY = doc.y + 15
-        doc.roundedRect(left, imageY, width, 560, 5).stroke('#cbd5e1')
+        doc.rect(left, imageY, width, 560).stroke(PO.line)
         doc.image(image, left + 10, imageY + 10, { fit: [width - 20, 540], align: 'center', valign: 'center' })
       })
 
@@ -487,8 +501,8 @@ export default async function handler(req, res) {
         // Footer text must remain above the bottom margin or PDFKit will
         // silently append blank overflow pages.
         const footerY = doc.page.height - doc.page.margins.bottom - 12
-        doc.strokeColor(PDF.border).lineWidth(0.6).moveTo(left, footerY - 6).lineTo(right, footerY - 6).stroke()
-        doc.fillColor(PDF.muted).font('Helvetica').fontSize(7)
+        doc.strokeColor(PO.line).lineWidth(0.6).moveTo(left, footerY - 6).lineTo(right, footerY - 6).stroke()
+        doc.fillColor(PO.muted).font('Helvetica').fontSize(7)
           .text(`System-generated official document · ${new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}`, left, footerY, { width: 350, lineBreak: false })
         doc.text(`Page ${page + 1} of ${pages.count}`, 450, footerY, { width: 103, align: 'right', lineBreak: false })
       }
