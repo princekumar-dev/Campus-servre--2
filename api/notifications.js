@@ -9,7 +9,8 @@ import {
   storeNotification,
   getUserNotifications,
   getUnreadNotificationCount,
-  markNotificationAsRead
+  markNotificationAsRead,
+  markAllNotificationsAsRead
 } from '../lib/notificationService.js'
 
 const router = express.Router()
@@ -295,6 +296,31 @@ const handleMarkNotificationAsRead = async (req, res) => {
     })
   }
 }
+
+// Keep this static route before /:id/read so "read-all" is not interpreted as
+// a notification id. The authenticated email header is the source of truth.
+router.patch('/read-all', async (req, res) => {
+  try {
+    const userEmail = String(req.headers['x-user-email'] || '').trim().toLowerCase()
+    if (!userEmail) {
+      return res.status(401).json({ success: false, message: 'Authentication required' })
+    }
+
+    const result = await markAllNotificationsAsRead(userEmail)
+    if (!result.success) {
+      return res.status(500).json({ success: false, message: result.error || 'Unable to mark notifications as read' })
+    }
+
+    return res.json({
+      success: true,
+      modifiedCount: result.modifiedCount || 0,
+      unreadCount: 0
+    })
+  } catch (error) {
+    console.error('Mark all as read error:', error)
+    return res.status(500).json({ success: false, message: 'Internal server error' })
+  }
+})
 
 router.put('/:id/read', handleMarkNotificationAsRead)
 router.patch('/:id/read', handleMarkNotificationAsRead)

@@ -72,9 +72,19 @@ export default function CampusServeNotifications({ isOpen, onClose, setUnreadCou
   }
 
   const markAllRead = async () => {
-    const unread = items.filter(item => !item.read)
+    const previousItems = items
     setItems(current => current.map(item => ({ ...item, read: true })))
-    await Promise.allSettled(unread.map(item => apiClient.patch(`/api/notifications/${item._id}/read`)))
+    setUnreadCount?.(0)
+    setError('')
+    try {
+      const result = await apiClient.patch('/api/notifications/read-all')
+      if (!result?.success) throw new Error(result?.message || 'Unable to mark notifications as read.')
+    } catch (err) {
+      setItems(previousItems)
+      setUnreadCount?.(previousItems.filter(item => !item.read).length)
+      setError(err.message || 'Unable to mark notifications as read.')
+      loadNotifications()
+    }
   }
 
   const remove = async (event, id) => {
