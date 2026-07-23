@@ -17,7 +17,7 @@ services:
       - key: PO_QR_SECRET
         sync: false
       - key: FRONTEND_URL
-        sync: false
+        value: https://msec-campusserve.vercel.app
       - key: PUBLIC_BASE_URL
         sync: false
       - key: VAPID_PUBLIC_KEY

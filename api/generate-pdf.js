@@ -3,6 +3,7 @@ import { ServiceRequest, PurchaseOrder } from '../models.js'
 import PDFDocument from 'pdfkit'
 import sharp from 'sharp'
 import QRCode from 'qrcode'
+import { resolvePublicAppUrl } from '../lib/publicAppUrl.js'
 import { addProductIds } from '../lib/productId.js'
 import fs from 'fs'
 import path from 'path'
@@ -24,10 +25,7 @@ const dateText = value => value ? new Date(value).toLocaleDateString('en-IN') : 
 
 function getPublicBaseUrl(req) {
   const configured = process.env.FRONTEND_URL || process.env.PUBLIC_BASE_URL
-  if (configured) return configured.replace(/\/+$/, '')
-  const protocol = String(req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0]
-  const host = String(req.headers['x-forwarded-host'] || req.headers.host || '').split(',')[0]
-  return `${protocol}://${host}`.replace(/\/+$/, '')
+  return resolvePublicAppUrl(configured)
 }
 
 function drawInstitutionHeader(doc, title, reference = '') {
