@@ -347,11 +347,11 @@ export default async function handler(req, res) {
       const PO = {
         black: '#111111',
         ink: '#202020',
-        muted: '#6b6b6b',
+        muted: '#555555',
         line: '#d8d5ce',
         soft: '#f8f7f4',
-        accent: '#9a6518',
-        accentSoft: '#f5ecdc',
+        accent: '#7d4e0e',
+        accentSoft: '#fbf0dc',
         white: '#ffffff'
       }
       const monochromeLogo = LOGO_PATH
@@ -360,17 +360,17 @@ export default async function handler(req, res) {
       const sectionTitle = title => {
         const y = doc.y
         doc.rect(left, y + 3, 18, 2).fill(PO.accent)
-        doc.fillColor(PO.black).font('Helvetica-Bold').fontSize(8)
-          .text(title.toUpperCase(), left, y + 9, { characterSpacing: 1.15 })
+        doc.fillColor(PO.black).font('Helvetica-Bold').fontSize(8.8)
+          .text(title.toUpperCase(), left, y + 8, { characterSpacing: 0.85 })
         doc.strokeColor(PO.black).lineWidth(0.8).moveTo(left, y + 21).lineTo(right, y + 21).stroke()
         doc.y = y + 30
       }
       const field = (label, value, x, y, fieldWidth = 245) => {
         const previousY = doc.y
         const labelWidth = Math.min(100, fieldWidth * 0.41)
-        doc.fillColor(PO.muted).font('Helvetica-Bold').fontSize(6.8)
+        doc.fillColor(PO.muted).font('Helvetica-Bold').fontSize(7.2)
           .text(label.toUpperCase(), x, y, { width: labelWidth, characterSpacing: 0.55 })
-        doc.fillColor(PO.ink).font('Helvetica-Bold').fontSize(8.3)
+        doc.fillColor(PO.ink).font('Helvetica-Bold').fontSize(9)
           .text(String(value || 'N/A'), x + labelWidth, y - 1, { width: fieldWidth - labelWidth })
         doc.y = previousY
       }
@@ -383,16 +383,16 @@ export default async function handler(req, res) {
         const textWidth = width - logoWidth - qrSize - 24
         if (monochromeLogo) doc.image(monochromeLogo, left, headerTop, { width: logoWidth, height: logoHeight })
         doc.image(gateQrImage, right - qrSize, headerTop, { width: qrSize, height: qrSize })
-        doc.fillColor(PO.muted).font('Helvetica-Bold').fontSize(5.5)
+        doc.fillColor(PO.muted).font('Helvetica-Bold').fontSize(6)
           .text('GATE VERIFY', right - qrSize, headerTop + qrSize + 2, { width: qrSize, align: 'center', lineBreak: false })
-        doc.fillColor(PO.black).font('Helvetica-Bold').fontSize(12.5)
+        doc.fillColor(PO.black).font('Helvetica-Bold').fontSize(13.5)
           .text('MEENAKSHI SUNDARARAJAN ENGINEERING COLLEGE', textX, headerTop + 2, { width: textWidth, align: 'center' })
-        doc.fillColor(PO.muted).font('Helvetica').fontSize(7.2)
+        doc.fillColor(PO.muted).font('Helvetica').fontSize(7.7)
           .text('AN AUTONOMOUS INSTITUTION AFFILIATED TO ANNA UNIVERSITY', textX, headerTop + 22, { width: textWidth, align: 'center' })
         doc.text('363, Arcot Road, Kodambakkam, Chennai - 600024', textX, headerTop + 35, { width: textWidth, align: 'center' })
-        doc.fillColor(PO.black).font('Helvetica-Bold').fontSize(7.5)
+        doc.fillColor(PO.black).font('Helvetica-Bold').fontSize(8)
           .text('MSEC CAMPUSSERVE', textX, headerTop + 50, { width: textWidth, align: 'center', characterSpacing: 0.6 })
-        doc.fillColor(PO.black).font('Times-Bold').fontSize(15)
+        doc.fillColor(PO.black).font('Times-Bold').fontSize(17)
           .text(subtitle, textX + 70, headerTop + 67, { width: textWidth - 140, align: 'center', characterSpacing: 1.25 })
         doc.strokeColor(PO.black).lineWidth(1).moveTo(left, headerTop + 96).lineTo(right, headerTop + 96).stroke()
         doc.strokeColor(PO.accent).lineWidth(2).moveTo(left, headerTop + 96).lineTo(left + 54, headerTop + 96).stroke()
@@ -426,24 +426,44 @@ export default async function handler(req, res) {
         const y = doc.y
         doc.rect(left, y, width, 28).fillAndStroke(PO.black, PO.black)
         ;['#', 'Description / Specification', 'Qty', 'Unit Price', 'Tax', 'Amount'].forEach((label, i) =>
-          doc.fillColor(PO.white).font('Helvetica-Bold').fontSize(7.2).text(label, columns[i] + 4, y + 9, { width: widths[i] - 8, align: i >= 2 ? 'right' : 'left', characterSpacing: 0.25 })
+          doc.fillColor(PO.white).font('Helvetica-Bold').fontSize(7.7).text(label, columns[i] + 4, y + 9, { width: widths[i] - 8, align: i >= 2 ? 'right' : 'left', characterSpacing: 0.18 })
         )
         columns.slice(1).forEach(x => doc.strokeColor('#4b4b4b').lineWidth(0.4).moveTo(x, y).lineTo(x, y + 28).stroke())
         doc.y = y + 28
       }
       drawTableHeader()
       ;(po.items || []).forEach((item, index) => {
-        const description = [`Product ID: ${item.productId}`, item.description, item.specification, item.brand, item.model].filter(Boolean).join(' | ')
-        const rowHeight = Math.max(34, doc.heightOfString(description, { width: widths[1] - 10 }) + 14)
+        const details = [item.specification, item.brand, item.model].filter(Boolean).join(' · ')
+        doc.font('Helvetica-Bold').fontSize(8.8)
+        const descriptionHeight = doc.heightOfString(item.description || 'Unnamed item', { width: widths[1] - 12 })
+        doc.font('Helvetica').fontSize(7.4)
+        const detailsHeight = details ? doc.heightOfString(details, { width: widths[1] - 12 }) : 0
+        const rowHeight = Math.max(46, descriptionHeight + detailsHeight + 30)
         if (doc.y + rowHeight > 720) {
           doc.addPage(); drawHeader('PURCHASE ORDER'); drawTableHeader()
         }
         const y = doc.y
         doc.rect(left, y, width, rowHeight).fillAndStroke(index % 2 ? PO.soft : PO.white, PO.line)
         columns.slice(1).forEach(x => doc.strokeColor(PO.line).lineWidth(0.4).moveTo(x, y).lineTo(x, y + rowHeight).stroke())
-        const values = [String(index + 1), description, `${item.quantityOrdered} ${item.unit}`, money(item.unitPrice), `${Number(item.taxRate || 0)}%`, money(item.lineTotal)]
-        values.forEach((value, i) => doc.fillColor(i === 5 ? PO.accent : PO.ink).font(i === 1 ? 'Helvetica' : 'Helvetica-Bold').fontSize(8)
-          .text(value, columns[i] + 4, y + 9, { width: widths[i] - 8, align: i >= 2 ? 'right' : 'left' }))
+        doc.fillColor(PO.ink).font('Helvetica-Bold').fontSize(8.5)
+          .text(String(index + 1), columns[0] + 4, y + 17, { width: widths[0] - 8 })
+        doc.fillColor(PO.muted).font('Helvetica-Bold').fontSize(6.5)
+          .text(`PRODUCT ID  ${item.productId}`, columns[1] + 6, y + 7, { width: widths[1] - 12, characterSpacing: 0.35 })
+        doc.fillColor(PO.black).font('Helvetica-Bold').fontSize(8.8)
+          .text(item.description || 'Unnamed item', columns[1] + 6, y + 18, { width: widths[1] - 12 })
+        if (details) {
+          doc.fillColor(PO.muted).font('Helvetica').fontSize(7.4)
+            .text(details, columns[1] + 6, y + 20 + descriptionHeight, { width: widths[1] - 12 })
+        }
+        ;[
+          [`${item.quantityOrdered} ${item.unit}`, 2, PO.ink],
+          [money(item.unitPrice), 3, PO.accent],
+          [`${Number(item.taxRate || 0)}%`, 4, PO.ink],
+          [money(item.lineTotal), 5, PO.accent]
+        ].forEach(([value, i, color]) => {
+          doc.fillColor(color).font('Helvetica-Bold').fontSize(i === 3 || i === 5 ? 8.6 : 8.3)
+            .text(value, columns[i] + 4, y + 17, { width: widths[i] - 8, align: 'right' })
+        })
         doc.y = y + rowHeight
       })
 
@@ -458,13 +478,13 @@ export default async function handler(req, res) {
         ['Delivery', money(po.deliveryCharge)]
       ].forEach(([label, value], index) => {
         const rowY = totalsY + 11 + (index * 17)
-        doc.fillColor(PO.muted).font('Helvetica').fontSize(8).text(label, totalX + 12, rowY, { width: 92 })
-        doc.fillColor(PO.ink).font('Helvetica-Bold').text(value, totalX + 108, rowY, { width: 92, align: 'right' })
+        doc.fillColor(PO.muted).font('Helvetica').fontSize(8.4).text(label, totalX + 12, rowY, { width: 92 })
+        doc.fillColor(PO.accent).font('Helvetica-Bold').fontSize(8.8).text(value, totalX + 108, rowY, { width: 92, align: 'right' })
       })
       const grandTotalY = totalsY + 76
       doc.rect(totalX + 6, grandTotalY, 201, 25).fillAndStroke(PO.accentSoft, PO.accent)
-      doc.fillColor(PO.accent).font('Helvetica-Bold').fontSize(9).text('GRAND TOTAL', totalX + 16, grandTotalY + 8)
-      doc.text(money(po.grandTotal), totalX + 108, grandTotalY + 8, { width: 88, align: 'right' })
+      doc.fillColor(PO.accent).font('Helvetica-Bold').fontSize(9.5).text('GRAND TOTAL', totalX + 16, grandTotalY + 7)
+      doc.fontSize(10).text(money(po.grandTotal), totalX + 108, grandTotalY + 7, { width: 88, align: 'right' })
       doc.y = totalsY + 119
 
       sectionTitle('Commercial terms')
@@ -472,8 +492,8 @@ export default async function handler(req, res) {
       doc.rect(left, termsY, width, 58).fillAndStroke(PO.soft, PO.line)
       field('Payment', po.paymentTerms || 'Net 30', left + 12, termsY + 11, 240)
       field('Warranty', po.warrantyTerms || 'As per vendor/manufacturer warranty', 306, termsY + 11, 235)
-      doc.fillColor(PO.muted).font('Helvetica-Bold').fontSize(7.2).text('NOTES', left + 12, termsY + 36, { width: 62 })
-      doc.fillColor(PO.ink).font('Helvetica').fontSize(7.8).text(po.notes || 'Supply must conform to the specifications and quantities stated in this purchase order.', left + 75, termsY + 35, { width: width - 87, height: 18, ellipsis: true })
+      doc.fillColor(PO.muted).font('Helvetica-Bold').fontSize(7.4).text('NOTES', left + 12, termsY + 36, { width: 62 })
+      doc.fillColor(PO.ink).font('Helvetica').fontSize(8.3).text(po.notes || 'Supply must conform to the specifications and quantities stated in this purchase order.', left + 75, termsY + 35, { width: width - 87, height: 18, ellipsis: true })
       doc.y = termsY + 77
       const signatureY = Math.min(doc.y + 33, 756)
       const signatureWidth = 170
@@ -482,8 +502,8 @@ export default async function handler(req, res) {
         [right - signatureWidth - 18, 'Authorized signatory', 'For MSEC']
       ].forEach(([x, label, caption]) => {
         doc.strokeColor(PO.black).lineWidth(0.7).moveTo(x, signatureY).lineTo(x + signatureWidth, signatureY).stroke()
-        doc.fillColor(PO.black).font('Times-Bold').fontSize(8).text(label, x, signatureY + 7, { width: signatureWidth, align: 'center' })
-        doc.fillColor(PO.muted).font('Helvetica').fontSize(6.8).text(caption, x, signatureY + 19, { width: signatureWidth, align: 'center' })
+        doc.fillColor(PO.black).font('Times-Bold').fontSize(8.8).text(label, x, signatureY + 7, { width: signatureWidth, align: 'center' })
+        doc.fillColor(PO.muted).font('Helvetica').fontSize(7.2).text(caption, x, signatureY + 20, { width: signatureWidth, align: 'center' })
       })
 
       attachedImages.forEach(({ evidence, image }, index) => {
@@ -502,7 +522,7 @@ export default async function handler(req, res) {
         // silently append blank overflow pages.
         const footerY = doc.page.height - doc.page.margins.bottom - 12
         doc.strokeColor(PO.line).lineWidth(0.6).moveTo(left, footerY - 6).lineTo(right, footerY - 6).stroke()
-        doc.fillColor(PO.muted).font('Helvetica').fontSize(7)
+        doc.fillColor(PO.muted).font('Helvetica').fontSize(7.4)
           .text(`System-generated official document · ${new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}`, left, footerY, { width: 350, lineBreak: false })
         doc.text(`Page ${page + 1} of ${pages.count}`, 450, footerY, { width: 103, align: 'right', lineBreak: false })
       }
