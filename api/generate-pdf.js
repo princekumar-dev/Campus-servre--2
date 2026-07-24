@@ -517,8 +517,8 @@ export default async function handler(req, res) {
         if (po.status === 'CLOSED') {
           stamps.push({ title: 'ORDER RECEIVED', name: finalGrn?.receivedByName || 'Gate / Stores', at: finalGrn?.receivedAt || finalGrn?.createdAt, color: '#059669' })
         }
-        const stampSize = stamps.length === 3 ? 92 : 100
-        const gap = stamps.length === 3 ? 50 : 80
+        const stampSize = 68
+        const gap = stamps.length === 3 ? 72 : 105
         const totalWidth = stamps.length * stampSize + (stamps.length - 1) * gap
         const startX = left + (width - totalWidth) / 2
         stamps.forEach((stamp, index) => {
@@ -526,14 +526,13 @@ export default async function handler(req, res) {
           const centerX = x + stampSize / 2
           const centerY = stampY + stampSize / 2
           doc.save().opacity(0.82)
-          doc.circle(centerX, centerY, stampSize / 2).lineWidth(2).strokeColor(stamp.color).stroke()
-          doc.circle(centerX, centerY, stampSize / 2 - 5).lineWidth(0.8).strokeColor(stamp.color).stroke()
-          doc.moveTo(x + 13, centerY - 10).lineTo(x + stampSize - 13, centerY - 10).lineWidth(0.6).strokeColor(stamp.color).stroke()
-          doc.moveTo(x + 13, centerY + 15).lineTo(x + stampSize - 13, centerY + 15).stroke()
-          doc.fillColor(stamp.color).font('Helvetica-Bold').fontSize(6.2).text('MSEC CAMPUSSERVE', x + 8, stampY + 13, { width: stampSize - 16, align: 'center' })
-          doc.font('Times-Bold').fontSize(8.2).text(stamp.title.replace('VERIFIED BY ', '').replace('ORDER RECEIVED', 'RECEIVED'), x + 8, centerY - 5, { width: stampSize - 16, align: 'center' })
-          doc.font('Helvetica-Bold').fontSize(5.2).text(stamp.name, x + 12, centerY + 5, { width: stampSize - 24, align: 'center', ellipsis: true })
-          doc.font('Helvetica').fontSize(4.8).text(stamp.at ? new Date(stamp.at).toLocaleDateString('en-IN') : 'VERIFIED', x + 10, centerY + 22, { width: stampSize - 20, align: 'center' })
+          doc.circle(centerX, centerY, stampSize / 2).lineWidth(1.5).strokeColor(stamp.color).stroke()
+          doc.circle(centerX, centerY, stampSize / 2 - 4).lineWidth(0.6).strokeColor(stamp.color).stroke()
+          doc.moveTo(x + 10, centerY - 7).lineTo(x + stampSize - 10, centerY - 7).lineWidth(0.5).strokeColor(stamp.color).stroke()
+          doc.moveTo(x + 10, centerY + 9).lineTo(x + stampSize - 10, centerY + 9).stroke()
+          doc.fillColor(stamp.color).font('Times-Bold').fontSize(7.2).text(stamp.title === 'ORDER RECEIVED' ? 'RECEIVED' : 'VERIFIED', x + 6, stampY + 11, { width: stampSize - 12, align: 'center' })
+          doc.font('Helvetica-Bold').fontSize(5.6).text(stamp.title === 'ORDER RECEIVED' ? 'GATE' : stamp.title.replace('VERIFIED BY ', ''), x + 8, centerY - 2, { width: stampSize - 16, align: 'center' })
+          doc.font('Helvetica').fontSize(4.5).text(stamp.at ? new Date(stamp.at).toLocaleDateString('en-IN') : 'VERIFIED', x + 8, centerY + 15, { width: stampSize - 16, align: 'center' })
           doc.restore()
         })
       }
