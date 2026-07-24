@@ -1,4 +1,42 @@
-import { PurchaseOrder, Vendor, User, ServiceRequest } from '../models.js'
+import { PurchaseOrder, Vendor, User, ServiceRequest, GoodsReceipt } from '../models.js'
+
+async function reconcileLegacyQrClosures() {
+  const finalQrPoIds = await GoodsReceipt.distinct('poId', { grnType: 'FINAL', source: 'PO_QR' })
+  if (!finalQrPoIds.length) return
+  const stuck = await PurchaseOrder.find({ _id: { $in: finalQrPoIds }, status: 'FULFILLED' })
+    .select('_id requestId poNumber statusHistory')
+  if (!stuck.length) return
+  const now = new Date()
+  await Promise.all(stuck.map(async po => {
+    po.status = 'CLOSED'
+    po.statusHistory.push({
+      oldStatus: 'FULFILLED',
+      newStatus: 'CLOSED',
+      actorId: 'system',
+      actorName: 'CampusServe',
+      comment: 'Reconciled legacy final gate QR receipt; PO closed automatically',
+      createdAt: now
+    })
+    await po.save()
+    if (po.requestId) {
+      await ServiceRequest.updateOne(
+        { _id: po.requestId, status: { $ne: 'CLOSED' } },
+        {
+          $set: { status: 'CLOSED', currentOwnerRole: null, closedAt: now },
+          $push: {
+            statusHistory: {
+              oldStatus: 'PURCHASE_ORDER_CREATED',
+              newStatus: 'CLOSED',
+              actorId: 'system',
+              actorName: 'CampusServe',
+              comment: `Purchase order ${po.poNumber} closed after final gate QR receipt`
+            }
+          }
+        }
+      )
+    }
+  }))
+}
 import { connectToDatabase } from '../lib/mongo.js'
 import { addProductIds, generateProductId, getProductId } from '../lib/productId.js'
 import { storeNotification } from '../lib/notificationService.js'
@@ -24,6 +62,7 @@ export default async function handler(req, res) {
 
     // ── GET /api/purchase-orders ──────────────────────────────────────────────
     if (req.method === 'GET') {
+      await reconcileLegacyQrClosures()
       if (id) {
         const po = await PurchaseOrder.findById(id).lean()
         if (!po) return res.status(404).json({ success: false, error: 'PO not found' })
@@ -83,6 +122,21 @@ export default async function handler(req, res) {
         if (!['MAINTENANCE', 'REPLACEMENT', 'NEW_PURCHASE'].includes(serviceRequest.adminAssessment?.requirementType)) {
           return res.status(400).json({ success: false, error: 'Admin classification is required before creating an order' })
         }
+        const requestedDescription = String(serviceRequest.requestedItem || serviceRequest.title || '').trim().toLowerCase()
+        const requestedQuantity = Number(serviceRequest.requestedQuantity || 1)
+        const requestedUnit = String(serviceRequest.requestedUnit || 'pcs').trim().toLowerCase()
+        const submittedItem = items[0]
+        if (
+          items.length !== 1 ||
+          String(submittedItem?.description || '').trim().toLowerCase() !== requestedDescription ||
+          Number(submittedItem?.quantityOrdered) !== requestedQuantity ||
+          String(submittedItem?.unit || '').trim().toLowerCase() !== requestedUnit
+        ) {
+          return res.status(400).json({
+            success: false,
+            error: 'A request-based purchase order must contain only the single item, quantity, and unit approved in that request'
+          })
+        }
       }
 
       // Calculate totals
@@ -90,7 +144,8 @@ export default async function handler(req, res) {
       const processedItems = items.map(item => {
         const qty = Number(item.quantityOrdered || 1)
         const price = Number(item.unitPrice || 0)
-        const taxRate = Number(item.taxRate || 18)
+        const parsedTaxRate = Number(item.taxRate)
+        const taxRate = Number.isFinite(parsedTaxRate) ? Math.min(100, Math.max(0, parsedTaxRate)) : 18
         const discount = Number(item.discount || 0)
         const lineSubtotal = qty * price
         const lineDiscount = discount

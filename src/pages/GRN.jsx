@@ -3,7 +3,7 @@ import { useAlert } from '../components/AlertContext'
 import ModalShell from '../components/ModalShell'
 import apiClient from '../utils/apiClient'
 import { getAuthOrNull } from '../utils/auth'
-import { ClipboardCheck, Plus, Package, CheckCircle, AlertTriangle, XCircle, ChevronDown, ChevronUp } from 'lucide-react'
+import { ClipboardCheck, Plus, Package, CheckCircle, AlertTriangle, XCircle, ChevronDown, ChevronUp, Download, FileArchive } from 'lucide-react'
 
 const grnTypeColors = {
   PARTIAL: 'bg-indigo-50 text-indigo-700 border-indigo-200',
@@ -154,12 +154,24 @@ function CreateGRNModal({ onClose, onSaved }) {
   )
 }
 
-function GRNCard({ grn }) {
+async function downloadExport(url, filename) {
+  const blob = await apiClient.get(url, { responseType: 'blob', cache: false, timeout: 120000 })
+  const objectUrl = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = objectUrl
+  anchor.download = filename
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
+}
+
+function GRNCard({ grn, onDownload }) {
   const [expanded, setExpanded] = useState(false)
 
   return (
-    <div className="premium-card hover:border-violet-200 transition-all">
-      <div className="p-5">
+    <div className="rounded-xl border border-slate-200 bg-white transition-all hover:border-violet-200">
+      <div className="p-4">
         <div className="flex items-start justify-between">
           <div className="flex items-center space-x-3">
             <div className="p-2.5 bg-emerald-50 rounded-xl text-emerald-600 flex-shrink-0"><ClipboardCheck size={18} /></div>
@@ -173,6 +185,13 @@ function GRNCard({ grn }) {
             {grn.source === 'PO_QR' && <span className="text-xs font-bold px-2 py-0.5 rounded-full border bg-violet-50 text-violet-700 border-violet-200">GATE QR</span>}
             <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${grnTypeColors[grn.grnType]}`}>{grn.grnType}</span>
             <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${grn.status === 'FINALIZED' ? 'bg-slate-100 text-slate-500 border-slate-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>{grn.status}</span>
+            <button
+              onClick={() => onDownload(grn)}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-2.5 py-1.5 text-[11px] font-bold text-white hover:bg-violet-700"
+              title={`Download ${grn.grnNumber} report`}
+            >
+              <Download size={12} /> PDF
+            </button>
           </div>
         </div>
 
@@ -192,20 +211,26 @@ function GRNCard({ grn }) {
                 <tr className="text-[11px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">
                   <th className="pb-2">Product ID</th>
                   <th className="pb-2">Item</th>
+                  <th className="pb-2 text-right">Ordered</th>
+                  <th className="pb-2 text-right">Previous</th>
                   <th className="pb-2 text-right">Delivered</th>
                   <th className="pb-2 text-right text-emerald-600">Accepted</th>
+                  <th className="pb-2 text-right text-emerald-700">Cumulative</th>
                   <th className="pb-2 text-right text-amber-600">Damaged</th>
                   <th className="pb-2 text-right text-rose-600">Rejected</th>
                   <th className="pb-2 text-right">Remaining</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {(grn.items || []).map((item, idx) => (
+                {(grn.items || []).filter(item => Number(item.quantityDeliveredNow || 0) > 0).map((item, idx) => (
                   <tr key={idx} className="hover:bg-slate-50/50">
                     <td className="whitespace-nowrap py-2 pr-4 font-mono font-bold text-violet-700">{item.productId || '—'}</td>
                     <td className="py-2 font-medium text-slate-800">{item.poItemDescription}</td>
+                    <td className="py-2 text-right text-slate-600">{item.quantityOrdered}</td>
+                    <td className="py-2 text-right text-blue-600">{item.quantityPreviouslyAccepted || 0}</td>
                     <td className="py-2 text-right text-slate-600">{item.quantityDeliveredNow}</td>
                     <td className="py-2 text-right text-emerald-600 font-bold">{item.quantityAcceptedNow}</td>
+                    <td className="py-2 text-right text-emerald-700 font-bold">{Number(item.quantityPreviouslyAccepted || 0) + Number(item.quantityAcceptedNow || 0)}</td>
                     <td className="py-2 text-right text-amber-600 font-bold">{item.quantityDamaged}</td>
                     <td className="py-2 text-right text-rose-600 font-bold">{item.quantityRejected}</td>
                     <td className="py-2 text-right"><span className={`font-bold ${item.quantityRemaining > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>{item.quantityRemaining}</span></td>
@@ -220,12 +245,80 @@ function GRNCard({ grn }) {
   )
 }
 
+function POGroup({ group, onDownloadGrn, onDownloadPackage }) {
+  const [expanded, setExpanded] = useState(false)
+  const { po, grns } = group
+  const partial = grns.filter(grn => grn.grnType === 'PARTIAL').length
+  const final = grns.filter(grn => grn.grnType === 'FINAL').length
+  const accepted = grns.reduce((sum, grn) => sum + (grn.items || []).reduce((itemSum, item) => itemSum + Number(item.quantityAcceptedNow || 0), 0), 0)
+
+  return (
+    <div className="premium-card overflow-hidden">
+      <button onClick={() => setExpanded(value => !value)} className="flex w-full items-start justify-between gap-4 p-5 text-left hover:bg-violet-50/40">
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="rounded-xl bg-violet-50 p-2.5 text-violet-600"><Package size={20} /></div>
+          <div className="min-w-0">
+            <div className="font-mono text-sm font-black text-violet-700">{po?.poNumber || grns[0]?.poNumber}</div>
+            <div className="mt-1 text-sm font-bold text-slate-800">{po?.vendorName || 'Vendor not available'}</div>
+            <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+              <span>{grns.length} GRN{grns.length === 1 ? '' : 's'}</span>
+              <span>{partial} partial</span>
+              <span>{final} final</span>
+              <span>{accepted} units accepted</span>
+            </div>
+          </div>
+        </div>
+        <div className="flex flex-shrink-0 items-center gap-2">
+          <span className={`rounded-full border px-2.5 py-1 text-[11px] font-black ${
+            po?.status === 'CLOSED' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' :
+            po?.status === 'FULFILLED' ? 'border-blue-200 bg-blue-50 text-blue-700' :
+            'border-amber-200 bg-amber-50 text-amber-700'
+          }`}>{po?.status?.replace(/_/g, ' ') || 'STATUS UNKNOWN'}</span>
+          <span className="rounded-lg p-1.5 text-slate-400">{expanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}</span>
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="border-t border-slate-100 bg-slate-50/70 p-5">
+          <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              ['PO Status', po?.status?.replace(/_/g, ' ') || '—'],
+              ['PO Value', `₹${Number(po?.grandTotal || 0).toLocaleString('en-IN')}`],
+              ['Delivery Location', po?.deliveryLocation || '—'],
+              ['Expected Delivery', po?.expectedDeliveryDate ? new Date(po.expectedDeliveryDate).toLocaleDateString('en-IN') : '—'],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-xl border border-slate-200 bg-white p-3">
+                <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">{label}</div>
+                <div className="mt-1 truncate text-xs font-bold text-slate-700" title={value}>{value}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <h3 className="text-xs font-black uppercase tracking-wider text-slate-500">Related Goods Receipts</h3>
+            <button
+              onClick={() => onDownloadPackage(po, grns)}
+              className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white hover:bg-slate-800"
+            >
+              <FileArchive size={14} /> Download PO + All GRNs (.zip)
+            </button>
+          </div>
+          <div className="space-y-3">
+            {grns.map(grn => <GRNCard key={grn._id} grn={grn} onDownload={onDownloadGrn} />)}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function GRN() {
   const [grns, setGrns] = useState([])
+  const [purchaseOrders, setPurchaseOrders] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [filter, setFilter] = useState('ALL')
   const [showCreate, setShowCreate] = useState(false)
-  const { showError } = useAlert()
+  const { showError, showSuccess } = useAlert()
   const auth = getAuthOrNull()
 
   const canRecord = ['admin', 'super_admin', 'manager', 'receiving_officer'].includes(auth?.role)
@@ -234,7 +327,10 @@ export default function GRN() {
     setIsLoading(true)
     try {
       const res = await apiClient.get('/api/grn')
-      if (res.success) setGrns(res.data)
+      if (res.success) {
+        setGrns(res.data)
+        setPurchaseOrders(res.purchaseOrders || [])
+      }
       else showError('Load Error', res.error)
     } catch (err) { showError('Network Error', err.message) }
     finally { setIsLoading(false) }
@@ -243,10 +339,32 @@ export default function GRN() {
   useEffect(() => { fetchGRNs() }, [fetchGRNs])
 
   const filtered = grns.filter(g => filter === 'ALL' || g.grnType === filter)
+  const poById = new Map(purchaseOrders.map(po => [String(po._id), po]))
+  const grouped = Object.values(filtered.reduce((groups, grn) => {
+    const key = String(grn.poId || grn.poNumber)
+    if (!groups[key]) groups[key] = { po: poById.get(String(grn.poId)), grns: [] }
+    groups[key].grns.push(grn)
+    return groups
+  }, {}))
+
+  const handleDownloadGrn = async (grn) => {
+    try {
+      await downloadExport(`/api/grn-export?type=grn&grnId=${encodeURIComponent(grn._id)}`, `${grn.grnNumber}.pdf`)
+      showSuccess('Report Downloaded', `${grn.grnNumber}.pdf is ready`)
+    } catch (error) { showError('Download Failed', error.message) }
+  }
+
+  const handleDownloadPackage = async (po, relatedGrns) => {
+    if (!po?._id) return showError('Download Failed', 'Purchase order details are unavailable')
+    try {
+      await downloadExport(`/api/grn-export?type=po-package&poId=${encodeURIComponent(po._id)}`, `${po.poNumber}-complete.zip`)
+      showSuccess('Package Downloaded', `${po.poNumber} and ${relatedGrns.length} GRN report(s) were packaged`)
+    } catch (error) { showError('Download Failed', error.message) }
+  }
 
   return (
     <div className="space-y-6 animate-fadeIn">
-      {showCreate && <CreateGRNModal onClose={() => setShowCreate(false)} onSaved={(grn) => { setShowCreate(false); setGrns(current => [grn, ...current]) }} />}
+      {showCreate && <CreateGRNModal onClose={() => setShowCreate(false)} onSaved={() => { setShowCreate(false); fetchGRNs() }} />}
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
         <div>
@@ -286,7 +404,14 @@ export default function GRN() {
         </div>
       ) : (
         <div className="space-y-4">
-          {filtered.map(grn => <GRNCard key={grn._id} grn={grn} />)}
+          {grouped.map(group => (
+            <POGroup
+              key={group.po?._id || group.grns[0]?.poNumber}
+              group={group}
+              onDownloadGrn={handleDownloadGrn}
+              onDownloadPackage={handleDownloadPackage}
+            />
+          ))}
         </div>
       )}
     </div>

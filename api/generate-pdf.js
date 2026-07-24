@@ -1,5 +1,5 @@
 import { connectToDatabase } from '../lib/mongo.js'
-import { ServiceRequest, PurchaseOrder } from '../models.js'
+import { ServiceRequest, PurchaseOrder, GoodsReceipt } from '../models.js'
 import PDFDocument from 'pdfkit'
 import sharp from 'sharp'
 import QRCode from 'qrcode'
@@ -305,6 +305,9 @@ export default async function handler(req, res) {
     if (type === 'purchase-order') {
       const po = await PurchaseOrder.findById(id).lean()
       if (!po) return res.status(404).json({ success: false, error: 'Purchase Order not found' })
+      const finalGrn = po.status === 'CLOSED'
+        ? await GoodsReceipt.findOne({ poId: po._id, grnType: 'FINAL' }).sort({ createdAt: -1 }).lean()
+        : null
       po.items = addProductIds(po.items)
       const poQrToken = createPoQrToken(po._id)
       await PurchaseOrder.updateOne(
@@ -497,16 +500,43 @@ export default async function handler(req, res) {
       doc.fillColor(PO.muted).font('Helvetica-Bold').fontSize(7.4).text('NOTES', left + 12, termsY + 36, { width: 62 })
       doc.fillColor(PO.ink).font('Helvetica').fontSize(8.3).text(po.notes || 'Supply must conform to the specifications and quantities stated in this purchase order.', left + 75, termsY + 35, { width: width - 87, height: 18, ellipsis: true })
       doc.y = termsY + 77
-      const signatureY = Math.min(doc.y + 33, 756)
-      const signatureWidth = 170
-      ;[
-        [left + 18, 'Prepared by', 'Purchase Department'],
-        [right - signatureWidth - 18, 'Authorized signatory', 'For MSEC']
-      ].forEach(([x, label, caption]) => {
-        doc.strokeColor(PO.black).lineWidth(0.7).moveTo(x, signatureY).lineTo(x + signatureWidth, signatureY).stroke()
-        doc.fillColor(PO.black).font('Times-Bold').fontSize(8.8).text(label, x, signatureY + 7, { width: signatureWidth, align: 'center' })
-        doc.fillColor(PO.muted).font('Helvetica').fontSize(7.2).text(caption, x, signatureY + 20, { width: signatureWidth, align: 'center' })
-      })
+      const isVerified = po.signedPo?.status === 'VERIFIED'
+      if (!isVerified) {
+        const signatureY = Math.min(doc.y + 38, 726)
+        const signatureWidth = 170
+        const signatureX = right - signatureWidth - 36
+        doc.strokeColor(PO.black).lineWidth(0.7).moveTo(signatureX, signatureY).lineTo(signatureX + signatureWidth, signatureY).stroke()
+        doc.fillColor(PO.black).font('Times-Bold').fontSize(8.5).text('Secretary Signature', signatureX, signatureY + 8, { width: signatureWidth, align: 'center' })
+        doc.fillColor(PO.muted).font('Helvetica').fontSize(6.8).text('Date: __________________', signatureX, signatureY + 21, { width: signatureWidth, align: 'center' })
+      } else {
+        const stampY = Math.min(doc.y + 12, 670)
+        const stamps = [
+          { title: 'VERIFIED BY ADMIN', name: po.signedPo.verifiedBy || po.approvedBy || 'MSEC Admin', at: po.signedPo.verifiedAt || po.approvedAt, color: '#2563eb' },
+          { title: 'VERIFIED BY SECRETARY', name: 'MSEC Secretary', at: po.signedPo.verifiedAt || po.approvedAt, color: '#7c3aed' }
+        ]
+        if (po.status === 'CLOSED') {
+          stamps.push({ title: 'ORDER RECEIVED', name: finalGrn?.receivedByName || 'Gate / Stores', at: finalGrn?.receivedAt || finalGrn?.createdAt, color: '#059669' })
+        }
+        const stampSize = stamps.length === 3 ? 92 : 100
+        const gap = stamps.length === 3 ? 50 : 80
+        const totalWidth = stamps.length * stampSize + (stamps.length - 1) * gap
+        const startX = left + (width - totalWidth) / 2
+        stamps.forEach((stamp, index) => {
+          const x = startX + index * (stampSize + gap)
+          const centerX = x + stampSize / 2
+          const centerY = stampY + stampSize / 2
+          doc.save().opacity(0.82)
+          doc.circle(centerX, centerY, stampSize / 2).lineWidth(2).strokeColor(stamp.color).stroke()
+          doc.circle(centerX, centerY, stampSize / 2 - 5).lineWidth(0.8).strokeColor(stamp.color).stroke()
+          doc.moveTo(x + 13, centerY - 10).lineTo(x + stampSize - 13, centerY - 10).lineWidth(0.6).strokeColor(stamp.color).stroke()
+          doc.moveTo(x + 13, centerY + 15).lineTo(x + stampSize - 13, centerY + 15).stroke()
+          doc.fillColor(stamp.color).font('Helvetica-Bold').fontSize(6.2).text('MSEC CAMPUSSERVE', x + 8, stampY + 13, { width: stampSize - 16, align: 'center' })
+          doc.font('Times-Bold').fontSize(8.2).text(stamp.title.replace('VERIFIED BY ', '').replace('ORDER RECEIVED', 'RECEIVED'), x + 8, centerY - 5, { width: stampSize - 16, align: 'center' })
+          doc.font('Helvetica-Bold').fontSize(5.2).text(stamp.name, x + 12, centerY + 5, { width: stampSize - 24, align: 'center', ellipsis: true })
+          doc.font('Helvetica').fontSize(4.8).text(stamp.at ? new Date(stamp.at).toLocaleDateString('en-IN') : 'VERIFIED', x + 10, centerY + 22, { width: stampSize - 20, align: 'center' })
+          doc.restore()
+        })
+      }
 
       attachedImages.forEach(({ evidence, image }, index) => {
         doc.addPage(); drawHeader(`ATTACHED EVIDENCE ${index + 1}`)

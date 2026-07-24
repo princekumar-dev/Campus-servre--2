@@ -1,5 +1,5 @@
 import { connectToDatabase } from '../lib/mongo.js'
-import { GoodsReceipt, PurchaseOrder, DeliverySchedule, User } from '../models.js'
+import { GoodsReceipt, PurchaseOrder, DeliverySchedule, User, ServiceRequest } from '../models.js'
 import { storeNotification } from '../lib/notificationService.js'
 import { getProductId } from '../lib/productId.js'
 import { canReceivePo, getPoReceivingBlockReason } from '../lib/poReceiving.js'
@@ -31,7 +31,13 @@ export default async function handler(req, res) {
       if (deliveryId) filter.deliveryScheduleId = deliveryId
       if (req.query.grnType) filter.grnType = req.query.grnType
       const grns = await GoodsReceipt.find(filter).sort({ createdAt: -1 }).lean()
-      return res.json({ success: true, data: grns, total: grns.length })
+      const poIds = [...new Set(grns.map(grn => String(grn.poId || '')).filter(Boolean))]
+      const purchaseOrders = poIds.length
+        ? await PurchaseOrder.find({ _id: { $in: poIds } })
+          .select('poNumber vendorName status grandTotal expectedDeliveryDate deliveryLocation createdAt closedAt items')
+          .lean()
+        : []
+      return res.json({ success: true, data: grns, purchaseOrders, total: grns.length })
     }
 
     // ── POST /api/grn — Create GRN ────────────────────────────────────────────
@@ -75,6 +81,9 @@ export default async function handler(req, res) {
         if (acceptedNow + damaged + rejected > deliveredNow) {
           return res.status(400).json({ success: false, error: `Accepted + Damaged + Rejected cannot exceed Delivered for item: ${item.poItemDescription}` })
         }
+        // A GRN documents only products physically included in this receipt.
+        // Unreceived PO rows must not be copied into the GRN.
+        if (deliveredNow === 0) continue
 
         // Find PO item and check cumulative
         const poItem = po.items.find(pi =>
@@ -125,9 +134,12 @@ export default async function handler(req, res) {
       const rnd = Math.floor(Math.random() * 900000) + 100000
       const grnNumber = `GRN-${year}-${rnd}`
 
+      // A final receipt is the terminal PO event, regardless of whether the
+      // receiving screen was opened from the printed PO QR or manually.
+      const closesPo = grnType === 'FINAL'
       const grn = new GoodsReceipt({
         grnNumber, poId: bodyPoId, poNumber: po.poNumber, deliveryScheduleId,
-        grnType, status: 'DRAFT', receivedBy: receiptActorId, receivedByName: receiptActorName,
+        grnType, status: closesPo ? 'FINALIZED' : 'DRAFT', receivedBy: receiptActorId, receivedByName: receiptActorName,
         source: qrToken ? 'PO_QR' : 'MANUAL',
         gateVerifiedAt: qrToken ? new Date() : undefined,
         remarks, items: processedItems
@@ -136,9 +148,37 @@ export default async function handler(req, res) {
 
       // Update PO status
       const oldPoStatus = po.status
-      po.status = grnType === 'FINAL' ? 'FULFILLED' : 'PARTIALLY_FULFILLED'
-      po.statusHistory.push({ oldStatus: oldPoStatus, newStatus: po.status, actorId: receiptActorId, actorName: receiptActorName, comment: `${grnType} GRN created: ${grnNumber}`, createdAt: new Date() })
+      po.status = closesPo ? 'CLOSED' : grnType === 'FINAL' ? 'FULFILLED' : 'PARTIALLY_FULFILLED'
+      po.statusHistory.push({
+        oldStatus: oldPoStatus,
+        newStatus: po.status,
+        actorId: receiptActorId,
+        actorName: receiptActorName,
+        comment: closesPo
+          ? `PO QR verified and final GRN created: ${grnNumber}. PO closed automatically.`
+          : `${grnType} GRN created: ${grnNumber}`,
+        createdAt: new Date()
+      })
       await po.save()
+
+      // A request-backed PO completes the originating request at the same time.
+      if (closesPo && po.requestId) {
+        const serviceRequest = await ServiceRequest.findById(po.requestId)
+        if (serviceRequest && serviceRequest.status !== 'CLOSED') {
+          const previousRequestStatus = serviceRequest.status
+          serviceRequest.status = 'CLOSED'
+          serviceRequest.currentOwnerRole = null
+          serviceRequest.closedAt = new Date()
+          serviceRequest.statusHistory.push({
+            oldStatus: previousRequestStatus,
+            newStatus: 'CLOSED',
+            actorId: receiptActorId,
+            actorName: receiptActorName,
+            comment: `Purchase order ${po.poNumber} closed after successful QR receiving (${grnNumber})`
+          })
+          await serviceRequest.save()
+        }
+      }
 
       // Update delivery schedule status
       if (deliveryScheduleId) {

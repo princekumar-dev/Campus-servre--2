@@ -14,14 +14,16 @@ export default function GateDashboard() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [gateRes] = await Promise.all([
+        const [gateRes, deliveriesRes] = await Promise.all([
           apiClient.get('/api/gate?action=today'),
           apiClient.get('/api/deliveries')
         ])
         if (gateRes.success) {
           const entries = gateRes.data
           setStats({
-            expected: entries.filter(e => e.decision === 'APPROVED').length,
+            expected: deliveriesRes.success
+              ? deliveriesRes.data.filter(d => ['SCHEDULED', 'PASS_GENERATED', 'AT_GATE'].includes(d.status)).length
+              : 0,
             arrived: entries.length,
             inside: entries.filter(e => !e.exitTime && e.decision === 'APPROVED').length,
             exited: entries.filter(e => e.exitTime).length,
