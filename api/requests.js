@@ -17,7 +17,7 @@ export default async function handler(req, res) {
 
   try {
     if (req.method === 'GET') {
-      const { id, status, priority, category } = req.query
+      const { id, status, priority, category, summary } = req.query
 
       // 1. Fetch single request by ID
       if (id) {
@@ -46,7 +46,16 @@ export default async function handler(req, res) {
         filter['workOrder.technicianId'] = userId
       }
 
-      const requests = await ServiceRequest.find(filter).sort({ createdAt: -1 }).lean()
+      let requestsQuery = ServiceRequest.find(filter).sort({ createdAt: -1 })
+      if (summary === 'dashboard') {
+        requestsQuery = requestsQuery
+          .select('requestNumber title priority status updatedAt createdAt slaDueAt')
+          .limit(8)
+      } else {
+        // List screens do not need large base64 evidence or embedded document payloads.
+        requestsQuery = requestsQuery.select('-evidence.url -invoice.documentUrl')
+      }
+      const requests = await requestsQuery.lean()
       const now = Date.now()
       const data = requests.map(item => ({ ...item, isEscalated: Boolean(item.slaDueAt && new Date(item.slaDueAt).getTime() < now && !['CLOSED', 'REJECTED', 'CANCELLED'].includes(item.status)) }))
       return res.status(200).json({ success: true, data })

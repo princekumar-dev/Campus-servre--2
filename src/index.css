@@ -3452,6 +3452,9 @@ body, button, input, select, textarea, h1, h2, h3, h4, h5, h6, span, p, div, a {
   letter-spacing: 0.025em;
   text-transform: uppercase;
   white-space: nowrap;
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
 }
 .status-draft { background: #f1f5f9; color: #64748b; }
 .status-submitted { background: #dbeafe; color: #2563eb; }
@@ -3459,7 +3462,8 @@ body, button, input, select, textarea, h1, h2, h3, h4, h5, h6, span, p, div, a {
 .status-clarification_required { background: #fef3c7; color: #d97706; }
 .status-rejected { background: #fee2e2; color: #dc2626; }
 .status-approved { background: #d1fae5; color: #059669; }
-.status-assigned_to_manager { background: #dbeafe; color: #2563eb; }
+.status-assigned_to_manager { background: #dbeafe; color: #2563eb; border-color: #bfdbfe; }
+.status-purchase_order_created { background: #ede9fe; color: #7c3aed; border-color: #ddd6fe; }
 .status-under_inspection { background: #e0e7ff; color: #4f46e5; }
 .status-quotation_in_progress { background: #fef3c7; color: #d97706; }
 .status-quotation_submitted { background: #dbeafe; color: #2563eb; }

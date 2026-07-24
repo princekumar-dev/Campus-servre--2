@@ -4,9 +4,9 @@ import { useAlert } from '../components/AlertContext'
 import apiClient from '../utils/apiClient'
 import { getAuthOrNull } from '../utils/auth'
 import { formatDistanceToNow } from 'date-fns'
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
+import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts'
 import {
-  ClipboardList, PlusCircle, AlertCircle, CheckCircle2, IndianRupee,
+  ClipboardList, PlusCircle, AlertCircle, CheckCircle2,
   Wrench, FileCheck, Search, Users, Settings, Building2, ShoppingCart,
   Truck, QrCode, ClipboardCheck, Clock, TrendingUp,
   Eye, ChevronRight, CircleDot
@@ -16,6 +16,8 @@ import { KpiCard, ActionCard, GlassPanel } from '../components/ui'
 const STATUS_COLORS = {
   submitted: '#3b82f6',
   approved: '#10b981',
+  assigned_to_manager: '#3b82f6',
+  purchase_order_created: '#8b5cf6',
   in_progress: '#8b5cf6',
   quotation_submitted: '#f59e0b',
   work_order_created: '#6366f1',
@@ -28,12 +30,12 @@ const ROLE_GREETINGS = {
   requester: { title: 'Your Service Hub', sub: 'Submit and track your maintenance requests' },
   admin: { title: 'Command Center', sub: 'Oversee campus operations and approve workflows' },
   super_admin: { title: 'System Overview', sub: 'Manage users, settings, and platform health' },
-  manager: { title: 'Operations Dashboard', sub: 'Inspect, estimate, and generate invoices' },
+  manager: { title: 'Purchase Operations', sub: 'Create purchase orders and upload signed proof' },
   technician: { title: 'Work Orders', sub: 'Accept jobs, log progress, and record materials' },
-  accounts: { title: 'Finance Portal', sub: 'Record payments and track settlements' },
+  accounts: { title: 'Purchase Overview', sub: 'Track purchase orders through completion' },
   gate: { title: 'Gate Control', sub: 'Verify delivery passes and scan QR codes' },
   receiving_officer: { title: 'Receiving Desk', sub: 'Log goods received and inspect deliveries' },
-  vendor: { title: 'Vendor Portal', sub: 'Manage your orders, deliveries, and invoices' },
+  vendor: { title: 'Vendor Portal', sub: 'Manage assigned orders and deliveries' },
   hod: { title: 'Department Hub', sub: 'Submit and track department requests' },
   staff: { title: 'Staff Portal', sub: 'Submit and track your service requests' },
   delivery_person: { title: 'Delivery Dashboard', sub: 'View your delivery schedule and status' },
@@ -79,7 +81,7 @@ function Dashboard() {
       try {
         const [statsRes, requestsRes] = await Promise.all([
           apiClient.get('/api/reports'),
-          apiClient.get('/api/requests')
+          apiClient.get('/api/requests?summary=dashboard')
         ])
         if (statsRes.success) setStats(statsRes.stats)
         if (requestsRes.success) {
@@ -137,52 +139,60 @@ function Dashboard() {
   const kpiCards = getKPICards()
 
   function getKPICards() {
-    const base = [
-      { label: 'Total Requests', value: stats.totalRequests, icon: ClipboardList, color: 'violet', bg: 'bg-violet-50', textColor: 'text-violet-600', sub: 'All time' },
-      { label: 'Active Work', value: stats.activeWork, icon: Wrench, color: 'blue', bg: 'bg-blue-50', textColor: 'text-blue-600', sub: 'In progress' },
-      { label: 'Pending Payment', value: stats.pendingPayment, icon: IndianRupee, color: 'amber', bg: 'bg-amber-50', textColor: 'text-amber-600', sub: 'Awaiting settlement' },
-      { label: 'Completed', value: stats.closed, icon: CheckCircle2, color: 'emerald', bg: 'bg-emerald-50', textColor: 'text-emerald-600', sub: 'Closed & paid' },
-    ]
-
     if (auth?.role === 'admin' || auth?.role === 'super_admin') {
       return [
-        { label: 'Pending Approval', value: stats.pendingAdmin, icon: AlertCircle, color: 'rose', bg: 'bg-rose-50', textColor: 'text-rose-600', sub: 'Needs review' },
-        ...base
+        { label: 'Requests to Classify', value: stats.requestsToClassify, icon: ClipboardCheck, bg: 'bg-rose-50', textColor: 'text-rose-600', sub: 'Awaiting triage' },
+        { label: 'Signed POs to Verify', value: stats.signedPOsPending, icon: FileCheck, bg: 'bg-amber-50', textColor: 'text-amber-600', sub: 'Proof awaiting review' },
+        { label: 'Active POs', value: stats.activePOs, icon: ShoppingCart, bg: 'bg-blue-50', textColor: 'text-blue-600', sub: 'Gate receiving enabled' },
+        { label: 'Closed POs', value: stats.closedPOs, icon: CheckCircle2, bg: 'bg-emerald-50', textColor: 'text-emerald-600', sub: 'Workflow completed' },
       ]
     }
     if (auth?.role === 'manager') {
       return [
-        { label: 'Awaiting Invoice', value: stats.pendingInvoicing, icon: IndianRupee, color: 'amber', bg: 'bg-amber-50', textColor: 'text-amber-600', sub: 'Verified services' },
-        ...base.slice(1)
+        { label: 'Assigned Requests', value: stats.assignedRequests, icon: ClipboardCheck, bg: 'bg-violet-50', textColor: 'text-violet-600', sub: 'Ready for PO creation' },
+        { label: 'Draft / Revision POs', value: stats.draftPOs, icon: FileCheck, bg: 'bg-amber-50', textColor: 'text-amber-600', sub: 'Signed proof required' },
+        { label: 'Awaiting Admin Verification', value: stats.signedPOsPending, icon: Clock, bg: 'bg-blue-50', textColor: 'text-blue-600', sub: 'Signed proof submitted' },
+        { label: 'Completed POs', value: (stats.fulfilledPOs || 0) + (stats.closedPOs || 0), icon: CheckCircle2, bg: 'bg-emerald-50', textColor: 'text-emerald-600', sub: 'Fulfilled or closed' },
       ]
     }
     if (auth?.role === 'gate') {
       return [
-        { label: 'Today Entries', value: stats.totalRequests, icon: QrCode, color: 'violet', bg: 'bg-violet-50', textColor: 'text-violet-600', sub: 'Gate logs' },
-        ...base.slice(1)
+        { label: 'Awaiting Gate Scan', value: stats.awaitingGate, icon: QrCode, bg: 'bg-violet-50', textColor: 'text-violet-600', sub: 'Valid delivery passes' },
+        { label: 'Approved Today', value: stats.gateApprovedToday, icon: ClipboardCheck, bg: 'bg-blue-50', textColor: 'text-blue-600', sub: 'Successful scans' },
+        { label: 'Rejected Today', value: stats.gateRejectedToday, icon: AlertCircle, bg: 'bg-rose-50', textColor: 'text-rose-600', sub: 'Denied entries' },
+        { label: 'Closed POs', value: stats.closedPOs, icon: CheckCircle2, bg: 'bg-emerald-50', textColor: 'text-emerald-600', sub: 'Workflow completed' },
       ]
     }
     if (auth?.role === 'receiving_officer') {
       return [
-        { label: 'Awaiting Inspection', value: stats.pendingAdmin, icon: Truck, color: 'amber', bg: 'bg-amber-50', textColor: 'text-amber-600', sub: 'In queue' },
-        ...base.slice(1)
+        { label: 'Awaiting Receipt', value: stats.awaitingReceipt, icon: Truck, bg: 'bg-amber-50', textColor: 'text-amber-600', sub: 'Gate approved' },
+        { label: 'Partial Receipts', value: stats.partialReceipts, icon: ClipboardCheck, bg: 'bg-blue-50', textColor: 'text-blue-600', sub: 'More goods expected' },
+        { label: 'Completed Receipts', value: stats.completedReceipts, icon: FileCheck, bg: 'bg-violet-50', textColor: 'text-violet-600', sub: 'Fully received' },
+        { label: 'Finalized GRNs', value: stats.finalizedGrns, icon: CheckCircle2, bg: 'bg-emerald-50', textColor: 'text-emerald-600', sub: 'Receipt records' },
       ]
     }
     if (auth?.role === 'vendor') {
       return [
-        { label: 'Active POs', value: stats.activeWork, icon: ShoppingCart, color: 'blue', bg: 'bg-blue-50', textColor: 'text-blue-600', sub: 'In progress' },
-        { label: 'Pending Acceptance', value: stats.pendingAdmin, icon: AlertCircle, color: 'amber', bg: 'bg-amber-50', textColor: 'text-amber-600', sub: 'Needs action' },
-        ...base.slice(1)
+        { label: 'Total POs', value: stats.totalPOs, icon: ShoppingCart, bg: 'bg-violet-50', textColor: 'text-violet-600', sub: 'Assigned orders' },
+        { label: 'Active POs', value: stats.activePOs, icon: Truck, bg: 'bg-blue-50', textColor: 'text-blue-600', sub: 'Ready for delivery' },
+        { label: 'Fulfilled POs', value: stats.fulfilledPOs, icon: ClipboardCheck, bg: 'bg-amber-50', textColor: 'text-amber-600', sub: 'Goods received' },
+        { label: 'Closed POs', value: stats.closedPOs, icon: CheckCircle2, bg: 'bg-emerald-50', textColor: 'text-emerald-600', sub: 'Workflow completed' },
       ]
     }
     if (auth?.role === 'accounts') {
       return [
-        { label: 'Approved Invoices', value: stats.pendingInvoicing, icon: FileCheck, color: 'emerald', bg: 'bg-emerald-50', textColor: 'text-emerald-600', sub: 'Ready to pay' },
-        { label: 'Pending Review', value: stats.pendingAdmin, icon: AlertCircle, color: 'amber', bg: 'bg-amber-50', textColor: 'text-amber-600', sub: 'Submitted' },
-        ...base.slice(1)
+        { label: 'Total Requests', value: stats.totalRequests, icon: ClipboardList, bg: 'bg-violet-50', textColor: 'text-violet-600', sub: 'All requests' },
+        { label: 'Total POs', value: stats.totalPOs, icon: ShoppingCart, bg: 'bg-blue-50', textColor: 'text-blue-600', sub: 'All purchase orders' },
+        { label: 'Fulfilled POs', value: stats.fulfilledPOs, icon: Truck, bg: 'bg-amber-50', textColor: 'text-amber-600', sub: 'Goods received' },
+        { label: 'Closed POs', value: stats.closedPOs, icon: CheckCircle2, bg: 'bg-emerald-50', textColor: 'text-emerald-600', sub: 'Workflow completed' },
       ]
     }
-    return base
+    return [
+      { label: 'Total Requests', value: stats.totalRequests, icon: ClipboardList, bg: 'bg-violet-50', textColor: 'text-violet-600', sub: 'Requests submitted' },
+      { label: 'Awaiting Admin', value: stats.byStatus?.submitted, icon: Clock, bg: 'bg-amber-50', textColor: 'text-amber-600', sub: 'Pending classification' },
+      { label: 'Assigned to Manager', value: stats.assignedRequests, icon: Wrench, bg: 'bg-blue-50', textColor: 'text-blue-600', sub: 'PO preparation' },
+      { label: 'PO Completed', value: (stats.fulfilledPOs || 0) + (stats.closedPOs || 0), icon: CheckCircle2, bg: 'bg-emerald-50', textColor: 'text-emerald-600', sub: 'Fulfilled or closed' },
+    ]
   }
 
   if (isLoading) return <SkeletonLoader />
@@ -247,27 +257,28 @@ function Dashboard() {
 
         {/* Status Distribution Chart */}
         {(auth?.role === 'admin' || auth?.role === 'super_admin' || auth?.role === 'manager') && pieData.length > 0 && (
-          <GlassPanel>
-            <h3 className="section-label mb-4">Status Distribution</h3>
-            <ResponsiveContainer width="100%" height={200}>
+          <div>
+            <h2 className="text-xs font-extrabold text-slate-400 uppercase tracking-wider mb-4">Status Distribution</h2>
+            <GlassPanel padding="p-4">
+            <ResponsiveContainer width="100%" height={140}>
               <PieChart>
-                <Pie data={pieData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={3} dataKey="value">
+                <Pie data={pieData} cx="50%" cy="50%" innerRadius={38} outerRadius={58} paddingAngle={3} dataKey="value">
                   {pieData.map((entry, idx) => (
                     <Cell key={idx} fill={entry.color} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(value) => [`${value} requests`, 'Count']} />
               </PieChart>
             </ResponsiveContainer>
-            <div className="flex flex-wrap gap-2 mt-3">
-              {pieData.slice(0, 5).map((entry, idx) => (
-                <div key={idx} className="flex items-center gap-1.5 text-xs text-slate-600">
-                  <span className="w-2 h-2 rounded-full" style={{ background: entry.color }} />
-                  {entry.name} ({entry.value})
+            <div className="flex flex-wrap justify-center gap-x-3 gap-y-1.5 mt-2">
+              {pieData.map((entry, idx) => (
+                <div key={idx} className="flex min-w-0 items-center gap-1.5 text-[11px] font-semibold text-slate-600">
+                  <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ background: entry.color }} />
+                  <span className="truncate capitalize">{entry.name} ({entry.value})</span>
                 </div>
               ))}
             </div>
-          </GlassPanel>
+            </GlassPanel>
+          </div>
         )}
       </div>
 
@@ -285,7 +296,7 @@ function Dashboard() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-slate-200 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                  <th className="pb-3">Number</th>
+                  <th className="pb-3 pl-3">Number</th>
                   <th className="pb-3">Subject</th>
                   <th className="pb-3">Priority</th>
                   <th className="pb-3">Status</th>
@@ -302,7 +313,7 @@ function Dashboard() {
                 ) : (
                   recentRequests.map((req) => (
                     <tr key={req._id} className="table-row-hover">
-                      <td className="py-3.5 font-mono text-xs text-violet-600 font-bold">{req.requestNumber}</td>
+                      <td className="py-3.5 pl-3 font-mono text-xs text-violet-600 font-bold">{req.requestNumber}</td>
                       <td className="py-3.5 font-semibold text-slate-800 text-sm">{req.title}</td>
                       <td className="py-3.5">
                         <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
@@ -333,10 +344,10 @@ function Dashboard() {
         </GlassPanel>
 
         {/* Activity Feed */}
-        <GlassPanel>
+        <GlassPanel className="flex h-full min-h-0 flex-col">
           <h3 className="section-title mb-4">Activity Feed</h3>
-          <div className="space-y-4">
-            {recentRequests.slice(0, 6).map((req, idx) => (
+          <div className="flex min-h-0 flex-1 flex-col justify-between gap-4 overflow-y-auto overscroll-contain pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {recentRequests.map((req, idx) => (
               <div key={req._id} className="flex items-start gap-3 group">
                 <div className="relative flex-shrink-0">
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
@@ -346,7 +357,7 @@ function Dashboard() {
                   }`}>
                     {idx === 0 ? <CircleDot size={14} /> : <Clock size={14} />}
                   </div>
-                  {idx < 5 && <div className="absolute top-8 left-1/2 -translate-x-1/2 w-px h-4 bg-slate-200" />}
+                  {idx < recentRequests.length - 1 && <div className="absolute top-8 left-1/2 -translate-x-1/2 w-px h-4 bg-slate-200" />}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-slate-700 truncate">{req.title}</p>
@@ -421,8 +432,8 @@ function Dashboard() {
       case 'accounts':
         return (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {action('/requests?queue=MY_ACTIONS', IndianRupee, 'bg-emerald-50', 'text-emerald-600', 'Payment Queue', `${stats.pendingPayment} awaiting`, 'bg-emerald-100 text-emerald-700')}
-            {action('/reports', ClipboardList, 'bg-violet-50', 'text-violet-600', 'Financial Reports')}
+            {action('/purchase-orders', ShoppingCart, 'bg-violet-50', 'text-violet-600', 'Purchase Orders', `${stats.activePOs || 0} active`, 'bg-violet-100 text-violet-700')}
+            {action('/grn', ClipboardCheck, 'bg-emerald-50', 'text-emerald-600', 'Goods Receipts')}
           </div>
         )
       case 'gate':
@@ -446,7 +457,6 @@ function Dashboard() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {action('/purchase-orders', ShoppingCart, 'bg-violet-50', 'text-violet-600', 'My Purchase Orders')}
             {action('/deliveries', Truck, 'bg-blue-50', 'text-blue-600', 'My Deliveries')}
-            {action('/vendor/invoices', FileCheck, 'bg-emerald-50', 'text-emerald-600', 'My Invoices')}
           </div>
         )
       default:

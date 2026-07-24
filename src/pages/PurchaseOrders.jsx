@@ -7,25 +7,25 @@ import { getAuthOrNull } from '../utils/auth'
 import { ShoppingCart, Plus, Search, ChevronRight, Clock, CheckCircle2, AlertCircle, Send, XCircle, RefreshCw, Package } from 'lucide-react'
 
 const statusConfig = {
-  DRAFT: { label: 'Draft', color: 'bg-slate-100 text-slate-600 border-slate-200' },
-  SUBMITTED_FOR_APPROVAL: { label: 'Pending Approval', color: 'bg-amber-50 text-amber-700 border-amber-200' },
-  APPROVED: { label: 'Approved', color: 'bg-blue-50 text-blue-700 border-blue-200' },
-  SENT_TO_VENDOR: { label: 'Sent to Vendor', color: 'bg-violet-50 text-violet-700 border-violet-200' },
-  VENDOR_ACCEPTED: { label: 'Vendor Accepted', color: 'bg-teal-50 text-teal-700 border-teal-200' },
-  ACTIVE: { label: 'Active', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  PARTIALLY_FULFILLED: { label: 'Partial Delivery', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
-  FULFILLED: { label: 'Fulfilled', color: 'bg-emerald-100 text-emerald-800 border-emerald-300' },
-  CLOSED: { label: 'Closed', color: 'bg-slate-100 text-slate-500 border-slate-200' },
-  REVISION_REQUIRED: { label: 'Revision Required', color: 'bg-orange-50 text-orange-700 border-orange-200' },
-  REJECTED: { label: 'Rejected', color: 'bg-rose-50 text-rose-700 border-rose-200' },
-  VENDOR_REJECTED: { label: 'Vendor Rejected', color: 'bg-rose-100 text-rose-800 border-rose-300' },
-  CANCELLED: { label: 'Cancelled', color: 'bg-slate-100 text-slate-400 border-slate-200' },
+  DRAFT: { label: 'Draft', color: 'bg-zinc-100 text-zinc-700 border-zinc-300 ring-1 ring-zinc-200' },
+  SUBMITTED_FOR_APPROVAL: { label: 'Pending Approval', color: 'bg-amber-100 text-amber-800 border-amber-300 ring-1 ring-amber-200' },
+  APPROVED: { label: 'Approved', color: 'bg-sky-100 text-sky-800 border-sky-300 ring-1 ring-sky-200' },
+  SENT_TO_VENDOR: { label: 'Sent to Vendor', color: 'bg-violet-100 text-violet-800 border-violet-300 ring-1 ring-violet-200' },
+  VENDOR_ACCEPTED: { label: 'Vendor Accepted', color: 'bg-cyan-100 text-cyan-800 border-cyan-300 ring-1 ring-cyan-200' },
+  ACTIVE: { label: 'Active', color: 'bg-lime-100 text-lime-800 border-lime-300 ring-1 ring-lime-200' },
+  PARTIALLY_FULFILLED: { label: 'Partial Delivery', color: 'bg-indigo-100 text-indigo-800 border-indigo-300 ring-1 ring-indigo-200' },
+  FULFILLED: { label: 'Fulfilled', color: 'bg-teal-100 text-teal-800 border-teal-300 ring-1 ring-teal-200' },
+  CLOSED: { label: 'Closed', color: 'bg-emerald-100 text-emerald-800 border-emerald-300 ring-1 ring-emerald-200' },
+  REVISION_REQUIRED: { label: 'Revision Required', color: 'bg-orange-100 text-orange-800 border-orange-300 ring-1 ring-orange-200' },
+  REJECTED: { label: 'Rejected', color: 'bg-red-100 text-red-800 border-red-300 ring-1 ring-red-200' },
+  VENDOR_REJECTED: { label: 'Vendor Rejected', color: 'bg-fuchsia-100 text-fuchsia-800 border-fuchsia-300 ring-1 ring-fuchsia-200' },
+  CANCELLED: { label: 'Cancelled', color: 'bg-slate-200 text-slate-700 border-slate-400 ring-1 ring-slate-300' },
 }
 
 function CreatePOModal({ onClose, onSaved, sourceRequest }) {
   const [vendors, setVendors] = useState([])
   const [form, setForm] = useState({ vendorId: '', deliveryAddress: 'MSEC Campus, Aravayal, Chennai - 600089', deliveryLocation: sourceRequest?.location || '', expectedDeliveryDate: '', paymentTerms: 'Net 30', notes: sourceRequest ? `Generated for ${sourceRequest.requestNumber}: ${sourceRequest.title}` : '', deliveryCharge: 0 })
-  const [items, setItems] = useState([{ description: sourceRequest?.requestedItem || '', specification: sourceRequest?.description || '', brand: '', quantityOrdered: sourceRequest?.requestedQuantity || 1, unit: sourceRequest?.requestedUnit || 'pcs', unitPrice: 0, priceMode: 'UNIT', taxRate: 18, discount: 0 }])
+  const [items, setItems] = useState([{ description: sourceRequest?.requestedItem || '', specification: sourceRequest?.description || '', brand: '', quantityOrdered: sourceRequest?.requestedQuantity || 1, unit: sourceRequest?.requestedUnit || 'pcs', lineSubtotal: 0, taxRate: 18, discount: 0 }])
   const [loading, setLoading] = useState(false)
   const { showSuccess, showError } = useAlert()
 
@@ -33,33 +33,28 @@ function CreatePOModal({ onClose, onSaved, sourceRequest }) {
     apiClient.get('/api/vendors?status=ACTIVE').then(r => { if (r.success) setVendors(r.data) })
   }, [])
 
-  const addItem = () => setItems(p => [...p, { description: '', specification: '', brand: '', quantityOrdered: 1, unit: 'pcs', unitPrice: 0, priceMode: 'UNIT', taxRate: 18, discount: 0 }])
+  const addItem = () => {
+    if (sourceRequest) return
+    setItems(p => [...p, { description: '', specification: '', brand: '', quantityOrdered: 1, unit: 'pcs', lineSubtotal: 0, taxRate: 18, discount: 0 }])
+  }
   const removeItem = idx => setItems(p => p.filter((_, i) => i !== idx))
   const updateItem = (idx, field, val) => setItems(p => p.map((item, i) => i === idx ? { ...item, [field]: val } : item))
 
   const getLineValues = (item) => {
     const quantity = Math.max(1, Number(item.quantityOrdered) || 1)
-    const enteredPrice = Math.max(0, Number(item.unitPrice) || 0)
-    const unitPrice = item.priceMode === 'TOTAL' ? enteredPrice / quantity : enteredPrice
-    const subtotal = unitPrice * quantity
+    const subtotal = Math.max(0, Number(item.lineSubtotal) || 0)
+    const unitPrice = subtotal / quantity
     const discount = Math.max(0, Number(item.discount) || 0)
-    const tax = Math.max(0, subtotal - discount) * (Number(item.taxRate || 0) / 100)
+    const tax = Math.max(0, subtotal - discount) * (Math.max(0, Number(item.taxRate) || 0) / 100)
     return { unitPrice, subtotal, tax, total: subtotal - discount + tax }
   }
-
-  const changePriceMode = (idx, nextMode) => setItems(current => current.map((item, index) => {
-    if (index !== idx || item.priceMode === nextMode) return item
-    const quantity = Math.max(1, Number(item.quantityOrdered) || 1)
-    const currentPrice = Number(item.unitPrice) || 0
-    return { ...item, priceMode: nextMode, unitPrice: nextMode === 'TOTAL' ? currentPrice * quantity : currentPrice / quantity }
-  }))
 
   const calcTotal = () => {
     let sub = 0, tax = 0, disc = 0
     items.forEach(item => {
       const lineSub = getLineValues(item).subtotal
       const lineDisc = Number(item.discount || 0)
-      const lineTax = (lineSub - lineDisc) * (Number(item.taxRate) / 100)
+      const lineTax = Math.max(0, lineSub - lineDisc) * (Math.max(0, Number(item.taxRate) || 0) / 100)
       sub += lineSub; disc += lineDisc; tax += lineTax
     })
     return { subtotal: sub, taxTotal: tax, discountTotal: disc, grandTotal: sub - disc + tax + Number(form.deliveryCharge || 0) }
@@ -78,7 +73,14 @@ function CreatePOModal({ onClose, onSaved, sourceRequest }) {
     setLoading(true)
     try {
       const normalizedItems = items.map(item => ({ ...item, unitPrice: getLineValues(item).unitPrice }))
-      const res = await apiClient.post('/api/purchase-orders', { ...form, requestId: sourceRequest?._id, items: normalizedItems })
+      const submittedItems = sourceRequest ? [{
+        ...normalizedItems[0],
+        description: sourceRequest.requestedItem || sourceRequest.title,
+        specification: sourceRequest.description || normalizedItems[0].specification,
+        quantityOrdered: sourceRequest.requestedQuantity || 1,
+        unit: sourceRequest.requestedUnit || 'pcs',
+      }] : normalizedItems
+      const res = await apiClient.post('/api/purchase-orders', { ...form, requestId: sourceRequest?._id, items: submittedItems })
       if (res.success) {
         showSuccess(res.existing ? 'PO Already Created' : 'PO Created', res.existing ? `${res.data.poNumber} opened for this request` : `${res.data.poNumber} created as draft`)
         onSaved(res.data)
@@ -116,44 +118,43 @@ function CreatePOModal({ onClose, onSaved, sourceRequest }) {
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">Line Items *</label>
-              <button type="button" onClick={addItem} className="text-xs text-violet-600 font-bold hover:text-violet-700 flex items-center space-x-1">
-                <Plus size={12} /><span>Add Item</span>
-              </button>
+              {!sourceRequest && (
+                <button type="button" onClick={addItem} className="text-xs text-violet-600 font-bold hover:text-violet-700 flex items-center space-x-1">
+                  <Plus size={12} /><span>Add Item</span>
+                </button>
+              )}
             </div>
             <div className="space-y-3">
               {items.map((item, idx) => (
                 <div key={idx} className="grid grid-cols-1 gap-3 rounded-xl border border-slate-100 bg-slate-50 p-4 sm:grid-cols-12 sm:gap-x-3 sm:gap-y-2">
-                  <div className="sm:col-span-3">
+                  <div className="sm:col-span-2">
                     <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Description *</label>
-                    <input type="text" value={item.description} onChange={e => updateItem(idx, 'description', e.target.value)} placeholder="Item name..." className="w-full mt-1 bg-white border border-slate-200 rounded-lg p-2 text-xs focus:outline-none focus:border-violet-500" />
+                    <input type="text" value={item.description} onChange={e => updateItem(idx, 'description', e.target.value)} readOnly={Boolean(sourceRequest)} placeholder="Item name..." className={`w-full mt-1 border border-slate-200 rounded-lg p-2 text-xs focus:outline-none focus:border-violet-500 ${sourceRequest ? 'cursor-not-allowed bg-slate-100 text-slate-600' : 'bg-white'}`} />
                   </div>
                   <div className="sm:col-span-1">
                     <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Qty *</label>
-                    <input type="number" value={item.quantityOrdered} onChange={e => updateItem(idx, 'quantityOrdered', e.target.value)} min="1" className="w-full mt-1 bg-white border border-slate-200 rounded-lg p-2 text-xs focus:outline-none focus:border-violet-500" />
+                    <input type="number" value={item.quantityOrdered} onChange={e => updateItem(idx, 'quantityOrdered', e.target.value)} readOnly={Boolean(sourceRequest)} min="1" className={`w-full mt-1 border border-slate-200 rounded-lg p-2 text-xs focus:outline-none focus:border-violet-500 ${sourceRequest ? 'cursor-not-allowed bg-slate-100 text-slate-600' : 'bg-white'}`} />
                   </div>
                   <div className="sm:col-span-1">
                     <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Unit</label>
-                    <input type="text" value={item.unit} onChange={e => updateItem(idx, 'unit', e.target.value)} placeholder="pcs" className="w-full mt-1 bg-white border border-slate-200 rounded-lg p-2 text-xs focus:outline-none focus:border-violet-500" />
-                  </div>
-                  <div className="sm:col-span-2">
-                    <label className="whitespace-nowrap text-[11px] font-bold uppercase tracking-wider text-slate-400">Price entry *</label>
-                    <select value={item.priceMode || 'UNIT'} onChange={e => changePriceMode(idx, e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-white p-2 text-xs outline-none focus:border-violet-500">
-                      <option value="UNIT">Per item</option>
-                      <option value="TOTAL">Full quantity</option>
-                    </select>
-                  </div>
-                  <div className="sm:col-span-2">
-                    <label className="whitespace-nowrap text-[11px] font-bold uppercase tracking-wider text-slate-400">{item.priceMode === 'TOTAL' ? 'Total price (₹)' : 'Unit price (₹)'} *</label>
-                    <input type="number" value={item.unitPrice} onChange={e => updateItem(idx, 'unitPrice', e.target.value)} min="0" step="0.01" className="mt-1 w-full rounded-lg border border-violet-200 bg-white p-2 text-xs font-semibold outline-none focus:border-violet-500" />
+                    <input type="text" value={item.unit} onChange={e => updateItem(idx, 'unit', e.target.value)} readOnly={Boolean(sourceRequest)} placeholder="pcs" className={`w-full mt-1 border border-slate-200 rounded-lg p-2 text-xs focus:outline-none focus:border-violet-500 ${sourceRequest ? 'cursor-not-allowed bg-slate-100 text-slate-600' : 'bg-white'}`} />
                   </div>
                   <div className="sm:col-span-3">
-                    <label className="whitespace-nowrap text-[11px] font-bold uppercase tracking-wider text-slate-400">Line subtotal</label>
-                    <div className="mt-1 flex min-h-[34px] items-center justify-end rounded-lg border border-violet-100 bg-violet-50 px-3 text-sm font-extrabold text-violet-700">
-                      ₹{getLineValues(item).subtotal.toFixed(2)}
+                    <label className="whitespace-nowrap text-[11px] font-bold uppercase tracking-wider text-slate-400">Calculated unit price</label>
+                    <div className="mt-1 flex min-h-[34px] items-center justify-end rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-extrabold text-slate-700">
+                      ₹{getLineValues(item).unitPrice.toFixed(2)}
                     </div>
                   </div>
+                  <div className="sm:col-span-2">
+                    <label className="whitespace-nowrap text-[11px] font-bold uppercase tracking-wider text-slate-400">GST (%) *</label>
+                    <input type="number" value={item.taxRate} onChange={e => updateItem(idx, 'taxRate', e.target.value)} min="0" max="100" step="0.01" className="mt-1 w-full rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs font-semibold outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100" />
+                  </div>
+                  <div className="sm:col-span-3">
+                    <label className="whitespace-nowrap text-[11px] font-bold uppercase tracking-wider text-slate-400">Total price (₹) *</label>
+                    <input type="number" value={item.lineSubtotal} onChange={e => updateItem(idx, 'lineSubtotal', e.target.value)} min="0" step="0.01" placeholder="Full quantity total" className="mt-1 w-full rounded-lg border border-violet-300 bg-white p-2 text-xs font-semibold outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100" />
+                  </div>
                   <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200/70 pt-3 sm:col-span-12">
-                    <span className="text-xs text-slate-500">{item.quantityOrdered || 1} × ₹{getLineValues(item).unitPrice.toFixed(2)} per {item.unit || 'unit'}</span>
+                    <span className="text-xs text-slate-500">₹{getLineValues(item).subtotal.toFixed(2)} total ÷ {item.quantityOrdered || 1} {item.unit || 'unit'} = ₹{getLineValues(item).unitPrice.toFixed(2)} per {item.unit || 'unit'} · GST {Number(item.taxRate) || 0}%</span>
                     {items.length > 1 && (
                       <button type="button" onClick={() => removeItem(idx)} className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-600 transition-all hover:bg-rose-100">
                         Remove item
@@ -236,8 +237,33 @@ export default function PurchaseOrders() {
 
   useEffect(() => { fetchPOs() }, [fetchPOs])
 
+  const normalizeSearch = value => String(value ?? '')
+    .toLowerCase()
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  const searchTerms = normalizeSearch(searchQuery).split(' ').filter(Boolean)
   const filtered = pos.filter(po => {
-    const matchSearch = !searchQuery || po.poNumber?.toLowerCase().includes(searchQuery.toLowerCase()) || po.vendorName?.toLowerCase().includes(searchQuery.toLowerCase())
+    const searchableText = normalizeSearch([
+      po.poNumber,
+      po.vendorName,
+      po.vendorEmail,
+      po.status,
+      statusConfig[po.status]?.label,
+      po.requestNumber,
+      po.deliveryLocation,
+      po.deliveryAddress,
+      po.grandTotal,
+      ...(po.items || []).flatMap(item => [
+        item.productId,
+        item.description,
+        item.specification,
+        item.brand,
+        item.unit
+      ])
+    ].filter(Boolean).join(' '))
+    const matchSearch = searchTerms.length === 0 || searchTerms.every(term => searchableText.includes(term))
     const matchStatus = statusFilter === 'ALL' || po.status === statusFilter
     return matchSearch && matchStatus
   })
@@ -282,7 +308,12 @@ export default function PurchaseOrders() {
         </div>
         <div className="relative min-w-0 xl:w-80 xl:flex-none 2xl:w-96">
           <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 transition-colors pointer-events-none" />
-          <input type="search" aria-label="Search purchase orders" placeholder="Search by PO number or vendor..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="h-11 w-full rounded-full border border-slate-200/80 bg-white py-2 pl-10 pr-4 text-xs text-slate-700 shadow-sm outline-none transition-all placeholder:text-slate-400 hover:border-violet-200 hover:shadow-md hover:shadow-violet-100/60 focus:border-violet-400 focus:ring-4 focus:ring-violet-100" />
+          <input type="text" aria-label="Search purchase orders" placeholder="Search PO, vendor, item, product or status..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="h-11 w-full rounded-full border border-slate-200/80 bg-white py-2 pl-10 pr-10 text-xs text-slate-700 shadow-sm outline-none transition-all placeholder:text-slate-400 hover:border-violet-200 hover:shadow-md hover:shadow-violet-100/60 focus:border-violet-400 focus:ring-4 focus:ring-violet-100" />
+          {searchQuery && (
+            <button type="button" onClick={() => setSearchQuery('')} aria-label="Clear purchase order search" className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700">
+              <XCircle size={16} />
+            </button>
+          )}
         </div>
       </div>
 

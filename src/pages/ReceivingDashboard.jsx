@@ -23,7 +23,7 @@ export default function ReceivingDashboard() {
             awaiting: dels.filter(d => d.status === 'ENTRY_APPROVED').length,
             receiving: dels.filter(d => d.status === 'IN_INSPECTION').length,
             partials: dels.filter(d => d.status === 'PARTIALLY_RECEIVED').length,
-            damaged: dels.filter(d => d.status === 'IN_INSPECTION').length,
+            damaged: grnRes.success ? grnRes.data.filter(g => ['REJECTION', 'RETURN'].includes(g.grnType)).length : 0,
             grns: grnRes.success ? grnRes.data.length : 0,
           })
           setQueue(dels.filter(d => ['ENTRY_APPROVED', 'IN_INSPECTION', 'PARTIALLY_RECEIVED'].includes(d.status)).slice(0, 6))
@@ -49,7 +49,7 @@ export default function ReceivingDashboard() {
           { label: 'Awaiting Inspection', value: stats.awaiting, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50' },
           { label: 'Currently Receiving', value: stats.receiving, icon: Package, color: 'text-blue-600', bg: 'bg-blue-50' },
           { label: 'Partial Deliveries', value: stats.partials, icon: Truck, color: 'text-violet-600', bg: 'bg-violet-50' },
-          { label: 'Damaged Items', value: stats.damaged, icon: AlertTriangle, color: 'text-rose-600', bg: 'bg-rose-50' },
+          { label: 'Rejected / Returned', value: stats.damaged, icon: AlertTriangle, color: 'text-rose-600', bg: 'bg-rose-50' },
           { label: 'Total GRNs', value: stats.grns, icon: ClipboardCheck, color: 'text-emerald-600', bg: 'bg-emerald-50' },
         ].map(({ label, value, icon, color, bg }) => (
           <KpiCard key={label} label={label} value={value} icon={icon} iconBg={bg} iconColor={color} centered />

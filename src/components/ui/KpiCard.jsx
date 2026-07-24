@@ -1,4 +1,5 @@
 export default function KpiCard({ label, value, sub, icon: Icon, iconBg, iconColor, centered = false, className = '' }) {
+  const displayValue = value ?? 0
   return (
     <div className={`premium-kpi group p-4 sm:p-5 ${centered ? 'text-center' : ''} ${className}`}>
       {centered ? (
@@ -8,7 +9,7 @@ export default function KpiCard({ label, value, sub, icon: Icon, iconBg, iconCol
               <Icon size={18} className={iconColor} />
             </div>
           )}
-          <div className="text-2xl font-black text-slate-800 count-up">{value}</div>
+          <div className="text-2xl font-black text-slate-800 count-up">{displayValue}</div>
           <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mt-1">{label}</div>
           {sub && <span className="text-[11px] text-slate-500 mt-0.5 block">{sub}</span>}
         </>
@@ -22,7 +23,7 @@ export default function KpiCard({ label, value, sub, icon: Icon, iconBg, iconCol
               </div>
             )}
           </div>
-          <div className="count-up mt-2 text-2xl font-black tracking-[-0.04em] text-slate-900 sm:text-3xl">{value}</div>
+          <div className="count-up mt-2 text-2xl font-black tracking-[-0.04em] text-slate-900 sm:text-3xl">{displayValue}</div>
           {sub && <span className="text-[11px] text-slate-500 mt-1 block">{sub}</span>}
         </>
       )}

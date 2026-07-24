@@ -3,11 +3,11 @@ import { Link } from 'react-router-dom'
 import { useAlert } from '../components/AlertContext'
 import apiClient from '../utils/apiClient'
 import { getAuthOrNull } from '../utils/auth'
-import { ShoppingCart, Truck, FileText, IndianRupee, Clock, ChevronRight } from 'lucide-react'
+import { ShoppingCart, Truck, IndianRupee, Clock, ChevronRight } from 'lucide-react'
 import { PageHeader, KpiCard, ActionCard, GlassPanel } from '../components/ui'
 
 export default function VendorDashboard() {
-  const [stats, setStats] = useState({ activePOs: 0, pendingAcceptance: 0, upcomingDeliveries: 0, pendingInvoices: 0, payments: 0 })
+  const [stats, setStats] = useState({ activePOs: 0, pendingAcceptance: 0, upcomingDeliveries: 0, fulfilledPOs: 0 })
   const [recentPOs, setRecentPOs] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const { showError } = useAlert()
@@ -25,7 +25,8 @@ export default function VendorDashboard() {
           setStats(s => ({
             ...s,
             activePOs: pos.filter(p => ['ACTIVE', 'SENT_TO_VENDOR', 'VENDOR_ACCEPTED'].includes(p.status)).length,
-            pendingAcceptance: pos.filter(p => p.status === 'SUBMITTED_FOR_APPROVAL').length,
+            pendingAcceptance: pos.filter(p => p.status === 'SENT_TO_VENDOR').length,
+            fulfilledPOs: pos.filter(p => ['FULFILLED', 'CLOSED'].includes(p.status)).length,
           }))
           setRecentPOs(pos.slice(0, 5))
         }
@@ -56,7 +57,7 @@ export default function VendorDashboard() {
           { label: 'Active POs', value: stats.activePOs, icon: ShoppingCart, color: 'text-violet-600', bg: 'bg-violet-50' },
           { label: 'Pending Acceptance', value: stats.pendingAcceptance, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50' },
           { label: 'Upcoming Deliveries', value: stats.upcomingDeliveries, icon: Truck, color: 'text-blue-600', bg: 'bg-blue-50' },
-          { label: 'Payments', value: stats.payments, icon: IndianRupee, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+          { label: 'Fulfilled POs', value: stats.fulfilledPOs, icon: IndianRupee, color: 'text-emerald-600', bg: 'bg-emerald-50' },
         ].map(({ label, value, icon, color, bg }) => (
           <KpiCard key={label} label={label} value={value} icon={icon} iconBg={bg} iconColor={color} />
         ))}
@@ -90,7 +91,6 @@ export default function VendorDashboard() {
           <div className="space-y-3">
             <ActionCard to="/purchase-orders" icon={ShoppingCart} title="View Purchase Orders" desc="Check assigned POs" />
             <ActionCard to="/deliveries" icon={Truck} iconBg="bg-blue-50" iconColor="text-blue-600" title="Manage Deliveries" desc="Schedule and track" />
-            <ActionCard to="/vendor/invoices" icon={FileText} iconBg="bg-emerald-50" iconColor="text-emerald-600" title="My Invoices" desc="Submit and track invoices" />
           </div>
         </GlassPanel>
       </div>

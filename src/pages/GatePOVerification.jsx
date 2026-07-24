@@ -82,7 +82,12 @@ export default function GatePOVerification() {
       }, { timeout: 90000 })
       if (!result?.success) throw new Error(result?.error || 'Unable to create GRN')
       setCreatedGrn(result.data)
-      showSuccess('GRN Created', `${result.data.grnNumber} is now available in the GRN section`)
+      showSuccess(
+        result.data.grnType === 'FINAL' ? 'PO Closed Successfully' : 'Partial Receipt Recorded',
+        result.data.grnType === 'FINAL'
+          ? `${result.data.grnNumber} was created and the purchase order is now closed`
+          : `${result.data.grnNumber} was created; the purchase order remains open for the remaining items`
+      )
     } catch (error) {
       showError('GRN Creation Failed', error.message)
     } finally {

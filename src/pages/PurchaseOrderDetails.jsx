@@ -6,19 +6,19 @@ import { getAuthOrNull } from '../utils/auth'
 import { ArrowLeft, Send, CheckCircle, XCircle, RefreshCw, Package, Truck, FileText, Clock, AlertCircle, Download, Upload, Eye, ShieldCheck } from 'lucide-react'
 
 const statusConfig = {
-  DRAFT: { label: 'Draft', color: 'bg-slate-100 text-slate-600 border-slate-200', step: 0 },
-  SUBMITTED_FOR_APPROVAL: { label: 'Pending Approval', color: 'bg-amber-50 text-amber-700 border-amber-200', step: 1 },
-  APPROVED: { label: 'Approved', color: 'bg-blue-50 text-blue-700 border-blue-200', step: 2 },
-  SENT_TO_VENDOR: { label: 'Sent to Vendor', color: 'bg-violet-50 text-violet-700 border-violet-200', step: 2 },
-  VENDOR_ACCEPTED: { label: 'Vendor Accepted', color: 'bg-teal-50 text-teal-700 border-teal-200', step: 2 },
-  ACTIVE: { label: 'Verified & Active', color: 'bg-emerald-50 text-emerald-700 border-emerald-200', step: 2 },
-  PARTIALLY_FULFILLED: { label: 'Partially Fulfilled', color: 'bg-indigo-50 text-indigo-700 border-indigo-200', step: 3 },
-  FULFILLED: { label: 'Fulfilled', color: 'bg-emerald-100 text-emerald-800 border-emerald-300', step: 4 },
-  CLOSED: { label: 'Closed', color: 'bg-slate-100 text-slate-500 border-slate-200', step: 5 },
-  REVISION_REQUIRED: { label: 'Revision Required', color: 'bg-orange-50 text-orange-700 border-orange-200', step: 1 },
-  REJECTED: { label: 'Rejected', color: 'bg-rose-50 text-rose-700 border-rose-200', step: -1 },
-  VENDOR_REJECTED: { label: 'Vendor Rejected', color: 'bg-rose-100 text-rose-800 border-rose-300', step: -1 },
-  CANCELLED: { label: 'Cancelled', color: 'bg-slate-100 text-slate-400 border-slate-200', step: -1 },
+  DRAFT: { label: 'Draft', color: 'bg-zinc-100 text-zinc-700 border-zinc-300 ring-1 ring-zinc-200', step: 0 },
+  SUBMITTED_FOR_APPROVAL: { label: 'Pending Approval', color: 'bg-amber-100 text-amber-800 border-amber-300 ring-1 ring-amber-200', step: 1 },
+  APPROVED: { label: 'Approved', color: 'bg-sky-100 text-sky-800 border-sky-300 ring-1 ring-sky-200', step: 2 },
+  SENT_TO_VENDOR: { label: 'Sent to Vendor', color: 'bg-violet-100 text-violet-800 border-violet-300 ring-1 ring-violet-200', step: 2 },
+  VENDOR_ACCEPTED: { label: 'Vendor Accepted', color: 'bg-cyan-100 text-cyan-800 border-cyan-300 ring-1 ring-cyan-200', step: 2 },
+  ACTIVE: { label: 'Verified & Active', color: 'bg-lime-100 text-lime-800 border-lime-300 ring-1 ring-lime-200', step: 2 },
+  PARTIALLY_FULFILLED: { label: 'Partially Fulfilled', color: 'bg-indigo-100 text-indigo-800 border-indigo-300 ring-1 ring-indigo-200', step: 3 },
+  FULFILLED: { label: 'Fulfilled', color: 'bg-teal-100 text-teal-800 border-teal-300 ring-1 ring-teal-200', step: 4 },
+  CLOSED: { label: 'Closed', color: 'bg-emerald-100 text-emerald-800 border-emerald-300 ring-1 ring-emerald-200', step: 5 },
+  REVISION_REQUIRED: { label: 'Revision Required', color: 'bg-orange-100 text-orange-800 border-orange-300 ring-1 ring-orange-200', step: 1 },
+  REJECTED: { label: 'Rejected', color: 'bg-red-100 text-red-800 border-red-300 ring-1 ring-red-200', step: -1 },
+  VENDOR_REJECTED: { label: 'Vendor Rejected', color: 'bg-fuchsia-100 text-fuchsia-800 border-fuchsia-300 ring-1 ring-fuchsia-200', step: -1 },
+  CANCELLED: { label: 'Cancelled', color: 'bg-slate-200 text-slate-700 border-slate-400 ring-1 ring-slate-300', step: -1 },
 }
 
 const poSteps = ['Draft', 'Signed PO Uploaded', 'Verified & Active', 'Partial Receipt', 'GRN Fulfilled', 'Closed']
