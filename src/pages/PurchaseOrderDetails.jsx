@@ -72,6 +72,7 @@ export default function PurchaseOrderDetails() {
   const [comment, setComment] = useState('')
   const [signedUpload, setSignedUpload] = useState(null)
   const [activeTab, setActiveTab] = useState('Overview')
+  const [signedPhotoOpen, setSignedPhotoOpen] = useState(false)
   const { showSuccess, showError } = useAlert()
   const auth = getAuthOrNull()
 
@@ -89,6 +90,17 @@ export default function PurchaseOrderDetails() {
   }, [id, showError])
 
   useEffect(() => { fetchPO() }, [fetchPO])
+  useEffect(() => {
+    if (!signedPhotoOpen) return undefined
+    const closeOnEscape = event => { if (event.key === 'Escape') setSignedPhotoOpen(false) }
+    document.addEventListener('keydown', closeOnEscape)
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', closeOnEscape)
+      document.body.style.overflow = previousOverflow
+    }
+  }, [signedPhotoOpen])
 
   const doAction = async (action, payload = {}) => {
     setActionLoading(true)
@@ -163,6 +175,24 @@ export default function PurchaseOrderDetails() {
 
   return (
     <div className="space-y-6 animate-fadeIn">
+      {signedPhotoOpen && po.signedPo?.url && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/90 p-3 backdrop-blur-sm sm:p-6" role="dialog" aria-modal="true" aria-label="Full signed purchase order photo" onClick={() => setSignedPhotoOpen(false)}>
+          <div className="relative flex max-h-full w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl" onClick={event => event.stopPropagation()}>
+            <div className="flex items-center justify-between gap-4 border-b border-slate-200 px-4 py-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-black text-slate-800">{po.signedPo.name || 'Signed official PO'}</p>
+                <p className="text-xs text-slate-500">Full uploaded attachment</p>
+              </div>
+              <button type="button" onClick={() => setSignedPhotoOpen(false)} aria-label="Close full photo" className="rounded-full p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800">
+                <XCircle size={22} />
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-auto bg-slate-100 p-3 text-center">
+              <img src={po.signedPo.url} alt="Full signed official purchase order" className="mx-auto h-auto max-w-full rounded-lg bg-white object-contain shadow-sm" />
+            </div>
+          </div>
+        </div>
+      )}
       {/* Back */}
       <button onClick={() => navigate('/purchase-orders')} className="flex items-center space-x-2 text-sm text-slate-500 hover:text-slate-700 transition-all font-semibold">
         <ArrowLeft size={16} /><span>Back to Purchase Orders</span>
@@ -229,7 +259,7 @@ export default function PurchaseOrderDetails() {
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-bold text-slate-800">{po.signedPo.name}</p>
               <p className="mt-1 text-xs text-slate-500">Uploaded by {po.signedPo.uploadedBy} · {new Date(po.signedPo.uploadedAt).toLocaleString('en-IN')}</p>
-              <a href={po.signedPo.url} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-violet-700"><Eye size={14} />Open full photo</a>
+              <button type="button" onClick={() => setSignedPhotoOpen(true)} className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-violet-700"><Eye size={14} />Open full photo</button>
             </div>
           </div>
           <textarea rows={2} placeholder="Verification notes or rejection reason..." value={comment} onChange={e => setComment(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm focus:outline-none focus:border-violet-400 resize-none" />
@@ -354,9 +384,9 @@ export default function PurchaseOrderDetails() {
           </div>
           {po.signedPo?.url ? (
             <div className="grid gap-6 p-5 lg:grid-cols-[minmax(0,1fr)_300px]">
-              <a href={po.signedPo.url} target="_blank" rel="noreferrer" className="group overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
+              <button type="button" onClick={() => setSignedPhotoOpen(true)} className="group overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
                 <img src={po.signedPo.url} alt="Signed official PO" className="max-h-[560px] w-full object-contain transition-transform group-hover:scale-[1.01]" />
-              </a>
+              </button>
               <div className="space-y-3 text-sm">
                 {[
                   ['File', po.signedPo.name],
@@ -371,7 +401,7 @@ export default function PurchaseOrderDetails() {
                     <div className="mt-1 break-words font-semibold text-slate-800">{value}</div>
                   </div>
                 ))}
-                <a href={po.signedPo.url} target="_blank" rel="noreferrer" className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-xs font-black text-white hover:bg-violet-700"><Eye size={15} />Open Full Photo</a>
+                <button type="button" onClick={() => setSignedPhotoOpen(true)} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-xs font-black text-white hover:bg-violet-700"><Eye size={15} />Open Full Photo</button>
               </div>
             </div>
           ) : (
