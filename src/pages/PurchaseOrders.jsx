@@ -268,7 +268,9 @@ export default function PurchaseOrders() {
     return matchSearch && matchStatus
   })
 
-  const statusGroups = ['ALL', 'DRAFT', 'SUBMITTED_FOR_APPROVAL', 'APPROVED', 'ACTIVE', 'PARTIALLY_FULFILLED', 'FULFILLED', 'CANCELLED']
+  // Keep the filters aligned with every status rendered by the PO workflow.
+  // CLOSED is distinct from FULFILLED and must have its own count/filter.
+  const statusGroups = ['ALL', ...Object.keys(statusConfig)]
 
   return (
     <div className="space-y-6 animate-fadeIn">
@@ -293,14 +295,14 @@ export default function PurchaseOrders() {
 
       {/* Filter Bar */}
       <div className="flex flex-col gap-3 p-3 premium-card sm:p-4 xl:flex-row xl:items-center xl:justify-between xl:gap-5">
-        <div className="flex min-w-0 items-center gap-2 overflow-x-auto pb-1 scrollbar-none xl:flex-1 xl:pb-0">
+        <div className="grid min-w-0 grid-cols-2 gap-2 sm:flex sm:flex-wrap xl:flex-1">
           {statusGroups.map(s => {
             const count = s === 'ALL' ? pos.length : pos.filter(p => p.status === s).length
             const isActive = statusFilter === s
             return (
               <button key={s} onClick={() => setStatusFilter(s)} aria-pressed={isActive}
-                className={`group flex h-10 flex-none items-center gap-2 whitespace-nowrap rounded-full border px-3.5 text-[11px] font-extrabold transition-all duration-200 xl:px-4 ${isActive ? 'border-violet-600 bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-md shadow-violet-200/80' : 'border-slate-200/80 bg-white text-slate-600 shadow-sm hover:-translate-y-0.5 hover:border-violet-300 hover:bg-violet-50/70 hover:text-violet-700 hover:shadow-md hover:shadow-violet-100'}`}>
-                <span>{s === 'ALL' ? 'All' : (statusConfig[s]?.label || s)}</span>
+                className={`group flex min-w-0 items-center justify-between gap-1.5 rounded-xl border px-3 py-2.5 text-left text-[11px] font-extrabold transition-all duration-200 sm:h-10 sm:w-auto sm:flex-none sm:justify-start sm:whitespace-nowrap sm:rounded-full sm:px-3.5 xl:px-4 ${isActive ? 'border-violet-600 bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-md shadow-violet-200/80' : 'border-slate-200/80 bg-white text-slate-600 shadow-sm hover:-translate-y-0.5 hover:border-violet-300 hover:bg-violet-50/70 hover:text-violet-700 hover:shadow-md hover:shadow-violet-100'}`}>
+                <span className="min-w-0 leading-tight">{s === 'ALL' ? 'All' : (statusConfig[s]?.label || s)}</span>
                 <span className={`inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-black leading-none transition-colors ${isActive ? 'bg-white/20 text-white ring-1 ring-white/20' : 'bg-slate-100 text-slate-500 group-hover:bg-violet-100 group-hover:text-violet-700'}`}>{count}</span>
               </button>
             )
@@ -327,7 +329,50 @@ export default function PurchaseOrders() {
             <p className="text-sm font-medium">No purchase orders found</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="space-y-3 p-3 md:hidden">
+            {filtered.map(po => (
+              <article key={po._id} className="w-full overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
+                <div className="flex min-w-0 items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-mono text-[11px] font-bold text-violet-600">{po.poNumber}</p>
+                    <h3 className="mt-1 truncate text-sm font-bold text-slate-800">{po.vendorName}</h3>
+                  </div>
+                  <Link
+                    to={`/purchase-orders/${po._id}`}
+                    aria-label={`View details for ${po.poNumber}`}
+                    className="inline-flex flex-shrink-0 items-center gap-1 rounded-xl bg-violet-600 px-3 py-2 text-xs font-bold text-white shadow-sm transition-colors hover:bg-violet-700 active:bg-violet-800"
+                  >
+                    Details <ChevronRight size={13} />
+                  </Link>
+                </div>
+
+                <div className="mt-3 grid grid-cols-2 gap-3 border-t border-slate-100 pt-3 text-xs">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Items</p>
+                    <p className="mt-1 font-semibold text-slate-700">{po.items?.length || 0}</p>
+                  </div>
+                  <div className="min-w-0 text-right">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Grand total</p>
+                    <p className="mt-1 truncate font-bold text-slate-800">₹{Number(po.grandTotal || 0).toFixed(2)}</p>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Expected</p>
+                    <p className="mt-1 truncate font-semibold text-slate-600">
+                      {po.expectedDeliveryDate ? new Date(po.expectedDeliveryDate).toLocaleDateString('en-IN') : '—'}
+                    </p>
+                  </div>
+                  <div className="flex min-w-0 items-end justify-end">
+                    <span className={`max-w-full truncate rounded-full border px-2 py-1 text-[10px] font-bold ${statusConfig[po.status]?.color || 'bg-slate-100 text-slate-500'}`}>
+                      {statusConfig[po.status]?.label || po.status}
+                    </span>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full text-left">
               <thead>
                 <tr className="border-b border-slate-100 text-xs font-bold text-slate-400 uppercase tracking-wider">
@@ -365,6 +410,7 @@ export default function PurchaseOrders() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
     </div>

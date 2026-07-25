@@ -222,16 +222,16 @@ function Requests() {
       {/* Personal work queue */}
       {myActionStatuses.length > 0 && (
         <div className="flex flex-col gap-3 rounded-2xl border border-violet-200 bg-violet-50/60 p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4">
-          <div className="flex items-center gap-3">
-            <div className="rounded-xl bg-violet-600 p-2.5 text-white"><Sparkles size={17} /></div>
-            <div>
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex-shrink-0 rounded-xl bg-violet-600 p-2.5 text-white"><Sparkles size={17} /></div>
+            <div className="min-w-0">
               <p className="text-sm font-extrabold text-slate-900">My action queue</p>
               <p className="text-xs text-slate-600">{myActionCount ? `${myActionCount} request${myActionCount === 1 ? '' : 's'} currently need your role.` : 'Nothing needs your role right now.'}</p>
             </div>
           </div>
-          <div className="flex rounded-xl border border-violet-200 bg-white p-1">
-            <button onClick={() => handleQueueMode('MY_ACTIONS')} className={`rounded-lg px-3 py-2 text-xs font-bold ${queueMode === 'MY_ACTIONS' ? 'bg-violet-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}>Needs my action ({myActionCount})</button>
-            <button onClick={() => handleQueueMode('ALL')} className={`rounded-lg px-3 py-2 text-xs font-bold ${queueMode === 'ALL' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'}`}>All records</button>
+          <div className="grid w-full min-w-0 grid-cols-2 rounded-xl border border-violet-200 bg-white p-1 sm:w-auto">
+            <button onClick={() => handleQueueMode('MY_ACTIONS')} className={`min-w-0 rounded-lg px-2 py-2 text-xs font-bold sm:px-3 ${queueMode === 'MY_ACTIONS' ? 'bg-violet-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}>Needs my action ({myActionCount})</button>
+            <button onClick={() => handleQueueMode('ALL')} className={`min-w-0 rounded-lg px-2 py-2 text-xs font-bold sm:px-3 ${queueMode === 'ALL' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'}`}>All records</button>
           </div>
         </div>
       )}
@@ -239,13 +239,13 @@ function Requests() {
       {/* Quick Filter Chips */}
       <div className="rounded-2xl border border-violet-100 bg-white p-3 shadow-sm sm:p-4">
         <p className="mb-3 text-[10px] font-extrabold uppercase tracking-[0.16em] text-slate-400">Track by workflow stage</p>
-        <div className="mobile-edge-scroll flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+        <div className="grid min-w-0 grid-cols-2 gap-2 sm:flex sm:flex-wrap">
           {quickFilters.map(f => {
             const active = selectedStatus === f.value
             return (
               <button key={f.value} onClick={() => handleStatusFilter(f.value)} aria-pressed={active}
-                className={`group flex h-10 flex-shrink-0 items-center gap-2 rounded-full border px-3.5 text-[11px] font-extrabold transition-all ${active ? 'border-violet-600 bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-md shadow-violet-200/70' : 'border-slate-200 bg-white text-slate-600 hover:-translate-y-0.5 hover:border-violet-300 hover:bg-violet-50 hover:text-violet-700'}`}>
-                <span>{f.label}</span>
+                className={`group flex min-w-0 items-center justify-between gap-1.5 rounded-xl border px-3 py-2.5 text-left text-[11px] font-extrabold transition-all sm:h-10 sm:w-auto sm:flex-shrink-0 sm:justify-start sm:rounded-full sm:px-3.5 ${active ? 'border-violet-600 bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-md shadow-violet-200/70' : 'border-slate-200 bg-white text-slate-600 hover:-translate-y-0.5 hover:border-violet-300 hover:bg-violet-50 hover:text-violet-700'}`}>
+                <span className="min-w-0 leading-tight">{f.label}</span>
                 <span className={`inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-black ${active ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500 group-hover:bg-violet-100 group-hover:text-violet-700'}`}>{statusCounts[f.value] || 0}</span>
               </button>
             )

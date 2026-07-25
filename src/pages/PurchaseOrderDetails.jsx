@@ -199,13 +199,14 @@ export default function PurchaseOrderDetails() {
       </button>
 
       {/* Hero */}
-      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center space-y-4 md:space-y-0">
-        <div>
+      <div className="relative flex flex-col items-start justify-between space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:flex-row md:items-center md:space-y-0">
+        <span className={`absolute right-4 top-4 rounded-full border px-3 py-1 text-xs font-bold ${cfg.color}`}>{cfg.label || po.status}</span>
+        <div className="min-w-0 max-w-full pr-20 sm:pr-24">
           <span className="text-xs font-mono text-violet-600 font-bold">{po.poNumber}</span>
           <h1 className="text-xl font-black text-slate-800 mt-1">{po.vendorName}</h1>
           <p className="text-sm text-slate-500">Created by {po.createdBy} · {new Date(po.createdAt).toLocaleDateString('en-IN')}</p>
         </div>
-        <div className="flex items-center space-x-3">
+        <div className="flex w-full items-center justify-between gap-3 md:w-auto md:justify-end">
           <button type="button" onClick={downloadPdf} disabled={pdfLoading} className="inline-flex items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-xs font-bold text-violet-700 hover:bg-violet-100 disabled:cursor-wait disabled:opacity-60">
             {pdfLoading ? <RefreshCw size={15} className="animate-spin" /> : <Download size={15} />}
             {pdfLoading ? 'Preparing PDF...' : 'Download PDF'}
@@ -214,7 +215,6 @@ export default function PurchaseOrderDetails() {
             <div className="text-xs text-slate-400">Grand Total</div>
             <div className="text-2xl font-black text-violet-700">₹{(po.grandTotal || 0).toFixed(2)}</div>
           </div>
-          <span className={`text-xs font-bold px-3 py-1 rounded-full border ${cfg.color}`}>{cfg.label || po.status}</span>
         </div>
       </div>
 
@@ -370,12 +370,12 @@ export default function PurchaseOrderDetails() {
 
       {activeTab === 'Signed PO' && (
         <div className="premium-card overflow-hidden">
-          <div className="flex items-center justify-between border-b border-slate-100 p-5">
-            <div>
+          <div className="flex items-start justify-between gap-3 border-b border-slate-100 p-5">
+            <div className="min-w-0 flex-1">
               <h3 className="font-bold text-slate-800">Signed Official Purchase Order</h3>
               <p className="mt-1 text-xs text-slate-500">This verified artifact controls whether gate receiving and GRN creation are permitted.</p>
             </div>
-            <span className={`rounded-full border px-3 py-1 text-xs font-black ${
+            <span className={`flex-shrink-0 whitespace-nowrap rounded-full border px-3 py-1 text-xs font-black ${
               po.signedPo?.status === 'VERIFIED' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' :
               po.signedPo?.status === 'PENDING_VERIFICATION' ? 'border-amber-200 bg-amber-50 text-amber-700' :
               po.signedPo?.status === 'REJECTED' ? 'border-rose-200 bg-rose-50 text-rose-700' :
