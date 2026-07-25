@@ -1,5 +1,5 @@
 // Service Worker for Push Notifications
-const CACHE_NAME = 'msec-connect-v2';
+const CACHE_NAME = 'msec-connect-v3';
 const urlsToCache = [
   '/',
   '/manifest.json'
@@ -62,10 +62,17 @@ self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET' || event.request.url.startsWith('chrome-extension://')) {
     return;
   }
+
+  // Let the application handle API and cross-origin failures. Intercepting
+  // them here can turn an ordinary network error into an unhandled service
+  // worker fetch rejection.
+  if (requestUrl.origin !== self.location.origin || requestUrl.pathname.startsWith('/api/')) {
+    return;
+  }
   
   // For HTML navigations, use Network First, falling back to cache.
   // This ensures users always get the latest index.html pointing to correct asset hashes.
-  if (event.request.mode === 'navigate' || event.request.headers.get('accept').includes('text/html')) {
+  if (event.request.mode === 'navigate' || event.request.headers.get('accept')?.includes('text/html')) {
     event.respondWith(
       fetch(event.request)
         .then((response) => {
@@ -100,7 +107,10 @@ self.addEventListener('fetch', (event) => {
         }
         
         // Try to fetch from network
-        return fetch(event.request);
+        return fetch(event.request).catch(() => new Response('', {
+          status: 503,
+          statusText: 'Service Unavailable'
+        }));
       })
   );
 });
