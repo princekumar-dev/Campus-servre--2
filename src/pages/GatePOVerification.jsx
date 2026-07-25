@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { Building2, CheckCircle, ClipboardCheck, Package, ShieldCheck } from 'lucide-react'
+import { Building2, Camera, CheckCircle, ClipboardCheck, Package, ShieldCheck, XCircle } from 'lucide-react'
 import apiClient from '../utils/apiClient'
 import { useAlert } from '../components/AlertContext'
 
@@ -13,6 +13,7 @@ export default function GatePOVerification() {
   const [po, setPo] = useState(null)
   const [items, setItems] = useState([])
   const [remarks, setRemarks] = useState('')
+  const [receiptEvidence, setReceiptEvidence] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [createdGrn, setCreatedGrn] = useState(null)
@@ -78,6 +79,7 @@ export default function GatePOVerification() {
         poId: po._id,
         qrToken: token,
         items,
+        receiptEvidence: receiptEvidence || undefined,
         remarks: remarks || 'Manually verified at gate from purchase-order QR'
       }, { timeout: 90000 })
       if (!result?.success) throw new Error(result?.error || 'Unable to create GRN')
@@ -93,6 +95,27 @@ export default function GatePOVerification() {
     } finally {
       setSaving(false)
     }
+  }
+
+  const selectReceiptPhoto = event => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    if (!['image/jpeg', 'image/png'].includes(file.type)) {
+      return showError('Invalid Photo', 'Use a JPG or PNG photo of the received goods')
+    }
+    if (file.size > 4 * 1024 * 1024) {
+      return showError('Photo Too Large', 'The received-goods proof must be 4 MB or smaller')
+    }
+    const reader = new FileReader()
+    reader.onerror = () => showError('Photo Error', 'The selected proof photo could not be read')
+    reader.onload = () => setReceiptEvidence({
+      name: file.name,
+      url: String(reader.result),
+      mimeType: file.type,
+      size: file.size
+    })
+    reader.readAsDataURL(file)
   }
 
   if (loading) {
@@ -213,6 +236,28 @@ export default function GatePOVerification() {
       </div>
 
       <div className="premium-card p-5">
+        <div className="mb-5">
+          <div className="flex items-center gap-2">
+            <Camera size={17} className="text-violet-600" />
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Received goods photo proof <span className="font-medium normal-case text-slate-400">(optional)</span></label>
+          </div>
+          {receiptEvidence ? (
+            <div className="mt-3 flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+              <img src={receiptEvidence.url} alt="Received goods proof preview" className="h-20 w-24 rounded-lg bg-white object-contain" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-bold text-slate-800">{receiptEvidence.name}</p>
+                <p className="mt-1 text-xs text-emerald-700">Photo will be attached to the GRN report</p>
+              </div>
+              <button type="button" onClick={() => setReceiptEvidence(null)} aria-label="Remove proof photo" className="rounded-full p-1.5 text-slate-400 hover:bg-white hover:text-rose-600"><XCircle size={18} /></button>
+            </div>
+          ) : (
+            <label className="mt-3 flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-violet-200 bg-violet-50/50 px-4 py-5 text-sm font-bold text-violet-700 transition-colors hover:border-violet-400 hover:bg-violet-50">
+              <Camera size={18} /> Add Received Goods Photo
+              <input type="file" accept="image/jpeg,image/png" onChange={selectReceiptPhoto} className="sr-only" />
+            </label>
+          )}
+          <p className="mt-2 text-xs text-slate-400">JPG or PNG, maximum 4 MB. This attachment is optional.</p>
+        </div>
         <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Gate verification remarks</label>
         <textarea value={remarks} onChange={event => setRemarks(event.target.value)} rows={3} placeholder="Condition, challan details, shortages, or other verification notes..."
           className="mt-2 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm outline-none focus:border-violet-500" />

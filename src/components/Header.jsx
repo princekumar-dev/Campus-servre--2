@@ -1,13 +1,14 @@
 import { Link, useLocation } from 'react-router-dom'
 import { useEffect, useRef, useState } from 'react'
-import { Bell, ChevronDown, ClipboardList, PlusCircle, ShoppingCart, Building2, Truck, QrCode, ClipboardCheck } from 'lucide-react'
-import { getAuthOrNull } from '../utils/auth'
+import { Bell, ChevronDown, ClipboardList, PlusCircle, ShoppingCart, Building2, QrCode, ClipboardCheck } from 'lucide-react'
+import { getAuthOrNull, getDashboardPath } from '../utils/auth'
 import Settings from './Settings'
 import CampusServeNotifications from './CampusServeNotifications'
 import apiClient from '../utils/apiClient'
 
 export const isNavPathActive = (currentPath, navPath) => {
   const pathname = currentPath.length > 1 ? currentPath.replace(/\/+$/, '') : currentPath
+  if (navPath === '/gate') return pathname === '/gate' || pathname.startsWith('/gate/po/')
   if (navPath === '/dashboard' || navPath === '/requests/new') return pathname === navPath
   if (navPath === '/requests') return (pathname === navPath || pathname.startsWith(`${navPath}/`)) && pathname !== '/requests/new'
   return pathname === navPath || pathname.startsWith(`${navPath}/`)
@@ -81,7 +82,7 @@ function Header() {
   const navigation = user && (
     <>
       {/* Dashboard - all roles */}
-      <Link className={linkClass('/dashboard')} to="/dashboard">Dashboard</Link>
+      <Link className={linkClass(getDashboardPath(user.role))} to={getDashboardPath(user.role)}>Dashboard</Link>
       
       {/* Requester / HOD / Staff */}
       {['requester', 'hod', 'staff'].includes(user.role) && (
@@ -128,7 +129,6 @@ function Header() {
       {user.role === 'gate' && (
         <>
           <Link className={linkClass('/gate')} to="/gate">Scan</Link>
-          <Link className={linkClass('/gate/vehicles')} to="/gate/vehicles">Vehicles</Link>
           <Link className={linkClass('/gate/history')} to="/gate/history">History</Link>
         </>
       )}
@@ -174,7 +174,7 @@ function Header() {
       onMouseEnter={() => document.body.classList.add('header-hover-active')}
       onMouseLeave={() => document.body.classList.remove('header-hover-active')}
     >
-      <Link to={user ? '/dashboard' : '/'} className="flex min-w-0 items-center gap-2.5 md:gap-3" aria-label="CampusServe home">
+      <Link to={user ? getDashboardPath(user.role) : '/'} className="flex min-w-0 items-center gap-2.5 md:gap-3" aria-label="CampusServe home">
             <span className="size-9 flex-shrink-0 sm:size-10">
               <img src="/images/mseclogo.png" alt="CampusServe Logo" className="h-full w-full object-contain" />
             </span>

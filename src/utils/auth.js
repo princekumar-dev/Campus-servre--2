@@ -18,3 +18,18 @@ export function getAuthOrNull() {
     return null
   }
 }
+
+/**
+ * Return the correct landing dashboard for every authenticated role.
+ * Roles without a dedicated dashboard use the role-aware main dashboard.
+ */
+export function getDashboardPath(role) {
+  const roleDashboards = {
+    gate: '/gate/dashboard',
+    vendor: '/vendor/dashboard',
+    receiving_officer: '/receiving/dashboard',
+    accounts: '/accounts/dashboard'
+  }
+
+  return roleDashboards[role] || '/dashboard'
+}

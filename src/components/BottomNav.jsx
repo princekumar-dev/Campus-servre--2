@@ -63,7 +63,6 @@ function BottomNav() {
       <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 glass-bottom-nav px-1 py-1.5 flex items-center justify-around safe-area-inset-bottom">
         <NavItem to="/gate/dashboard" icon={LayoutDashboard} label="Home" isActive={location.pathname === '/gate/dashboard'} />
         <NavItem to="/gate" icon={QrCode} label="Scan" isActive={location.pathname === '/gate'} />
-        <NavItem to="/gate/vehicles" icon={Truck} label="Vehicles" isActive={isActive('/gate/vehicles')} />
         <NavItem to="/gate/history" icon={ClipboardList} label="History" isActive={isActive('/gate/history')} />
       </div>
     )

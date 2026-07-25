@@ -495,6 +495,13 @@ class PushNotificationManager {
     }
 
     try {
+      // Service workers are intentionally skipped during local development.
+      // Report notifications as unavailable instead of reading pushManager
+      // from a null registration.
+      if (!this.registration?.pushManager) {
+        return { found: false, unavailable: true };
+      }
+
       // Get current browser subscription
       const subscription = await this.registration.pushManager.getSubscription();
       

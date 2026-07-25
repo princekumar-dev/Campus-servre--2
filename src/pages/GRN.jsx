@@ -38,6 +38,9 @@ function CreateGRNModal({ onClose, onSaved }) {
         quantityOrdered: item.quantityOrdered,
         quantityPreviouslyAccepted: item.quantityAccepted || 0,
         unit: item.unit,
+        unitPrice: item.unitPrice || 0,
+        taxRate: item.taxRate || 0,
+        discount: item.discount || 0,
         quantityDeliveredNow: 0,
         quantityAcceptedNow: 0,
         quantityDamaged: 0,
@@ -101,6 +104,7 @@ function CreateGRNModal({ onClose, onSaved }) {
               <div className="space-y-3">
                 {items.map((item, idx) => {
                   const remaining = item.quantityOrdered - item.quantityPreviouslyAccepted
+                  const acceptedValue = Number(item.quantityAcceptedNow || 0) * Number(item.unitPrice || 0)
                   return (
                     <div key={idx} className="p-4 bg-slate-50 rounded-xl border border-slate-100 space-y-3">
                       <div className="flex items-center justify-between">
@@ -112,6 +116,7 @@ function CreateGRNModal({ onClose, onSaved }) {
                           <span>Ordered: <strong className="text-slate-600">{item.quantityOrdered}</strong></span>
                           <span>Previously: <strong className="text-violet-600">{item.quantityPreviouslyAccepted}</strong></span>
                           <span>Remaining: <strong className="text-amber-600">{remaining}</strong></span>
+                          <span>Unit: <strong className="text-slate-700">₹{Number(item.unitPrice || 0).toFixed(2)}</strong></span>
                         </div>
                       </div>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -130,6 +135,10 @@ function CreateGRNModal({ onClose, onSaved }) {
                             />
                           </div>
                         ))}
+                      </div>
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-2 text-xs">
+                        <span className="text-slate-500">Accepted value before proportional discount/GST</span>
+                        <strong className="text-violet-700">{item.quantityAcceptedNow || 0} × ₹{Number(item.unitPrice || 0).toFixed(2)} = ₹{acceptedValue.toFixed(2)}</strong>
                       </div>
                     </div>
                   )
@@ -168,6 +177,20 @@ async function downloadExport(url, filename) {
 
 function GRNCard({ grn, onDownload }) {
   const [expanded, setExpanded] = useState(false)
+  const [receiptEvidence, setReceiptEvidence] = useState(grn.receiptEvidence?.url ? grn.receiptEvidence : null)
+
+  const toggleExpanded = async () => {
+    const nextExpanded = !expanded
+    setExpanded(nextExpanded)
+    if (nextExpanded && grn.hasReceiptEvidence && !receiptEvidence) {
+      try {
+        const result = await apiClient.get(`/api/grn?id=${encodeURIComponent(grn._id)}`, { cache: false })
+        if (result?.success && result.data?.receiptEvidence?.url) setReceiptEvidence(result.data.receiptEvidence)
+      } catch {
+        // The GRN details remain usable if an older attachment cannot be loaded.
+      }
+    }
+  }
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white transition-all hover:border-violet-200">
@@ -178,7 +201,7 @@ function GRNCard({ grn, onDownload }) {
             <div>
               <div className="font-mono text-xs text-violet-600 font-bold">{grn.grnNumber}</div>
               <div className="font-bold text-slate-800 text-sm mt-0.5">PO: {grn.poNumber}</div>
-              <div className="text-xs text-slate-500">{grn.receivedByName} · {new Date(grn.receivedAt).toLocaleDateString('en-IN')}</div>
+              <div className="text-xs text-slate-500">{grn.receivedByName} · {new Date(grn.receivedAt).toLocaleDateString('en-IN')} · <strong className="text-emerald-700">₹{Number(grn.grandTotal || 0).toFixed(2)}</strong></div>
             </div>
           </div>
           <div className="flex items-center space-x-2">
@@ -197,7 +220,7 @@ function GRNCard({ grn, onDownload }) {
 
         {grn.remarks && <p className="mt-3 text-xs text-slate-500 bg-slate-50 rounded-lg p-2.5">{grn.remarks}</p>}
 
-        <button onClick={() => setExpanded(e => !e)} className="mt-3 text-xs font-bold text-violet-600 hover:text-violet-700 flex items-center space-x-1">
+        <button onClick={toggleExpanded} className="mt-3 text-xs font-bold text-violet-600 hover:text-violet-700 flex items-center space-x-1">
           <span>{expanded ? 'Hide' : 'Show'} Items</span>
           {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
         </button>
@@ -205,12 +228,36 @@ function GRNCard({ grn, onDownload }) {
 
       {expanded && (
         <div className="border-t border-slate-100 p-5 space-y-3">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+            {[
+              ['Accepted subtotal', grn.subtotal],
+              ['Discount share', grn.discountTotal],
+              ['GST', grn.taxTotal],
+              ['Delivery share', grn.deliveryChargeAllocated],
+              ['This GRN total', grn.grandTotal],
+            ].map(([label, amount]) => (
+              <div key={label} className="rounded-xl border border-slate-100 bg-slate-50 p-2.5">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</div>
+                <div className="mt-1 text-sm font-black text-slate-800">₹{Number(amount || 0).toFixed(2)}</div>
+              </div>
+            ))}
+          </div>
+          {receiptEvidence?.url && (
+            <details className="rounded-xl border border-violet-100 bg-violet-50/40 p-3">
+              <summary className="cursor-pointer text-xs font-black text-violet-700">Received Goods Photo Proof</summary>
+              <div className="mt-3 rounded-xl border border-white bg-white p-2">
+                <img src={receiptEvidence.url} alt="Received goods proof" className="mx-auto max-h-[520px] w-full rounded-lg object-contain" />
+                <p className="mt-2 truncate text-center text-xs text-slate-500">{receiptEvidence.name}</p>
+              </div>
+            </details>
+          )}
           <div className="overflow-x-auto">
             <table className="w-full text-xs text-left">
               <thead>
                 <tr className="text-[11px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">
                   <th className="pb-2">Product ID</th>
                   <th className="pb-2">Item</th>
+                  <th className="pb-2 text-right">Unit Price</th>
                   <th className="pb-2 text-right">Ordered</th>
                   <th className="pb-2 text-right">Previous</th>
                   <th className="pb-2 text-right">Delivered</th>
@@ -219,6 +266,7 @@ function GRNCard({ grn, onDownload }) {
                   <th className="pb-2 text-right text-amber-600">Damaged</th>
                   <th className="pb-2 text-right text-rose-600">Rejected</th>
                   <th className="pb-2 text-right">Remaining</th>
+                  <th className="pb-2 text-right text-violet-700">Amount</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
@@ -226,6 +274,7 @@ function GRNCard({ grn, onDownload }) {
                   <tr key={idx} className="hover:bg-slate-50/50">
                     <td className="whitespace-nowrap py-2 pr-4 font-mono font-bold text-violet-700">{item.productId || '—'}</td>
                     <td className="py-2 font-medium text-slate-800">{item.poItemDescription}</td>
+                    <td className="py-2 text-right text-slate-600">₹{Number(item.unitPrice || 0).toFixed(2)}</td>
                     <td className="py-2 text-right text-slate-600">{item.quantityOrdered}</td>
                     <td className="py-2 text-right text-blue-600">{item.quantityPreviouslyAccepted || 0}</td>
                     <td className="py-2 text-right text-slate-600">{item.quantityDeliveredNow}</td>
@@ -234,6 +283,7 @@ function GRNCard({ grn, onDownload }) {
                     <td className="py-2 text-right text-amber-600 font-bold">{item.quantityDamaged}</td>
                     <td className="py-2 text-right text-rose-600 font-bold">{item.quantityRejected}</td>
                     <td className="py-2 text-right"><span className={`font-bold ${item.quantityRemaining > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>{item.quantityRemaining}</span></td>
+                    <td className="py-2 text-right font-black text-violet-700">₹{Number(item.lineTotal || 0).toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>

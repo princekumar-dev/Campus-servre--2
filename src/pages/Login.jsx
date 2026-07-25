@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { useAlert } from '../components/AlertContext'
 import apiClient from '../utils/apiClient'
+import { getDashboardPath } from '../utils/auth'
 import { Lock } from 'lucide-react'
 
 function Login() {
@@ -44,7 +45,7 @@ function Login() {
         const requestedPath = searchParams.get('next') || ''
         const safeNextPath = requestedPath.startsWith('/') && !requestedPath.startsWith('//')
           ? requestedPath
-          : '/dashboard'
+          : getDashboardPath(res.user.role)
         navigate(safeNextPath, { replace: true })
       } else {
         showError('Login Failed', res.error || 'Invalid credentials')

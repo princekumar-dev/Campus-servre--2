@@ -33,7 +33,7 @@ const ROLE_GREETINGS = {
   manager: { title: 'Purchase Operations', sub: 'Create purchase orders and upload signed proof' },
   technician: { title: 'Work Orders', sub: 'Accept jobs, log progress, and record materials' },
   accounts: { title: 'Purchase Overview', sub: 'Track purchase orders through completion' },
-  gate: { title: 'Gate Control', sub: 'Verify delivery passes and scan QR codes' },
+  gate: { title: 'Goods Receiving', sub: 'Scan purchase orders and record received goods' },
   receiving_officer: { title: 'Receiving Desk', sub: 'Log goods received and inspect deliveries' },
   vendor: { title: 'Vendor Portal', sub: 'Manage assigned orders and deliveries' },
   hod: { title: 'Department Hub', sub: 'Submit and track department requests' },
@@ -439,9 +439,8 @@ function Dashboard() {
       case 'gate':
         return (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {action('/gate', QrCode, 'bg-violet-50', 'text-violet-600', 'Scan Delivery Pass')}
-            {action('/gate/vehicles', Truck, 'bg-amber-50', 'text-amber-600', 'Vehicles Inside')}
-            {action('/gate/history', ClipboardList, 'bg-blue-50', 'text-blue-600', 'Gate History')}
+            {action('/gate', QrCode, 'bg-violet-50', 'text-violet-600', 'Scan or Enter PO')}
+            {action('/gate/history', ClipboardList, 'bg-blue-50', 'text-blue-600', 'Receiving History')}
           </div>
         )
       case 'receiving_officer':

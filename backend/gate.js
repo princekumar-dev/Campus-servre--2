@@ -1,7 +1,7 @@
 import { connectToDatabase } from '../lib/mongo.js'
-import { GateEntry, DeliverySchedule, PurchaseOrder, User } from '../models.js'
+import { GateEntry, DeliverySchedule, GoodsReceipt, PurchaseOrder, User } from '../models.js'
 import crypto from 'crypto'
-import { verifyIssuedPoQrToken } from '../lib/poQrToken.js'
+import { createPoQrToken, verifyIssuedPoQrToken } from '../lib/poQrToken.js'
 import { addProductIds } from '../lib/productId.js'
 import { canReceivePo, getPoReceivingBlockReason, isSignedPoVerified } from '../lib/poReceiving.js'
 
@@ -21,6 +21,54 @@ export default async function handler(req, res) {
 
   try {
     const { action, token } = req.query
+
+    // ── POST /api/gate?action=resolve-po-code — Manual PO entry ─────────────
+    if (req.method === 'POST' && action === 'resolve-po-code') {
+      if (!['gate', 'admin', 'super_admin'].includes(actorRole)) {
+        return res.status(403).json({ success: false, error: 'Gate access is required' })
+      }
+      const poCode = String(req.body?.code || '').trim().toUpperCase()
+      if (!/^PO-\d{4}-\d{6}$/.test(poCode)) {
+        return res.status(400).json({ success: false, error: 'Enter a valid PO number such as PO-2026-123456' })
+      }
+      const po = await PurchaseOrder.findOne({ poNumber: poCode }).select('_id poNumber status').lean()
+      if (!po) return res.status(404).json({ success: false, error: 'Purchase order not found' })
+      const poToken = createPoQrToken(po._id)
+      return res.json({ success: true, data: { poId: po._id, poNumber: po.poNumber, token: poToken, status: po.status } })
+    }
+
+    // Older gate receipts have gateVerifiedAt but may predate the PO_QR source
+    // field. Include both so already-scanned purchase orders remain visible.
+    const gateReceiptFilter = {
+      $or: [
+        { source: 'PO_QR' },
+        { gateVerifiedAt: { $exists: true, $ne: null } }
+      ]
+    }
+
+    // ── GET /api/gate?action=history — PO receiving scan history ────────────
+    if (req.method === 'GET' && action === 'history') {
+      const receipts = await GoodsReceipt.find(gateReceiptFilter)
+        .select('-receiptEvidence.url')
+        .sort({ receivedAt: -1, createdAt: -1 })
+        .limit(500)
+        .lean()
+      return res.json({ success: true, data: receipts, total: receipts.length })
+    }
+
+    // ── GET /api/gate?action=summary — Workflow-specific gate KPIs ──────────
+    if (req.method === 'GET' && action === 'summary') {
+      const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
+      const receivedTodayFilter = { ...gateReceiptFilter, receivedAt: { $gte: todayStart } }
+      const [readyToReceive, receivedToday, partialToday, closedToday, recent] = await Promise.all([
+        PurchaseOrder.countDocuments({ status: { $in: ['ACTIVE', 'PARTIALLY_FULFILLED'] }, 'signedPo.status': 'VERIFIED' }),
+        GoodsReceipt.countDocuments(receivedTodayFilter),
+        GoodsReceipt.countDocuments({ ...receivedTodayFilter, grnType: 'PARTIAL' }),
+        GoodsReceipt.countDocuments({ ...receivedTodayFilter, grnType: 'FINAL' }),
+        GoodsReceipt.find(gateReceiptFilter).select('-receiptEvidence.url -items').sort({ receivedAt: -1, createdAt: -1 }).limit(8).lean()
+      ])
+      return res.json({ success: true, data: { readyToReceive, receivedToday, partialToday, closedToday, recent } })
+    }
 
     // ── GET /api/gate?action=po-details&token=... — PO QR landing data ───────
     if (req.method === 'GET' && action === 'po-details') {
@@ -75,9 +123,10 @@ export default async function handler(req, res) {
     if (req.method === 'GET' && action === 'today') {
       const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
       const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999)
-      const entries = await GateEntry.find({
-        entryTime: { $gte: todayStart, $lte: todayEnd }
-      }).sort({ entryTime: -1 }).lean()
+      const entries = await GoodsReceipt.find({
+        ...gateReceiptFilter,
+        receivedAt: { $gte: todayStart, $lte: todayEnd }
+      }).select('-receiptEvidence.url').sort({ receivedAt: -1 }).lean()
       return res.json({ success: true, data: entries })
     }
 
@@ -137,7 +186,10 @@ export default async function handler(req, res) {
     return res.status(405).json({ success: false, error: 'Method not allowed' })
   } catch (err) {
     console.error('Gate API error:', err)
-    return res.status(500).json({ success: false, error: 'Internal server error' })
+    return res.status(500).json({
+      success: false,
+      error: process.env.NODE_ENV === 'production' ? 'Internal server error' : (err.message || 'Internal server error')
+    })
   }
 }
 

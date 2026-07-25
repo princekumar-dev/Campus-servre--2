@@ -1,257 +1,209 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { Camera, CheckCircle, History, Keyboard, QrCode, ShieldCheck, XCircle } from 'lucide-react'
 import { useAlert } from '../components/AlertContext'
 import apiClient from '../utils/apiClient'
-import { getAuthOrNull } from '../utils/auth'
-import { QrCode, Keyboard, CheckCircle, XCircle, AlertCircle, Clock, Truck, Package, Eye } from 'lucide-react'
 
-const rejectionReasons = [
-  'EXPIRED', 'REVOKED', 'WRONG_DATE', 'WRONG_PERSON', 'WRONG_VEHICLE',
-  'CANCELLED_PO', 'DUPLICATE_ENTRY', 'UNSCHEDULED_DELIVERY', 'OTHER'
-]
+function CameraScanner({ onDetected }) {
+  const videoRef = useRef(null)
+  const streamRef = useRef(null)
+  const frameRef = useRef(null)
+  const detectorRef = useRef(null)
+  const detectedRef = useRef(false)
+  const [cameraActive, setCameraActive] = useState(false)
+  const [cameraError, setCameraError] = useState('')
 
-function ScannerPanel({ onResult }) {
-  const [token, setToken] = useState('')
-  const [loading, setLoading] = useState(false)
-  const { showError } = useAlert()
+  const stopCamera = useCallback(() => {
+    if (frameRef.current) cancelAnimationFrame(frameRef.current)
+    frameRef.current = null
+    streamRef.current?.getTracks().forEach(track => track.stop())
+    streamRef.current = null
+    if (videoRef.current) videoRef.current.srcObject = null
+    setCameraActive(false)
+  }, [])
 
-  const handleScan = async (e) => {
-    e.preventDefault()
-    if (!token.trim()) return
-    setLoading(true)
+  useEffect(() => stopCamera, [stopCamera])
+
+  const scanFrame = useCallback(async () => {
+    if (!videoRef.current || !detectorRef.current || detectedRef.current) return
     try {
-      const res = await apiClient.post('/api/gate?action=verify-qr', { token: token.trim() })
-      onResult(res)
-    } catch (err) { showError('Scan Error', err.message) }
-    finally { setLoading(false) }
+      const codes = await detectorRef.current.detect(videoRef.current)
+      const value = codes?.[0]?.rawValue
+      if (value) {
+        detectedRef.current = true
+        stopCamera()
+        onDetected(value)
+        return
+      }
+    } catch {
+      // Camera frames can be temporarily unavailable while the stream starts.
+    }
+    frameRef.current = requestAnimationFrame(scanFrame)
+  }, [onDetected, stopCamera])
+
+  const startCamera = async () => {
+    setCameraError('')
+    detectedRef.current = false
+    if (!navigator.mediaDevices?.getUserMedia) {
+      return setCameraError('Camera access is not supported by this browser.')
+    }
+    if (!('BarcodeDetector' in window)) {
+      return setCameraError('Live QR detection is unavailable in this browser. Use Chrome/Edge on mobile or enter the PO number.')
+    }
+    try {
+      const supported = typeof window.BarcodeDetector.getSupportedFormats === 'function'
+        ? await window.BarcodeDetector.getSupportedFormats()
+        : ['qr_code']
+      if (!supported.includes('qr_code')) throw new Error('QR detection is not supported')
+      detectorRef.current = new window.BarcodeDetector({ formats: ['qr_code'] })
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false
+      })
+      streamRef.current = stream
+      videoRef.current.srcObject = stream
+      await videoRef.current.play()
+      setCameraActive(true)
+      frameRef.current = requestAnimationFrame(scanFrame)
+    } catch (error) {
+      stopCamera()
+      setCameraError(error.name === 'NotAllowedError'
+        ? 'Camera permission was denied. Allow camera access or enter the PO number.'
+        : (error.message || 'Unable to start the camera.'))
+    }
   }
 
   return (
-    <div className="space-y-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:space-y-6 sm:p-8">
-      <div className="flex items-center space-x-3">
-        <div className="p-3 bg-violet-50 rounded-xl text-violet-600"><QrCode size={24} /></div>
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+      <div className="mb-4 flex items-center gap-3">
+        <div className="rounded-xl bg-violet-50 p-3 text-violet-600"><Camera size={23} /></div>
         <div>
-          <h2 className="font-bold text-slate-800">QR Code Scan</h2>
-          <p className="text-xs text-slate-500">Scan vendor delivery QR pass</p>
+          <h2 className="font-black text-slate-800">Scan Purchase Order QR</h2>
+          <p className="text-xs text-slate-500">Uses the rear camera on a mobile device</p>
         </div>
       </div>
-      <form onSubmit={handleScan} className="space-y-4">
-        <div className="space-y-3 rounded-2xl border-2 border-dashed border-violet-200 bg-violet-50/40 p-4 text-center sm:p-8">
-          <QrCode size={48} className="mx-auto text-violet-300" />
-          <p className="text-xs text-slate-400 font-medium">Scan QR code or paste token below</p>
-          <input
-            type="text" value={token} onChange={e => setToken(e.target.value)}
-            placeholder="Paste QR token here..."
-            className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-mono text-center focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-all"
-            autoFocus
-          />
-        </div>
-        <button type="submit" disabled={loading || !token.trim()}
-          className="w-full bg-violet-600 hover:bg-violet-700 text-white font-black text-sm py-3.5 rounded-xl transition-all disabled:opacity-50 flex items-center justify-center space-x-2">
-          {loading ? <div className="h-5 w-5 border-t-2 border-white rounded-full animate-spin" /> : <><QrCode size={16} /><span>Verify QR Pass</span></>}
-        </button>
-      </form>
+      <div className="relative flex aspect-[4/3] max-h-[520px] items-center justify-center overflow-hidden rounded-2xl bg-slate-950">
+        <video ref={videoRef} playsInline muted className={`h-full w-full object-cover ${cameraActive ? 'block' : 'hidden'}`} />
+        {!cameraActive && (
+          <div className="px-6 text-center text-white">
+            <QrCode size={58} className="mx-auto text-violet-300" />
+            <p className="mt-3 text-sm font-bold">Point the camera at the QR printed on the PO</p>
+          </div>
+        )}
+        {cameraActive && <div className="pointer-events-none absolute inset-[16%] rounded-2xl border-2 border-violet-300 shadow-[0_0_0_999px_rgba(2,6,23,0.28)]" />}
+      </div>
+      {cameraError && <p className="mt-3 rounded-lg bg-amber-50 p-2.5 text-xs font-semibold text-amber-800">{cameraError}</p>}
+      <button type="button" onClick={cameraActive ? stopCamera : startCamera}
+        className={`mt-4 flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-black text-white ${cameraActive ? 'bg-rose-600 hover:bg-rose-700' : 'bg-violet-600 hover:bg-violet-700'}`}>
+        {cameraActive ? <><XCircle size={17} /> Stop Camera</> : <><Camera size={17} /> Open Mobile Camera</>}
+      </button>
     </div>
   )
 }
 
-function ManualCodePanel({ onResult }) {
+function ManualPOEntry({ onResolved }) {
   const [code, setCode] = useState('')
   const [loading, setLoading] = useState(false)
   const { showError } = useAlert()
 
-  const handleVerify = async (e) => {
-    e.preventDefault()
+  const submit = async event => {
+    event.preventDefault()
     if (!code.trim()) return
     setLoading(true)
     try {
-      const res = await apiClient.post('/api/gate?action=verify-code', { code: code.trim() })
-      onResult(res)
-    } catch (err) { showError('Verify Error', err.message) }
-    finally { setLoading(false) }
+      const result = await apiClient.post('/api/gate?action=resolve-po-code', { code: code.trim() })
+      if (!result?.success) throw new Error(result?.error || 'Unable to find purchase order')
+      onResolved(result.data)
+    } catch (error) {
+      showError('PO Not Found', error.message)
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
-    <div className="space-y-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:space-y-6 sm:p-8">
-      <div className="flex items-center space-x-3">
-        <div className="p-3 bg-emerald-50 rounded-xl text-emerald-600"><Keyboard size={24} /></div>
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+      <div className="mb-5 flex items-center gap-3">
+        <div className="rounded-xl bg-emerald-50 p-3 text-emerald-600"><Keyboard size={23} /></div>
         <div>
-          <h2 className="font-bold text-slate-800">Manual Code Entry</h2>
-          <p className="text-xs text-slate-500">Enter 6-digit backup delivery code</p>
+          <h2 className="font-black text-slate-800">Enter PO Number</h2>
+          <p className="text-xs text-slate-500">Use the number printed at the top of the PO</p>
         </div>
       </div>
-      <form onSubmit={handleVerify} className="space-y-4">
-        <div className="text-center">
-          <input
-            type="text" value={code} onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 8))}
-            placeholder="• • • • • •"
-            className="w-full bg-slate-50 border-2 border-slate-200 rounded-2xl p-6 text-3xl font-black text-center tracking-[0.5em] text-slate-800 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all"
-            maxLength={8}
-          />
-          <p className="text-xs text-slate-400 mt-2">{code.length}/6-8 digits</p>
-        </div>
-        <button type="submit" disabled={loading || code.length < 6}
-          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm py-3.5 rounded-xl transition-all disabled:opacity-50 flex items-center justify-center space-x-2">
-          {loading ? <div className="h-5 w-5 border-t-2 border-white rounded-full animate-spin" /> : <><Keyboard size={16} /><span>Verify Code</span></>}
+      <form onSubmit={submit}>
+        <input value={code} onChange={event => setCode(event.target.value.toUpperCase())}
+          placeholder="PO-2026-123456" autoComplete="off" autoCapitalize="characters"
+          className="w-full rounded-xl border-2 border-slate-200 bg-slate-50 p-4 text-center font-mono text-lg font-black uppercase tracking-wider text-slate-800 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100" />
+        <button type="submit" disabled={loading || !code.trim()}
+          className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 text-sm font-black text-white hover:bg-emerald-700 disabled:opacity-50">
+          {loading ? 'Opening PO...' : <><ShieldCheck size={17} /> Verify & Open PO</>}
         </button>
       </form>
-    </div>
-  )
-}
-
-function ResultCard({ result, onClear, onReject }) {
-  const [rejectReason, setRejectReason] = useState('')
-  const [showReject, setShowReject] = useState(false)
-
-  if (!result) return null
-  const isApproved = result.decision === 'APPROVED'
-  const delivery = result.delivery
-
-  return (
-    <div className={`rounded-2xl border-2 shadow-lg p-6 space-y-5 animate-fadeIn ${isApproved ? 'bg-emerald-50 border-emerald-300' : 'bg-rose-50 border-rose-300'}`}>
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-3">
-          {isApproved ? <CheckCircle size={32} className="text-emerald-600" /> : <XCircle size={32} className="text-rose-600" />}
-          <div>
-            <h2 className={`text-xl font-black ${isApproved ? 'text-emerald-800' : 'text-rose-800'}`}>
-              {isApproved ? '✓ ENTRY APPROVED' : '✗ ENTRY REJECTED'}
-            </h2>
-            <p className="text-xs font-medium mt-0.5 text-slate-600">
-              {isApproved ? 'Vendor may proceed to receiving area' : (result.message || result.reason)}
-            </p>
-          </div>
-        </div>
-        <button onClick={onClear} className="text-slate-400 hover:text-slate-600 text-xl font-bold p-2">×</button>
-      </div>
-
-      {isApproved && delivery && (
-        <div className="bg-white rounded-xl border border-emerald-200 p-5 space-y-3">
-          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Delivery Information</h3>
-          <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
-            {[
-              { label: 'PO Number', value: delivery.poNumber },
-              { label: 'Vendor', value: delivery.vendorName },
-              { label: 'Delivery No.', value: delivery.deliveryNumber },
-              { label: 'Person', value: delivery.deliveryPersonName || '—' },
-              { label: 'Vehicle', value: delivery.vehicleNumber || '—' },
-              { label: 'Location', value: delivery.deliveryLocation },
-              { label: 'Slot', value: delivery.slotStart && delivery.slotEnd ? `${delivery.slotStart} – ${delivery.slotEnd}` : '—' },
-            ].map(({ label, value }) => (
-              <div key={label}>
-                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{label}</div>
-                <div className="font-semibold text-slate-800 mt-0.5">{value}</div>
-              </div>
-            ))}
-          </div>
-
-          {delivery.items && delivery.items.length > 0 && (
-            <div className="pt-3 border-t border-emerald-100">
-              <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Expected Items</div>
-              {delivery.items.map((item, idx) => (
-                <div key={idx} className="text-xs text-slate-600 flex justify-between gap-3">
-                  <span><span className="mr-2 font-mono font-bold text-violet-700">{item.productId || '—'}</span>{item.description}</span>
-                  <span className="font-semibold">{item.quantityExpected} {item.unit}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {!showReject && isApproved && (
-        <button onClick={() => setShowReject(true)} className="text-xs text-rose-600 font-bold hover:text-rose-700 underline">
-          Actually reject this entry?
-        </button>
-      )}
-
-      {showReject && (
-        <div className="bg-white border border-rose-200 rounded-xl p-4 space-y-3">
-          <p className="text-xs font-bold text-rose-700">Select rejection reason:</p>
-          <select value={rejectReason} onChange={e => setRejectReason(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-xs focus:outline-none">
-            <option value="">Select reason...</option>
-            {rejectionReasons.map(r => <option key={r} value={r}>{r.replace(/_/g, ' ')}</option>)}
-          </select>
-          <button onClick={() => onReject(rejectReason)} disabled={!rejectReason} className="w-full bg-rose-600 text-white font-bold text-xs py-2.5 rounded-lg disabled:opacity-50">Confirm Rejection</button>
-        </div>
-      )}
     </div>
   )
 }
 
 export default function GateScanner() {
-  const [activeMode, setActiveMode] = useState('qr')
-  const [result, setResult] = useState(null)
-  const [todayEntries, setTodayEntries] = useState([])
-  const { showSuccess, showError } = useAlert()
-  const auth = getAuthOrNull()
+  const [mode, setMode] = useState('camera')
+  const [todayReceipts, setTodayReceipts] = useState([])
+  const navigate = useNavigate()
+  const { showError } = useAlert()
+
+  const openPO = useCallback(({ poId, token }) => {
+    navigate(`/gate/po/${encodeURIComponent(poId)}?token=${encodeURIComponent(token)}`)
+  }, [navigate])
+
+  const handleDetected = useCallback(value => {
+    try {
+      const url = new URL(value, window.location.origin)
+      const match = url.pathname.match(/^\/gate\/po\/([^/]+)$/)
+      const token = url.searchParams.get('token')
+      if (!match || !token) throw new Error('This is not a CampusServe purchase-order QR')
+      openPO({ poId: decodeURIComponent(match[1]), token })
+    } catch (error) {
+      showError('Invalid PO QR', error.message)
+    }
+  }, [openPO, showError])
 
   useEffect(() => {
-    apiClient.get('/api/gate?action=today').then(res => {
-      if (res.success) setTodayEntries(res.data)
-    })
-  }, [result])
-
-  const handleResult = (res) => { setResult(res) }
-  const handleClear = () => setResult(null)
-
-  const handleReject = async (reason) => {
-    try {
-      await apiClient.post('/api/gate?action=reject', {
-        deliveryScheduleId: result?.data?.deliveryScheduleId,
-        reason,
-        method: activeMode === 'qr' ? 'QR' : 'MANUAL_CODE'
-      })
-      showSuccess('Rejection Recorded', 'Entry rejected and logged')
-      setResult(null)
-    } catch (err) { showError('Error', err.message) }
-  }
+    apiClient.get('/api/gate?action=today', { cache: false }).then(result => {
+      if (result?.success) setTodayReceipts(result.data || [])
+    }).catch(() => {})
+  }, [])
 
   return (
-    <div className="space-y-6 animate-fadeIn max-w-2xl mx-auto">
-      <div>
-        <h1 className="font-display font-black text-2xl tracking-tight text-slate-800">Gate Security Scanner</h1>
-        <p className="text-xs text-slate-500 mt-1">Verify vendor delivery passes for campus entry</p>
+    <div className="mx-auto max-w-3xl space-y-6 animate-fadeIn">
+      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+        <div>
+          <h1 className="font-display text-2xl font-black tracking-tight text-slate-800">Gate PO Receiving</h1>
+          <p className="mt-1 text-xs text-slate-500">Scan the official PO QR or enter its PO number to record received goods</p>
+        </div>
+        <Link to="/gate/history" className="inline-flex items-center gap-2 text-xs font-bold text-violet-700 hover:text-violet-900"><History size={15} /> Receiving History</Link>
       </div>
 
-      {/* Mode Toggle */}
-      {!result && (
-        <>
-          <div className="flex bg-slate-100 rounded-xl p-1 gap-1">
-            <button onClick={() => setActiveMode('qr')} className={`flex-1 py-3 rounded-lg text-sm font-bold transition-all flex items-center justify-center space-x-2 ${activeMode === 'qr' ? 'bg-white shadow-sm text-violet-700' : 'text-slate-500'}`}>
-              <QrCode size={16} /><span>QR Scan</span>
-            </button>
-            <button onClick={() => setActiveMode('code')} className={`flex-1 py-3 rounded-lg text-sm font-bold transition-all flex items-center justify-center space-x-2 ${activeMode === 'code' ? 'bg-white shadow-sm text-emerald-700' : 'text-slate-500'}`}>
-              <Keyboard size={16} /><span>Manual Code</span>
-            </button>
-          </div>
+      <div className="grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1">
+        <button onClick={() => setMode('camera')} className={`flex items-center justify-center gap-2 rounded-lg py-3 text-sm font-bold ${mode === 'camera' ? 'bg-white text-violet-700 shadow-sm' : 'text-slate-500'}`}><Camera size={16} /> Mobile Camera</button>
+        <button onClick={() => setMode('code')} className={`flex items-center justify-center gap-2 rounded-lg py-3 text-sm font-bold ${mode === 'code' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500'}`}><Keyboard size={16} /> PO Number</button>
+      </div>
 
-          {activeMode === 'qr' ? <ScannerPanel onResult={handleResult} /> : <ManualCodePanel onResult={handleResult} />}
-        </>
-      )}
+      {mode === 'camera' ? <CameraScanner onDetected={handleDetected} /> : <ManualPOEntry onResolved={openPO} />}
 
-      {result && <ResultCard result={result} onClear={handleClear} onReject={handleReject} />}
-
-      {/* Today's Entries */}
-      <div className="premium-card p-5 space-y-4">
+      <div className="premium-card space-y-4 p-5">
         <div className="flex items-center justify-between">
-          <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Today's Gate Log</h2>
-          <span className="text-xs font-bold text-violet-600 bg-violet-50 px-2 py-0.5 rounded-full border border-violet-100">{todayEntries.length} entries</span>
+          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400">Today’s Received POs</h2>
+          <span className="rounded-full border border-violet-100 bg-violet-50 px-2 py-0.5 text-xs font-bold text-violet-700">{todayReceipts.length}</span>
         </div>
-        {todayEntries.length === 0 ? (
-          <div className="text-center py-8 text-slate-400 text-xs">No gate entries recorded today</div>
+        {todayReceipts.length === 0 ? (
+          <p className="py-7 text-center text-xs text-slate-400">No PO receipts recorded at the gate today</p>
         ) : (
           <div className="space-y-2">
-            {todayEntries.slice(0, 10).map((entry, idx) => (
-              <div key={idx} className={`flex items-center justify-between p-3 rounded-lg text-xs border ${entry.decision === 'APPROVED' ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}>
-                <div className="flex items-center space-x-2">
-                  {entry.decision === 'APPROVED' ? <CheckCircle size={14} className="text-emerald-600 flex-shrink-0" /> : <XCircle size={14} className="text-rose-600 flex-shrink-0" />}
-                  <div>
-                    <div className="font-bold text-slate-800">{entry.poNumber || 'Unknown PO'}</div>
-                    <div className="text-slate-500">{entry.actualDeliveryPersonName} · {entry.verificationMethod}</div>
-                  </div>
+            {todayReceipts.slice(0, 10).map(receipt => (
+              <div key={receipt._id} className="flex items-center justify-between rounded-xl border border-emerald-100 bg-emerald-50/60 p-3 text-xs">
+                <div className="flex items-center gap-2">
+                  <CheckCircle size={15} className="text-emerald-600" />
+                  <div><div className="font-bold text-slate-800">{receipt.poNumber}</div><div className="text-slate-500">{receipt.grnNumber} · {receipt.grnType}</div></div>
                 </div>
-                <div className="text-right text-slate-400">
-                  {new Date(entry.entryTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-                </div>
+                <div className="text-right text-slate-500"><div>₹{Number(receipt.grandTotal || 0).toFixed(2)}</div><div>{new Date(receipt.receivedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</div></div>
               </div>
             ))}
           </div>

@@ -7,6 +7,7 @@ import { connectToDatabase } from '../lib/mongo.js'
 import { GoodsReceipt, PurchaseOrder } from '../models.js'
 
 const money = value => `INR ${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+const roundMoney = value => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100
 const date = value => value ? new Date(value).toLocaleDateString('en-IN') : '—'
 const safeName = value => String(value || 'report').replace(/[^a-z0-9._-]+/gi, '-')
 const statusLabel = value => String(value || 'UNKNOWN').replace(/_/g, ' ').toUpperCase()
@@ -67,7 +68,7 @@ function itemsTable(doc, items = []) {
     if (index % 2 === 0) doc.rect(42, y, 511, 28).fill('#f8fafc')
     x = 42
     const values = [
-      `${item.productId || ''} ${item.poItemDescription || ''}`.trim(),
+      `${item.productId || ''} ${item.poItemDescription || ''} | ${money(item.unitPrice)} each | ${money(item.lineTotal)}`.trim(),
       item.quantityOrdered || 0,
       item.quantityPreviouslyAccepted || 0,
       item.quantityDeliveredNow || 0,
@@ -87,8 +88,30 @@ function itemsTable(doc, items = []) {
 }
 
 async function grnPdf(po, grn) {
+  let receiptEvidenceBuffer = null
+  if (grn.receiptEvidence?.url && /^data:image\/(jpeg|png);base64,/.test(grn.receiptEvidence.url)) {
+    try {
+      receiptEvidenceBuffer = Buffer.from(grn.receiptEvidence.url.split(',')[1], 'base64')
+    } catch {
+      receiptEvidenceBuffer = null
+    }
+  }
   return collectPdf(doc => {
-    const items = (grn.items || []).filter(item => Number(item.quantityDeliveredNow || 0) > 0)
+    const items = (grn.items || []).filter(item => Number(item.quantityDeliveredNow || 0) > 0).map(item => {
+      const poItem = (po?.items || []).find(candidate =>
+        String(candidate._id) === String(item.poItemId) ||
+        candidate.productId === item.productId ||
+        candidate.description === item.poItemDescription
+      )
+      if (!poItem || item.unitPrice !== undefined) return item
+      const unitPrice = roundMoney(poItem.unitPrice)
+      const lineSubtotal = roundMoney(Number(item.quantityAcceptedNow || 0) * unitPrice)
+      const discountAllocated = roundMoney(Number(poItem.discount || 0) * Number(item.quantityAcceptedNow || 0) / Math.max(1, Number(poItem.quantityOrdered || 1)))
+      const taxableAmount = Math.max(0, roundMoney(lineSubtotal - discountAllocated))
+      const taxRate = Number(poItem.taxRate || 0)
+      const taxAmount = roundMoney(taxableAmount * taxRate / 100)
+      return { ...item, unitPrice, taxRate, lineSubtotal, discountAllocated, taxableAmount, taxAmount, lineTotal: roundMoney(taxableAmount + taxAmount) }
+    })
     const totals = items.reduce((summary, item) => ({
       ordered: summary.ordered + Number(item.quantityOrdered || 0),
       delivered: summary.delivered + Number(item.quantityDeliveredNow || 0),
@@ -101,6 +124,11 @@ async function grnPdf(po, grn) {
     const grnStatus = grn.grnType === 'FINAL' && poStatus === 'CLOSED'
       ? 'FINALIZED'
       : (grn.status || (grn.grnType === 'FINAL' ? 'FINALIZED' : 'DRAFT'))
+    const receiptSubtotal = roundMoney(grn.subtotal ?? items.reduce((sum, item) => sum + Number(item.lineSubtotal || 0), 0))
+    const receiptDiscount = roundMoney(grn.discountTotal ?? items.reduce((sum, item) => sum + Number(item.discountAllocated || 0), 0))
+    const receiptTax = roundMoney(grn.taxTotal ?? items.reduce((sum, item) => sum + Number(item.taxAmount || 0), 0))
+    const receiptDelivery = roundMoney(grn.deliveryChargeAllocated || 0)
+    const receiptTotal = roundMoney(grn.grandTotal ?? (receiptSubtotal - receiptDiscount + receiptTax + receiptDelivery))
 
     const ink = '#111111'
     const gold = '#9a5b00'
@@ -140,6 +168,7 @@ async function grnPdf(po, grn) {
     doc.rect(305, 222, 248, 67).fillAndStroke('#ffffff', '#d6d3d1')
     label('Vendor', 54, 234); value(po?.vendorName, 124, 234, 155)
     label('PO Value', 54, 254); value(money(po?.grandTotal), 124, 254, 155)
+    label('GRN Value', 54, 274); value(money(receiptTotal), 124, 274, 155)
     label('Delivery To', 317, 234); value(po?.deliveryLocation, 387, 234, 154)
     label('Received By', 317, 254); value(grn.receivedByName, 387, 254, 154)
     label('Source', 317, 274); value(grn.source === 'PO_QR' ? 'Gate PO QR verified' : 'Manual receipt', 387, 274, 154)
@@ -158,12 +187,17 @@ async function grnPdf(po, grn) {
       doc.fillColor('#4b5563').font('Helvetica-Bold').fontSize(5.3).text(name.toUpperCase(), x, 350, { width: cellWidth, align: 'center' })
     })
 
-    sectionTitle('Items received in this GRN', 379)
+    sectionTitle('Items received in this GRN', 375)
+    doc.fillColor('#4b5563').font('Helvetica-Bold').fontSize(5.7)
+      .text(
+        `ACCEPTED SUBTOTAL ${money(receiptSubtotal)}   ·   DISCOUNT ${money(receiptDiscount)}   ·   GST ${money(receiptTax)}   ·   DELIVERY ${money(receiptDelivery)}   ·   GRN TOTAL ${money(receiptTotal)}`,
+        left, 391, { width, align: 'right', lineBreak: false }
+      )
     const columns = [
       ['#', 18], ['Product ID / Description', 154], ['Ordered', 48], ['Previous', 48],
       ['Received', 48], ['Accepted', 48], ['Damaged', 43], ['Rejected', 43], ['Remaining', 61]
     ]
-    let tableY = 400
+    let tableY = 405
     doc.rect(left, tableY, width, 22).fill(ink)
     let tableX = left
     columns.forEach(([name, cellWidth]) => {
@@ -177,7 +211,7 @@ async function grnPdf(po, grn) {
       const cumulative = Number(item.quantityPreviouslyAccepted || 0) + Number(item.quantityAcceptedNow || 0)
       const cells = [
         index + 1,
-        `${item.productId || '—'}\n${item.poItemDescription || ''}`,
+        `${item.productId || '—'}\n${item.poItemDescription || ''} · ${money(item.unitPrice)} × ${item.quantityAcceptedNow || 0} · ${money(item.lineTotal)}`,
         item.quantityOrdered || 0, item.quantityPreviouslyAccepted || 0,
         item.quantityDeliveredNow || 0, `${item.quantityAcceptedNow || 0} (${cumulative})`,
         item.quantityDamaged || 0, item.quantityRejected || 0, item.quantityRemaining || 0
@@ -242,6 +276,28 @@ async function grnPdf(po, grn) {
       doc.fillColor('#4b5563').font('Helvetica').fontSize(5.5)
         .text(`Continuation of ${grn.grnNumber} · ${items.length} received products total`, left, 781, { width, lineBreak: false })
     }
+    if (receiptEvidenceBuffer) {
+      doc.addPage()
+      if (fs.existsSync(crestPath)) doc.image(crestPath, 48, 42, { fit: [58, 58] })
+      doc.fillColor(ink).font('Helvetica-Bold').fontSize(10)
+        .text('MEENAKSHI SUNDARARAJAN ENGINEERING COLLEGE', 105, 48, { width: 385, align: 'center' })
+      doc.font('Helvetica').fontSize(6.2)
+        .text('MSEC CAMPUSSERVE · GOODS RECEIPT EVIDENCE', 105, 65, { width: 385, align: 'center' })
+      doc.font('Times-Bold').fontSize(14).text('RECEIVED GOODS PHOTO PROOF', 105, 82, { width: 385, align: 'center' })
+      doc.moveTo(left, 112).lineTo(left + width, 112).lineWidth(1).strokeColor(ink).stroke()
+      doc.fillColor('#4b5563').font('Helvetica-Bold').fontSize(7)
+        .text(`${grn.grnNumber} · PO ${po?.poNumber || grn.poNumber} · ${date(grn.receivedAt || grn.createdAt)}`, left, 124, { width })
+      doc.rect(left, 145, width, 590).lineWidth(0.7).strokeColor('#d6d3d1').stroke()
+      try {
+        doc.image(receiptEvidenceBuffer, left + 10, 155, { fit: [width - 20, 570], align: 'center', valign: 'center' })
+      } catch {
+        doc.fillColor('#991b1b').font('Helvetica-Bold').fontSize(9)
+          .text('The attached proof photo could not be rendered.', left, 420, { width, align: 'center' })
+      }
+      doc.moveTo(left, 774).lineTo(left + width, 774).lineWidth(0.4).strokeColor('#d6d3d1').stroke()
+      doc.fillColor('#4b5563').font('Helvetica').fontSize(5.5)
+        .text(`Gate receipt evidence · ${grn.receiptEvidence.name || 'Received goods photo'}`, left, 781, { width, lineBreak: false })
+    }
   })
 }
 
@@ -262,7 +318,7 @@ async function poPdf(po, grns) {
       const y = doc.y + 9
       doc.fillColor('#5b21b6').font('Helvetica-Bold').fontSize(9).text(grn.grnNumber, 52, y)
       doc.fillColor('#475569').font('Helvetica').fontSize(8)
-        .text(`${grn.grnType} · ${grn.status} · ${date(grn.receivedAt || grn.createdAt)} · ${grn.items?.length || 0} items`, 52, y + 16)
+        .text(`${grn.grnType} · ${grn.status} · ${date(grn.receivedAt || grn.createdAt)} · ${grn.items?.length || 0} items · ${money(grn.grandTotal)}`, 52, y + 16)
       doc.y = y + 42
     })
     section(doc, 'PO items')

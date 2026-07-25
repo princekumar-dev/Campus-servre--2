@@ -176,8 +176,8 @@ export default function PurchaseOrderDetails() {
   return (
     <div className="space-y-6 animate-fadeIn">
       {signedPhotoOpen && po.signedPo?.url && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/90 p-3 backdrop-blur-sm sm:p-6" role="dialog" aria-modal="true" aria-label="Full signed purchase order photo" onClick={() => setSignedPhotoOpen(false)}>
-          <div className="relative flex max-h-full w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl" onClick={event => event.stopPropagation()}>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-slate-950/55 p-3 backdrop-blur-md sm:p-6" role="dialog" aria-modal="true" aria-label="Full signed purchase order photo" onClick={() => setSignedPhotoOpen(false)}>
+          <div className="relative flex h-[calc(100dvh-1.5rem)] max-h-[900px] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-white/70 bg-white/95 shadow-[0_32px_90px_rgba(15,23,42,0.24),0_8px_30px_rgba(124,58,237,0.12)] ring-1 ring-violet-100/70 backdrop-blur-xl sm:h-[calc(100dvh-3rem)]" onClick={event => event.stopPropagation()}>
             <div className="flex items-center justify-between gap-4 border-b border-slate-200 px-4 py-3">
               <div className="min-w-0">
                 <p className="truncate text-sm font-black text-slate-800">{po.signedPo.name || 'Signed official PO'}</p>
@@ -187,8 +187,8 @@ export default function PurchaseOrderDetails() {
                 <XCircle size={22} />
               </button>
             </div>
-            <div className="min-h-0 flex-1 overflow-auto bg-slate-100 p-3 text-center">
-              <img src={po.signedPo.url} alt="Full signed official purchase order" className="mx-auto h-auto max-w-full rounded-lg bg-white object-contain shadow-sm" />
+            <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-slate-100 p-3">
+              <img src={po.signedPo.url} alt="Full signed official purchase order" className="block h-full w-full rounded-lg object-contain" />
             </div>
           </div>
         </div>

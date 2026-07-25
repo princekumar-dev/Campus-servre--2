@@ -2,11 +2,11 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useAlert } from '../components/AlertContext'
 import apiClient from '../utils/apiClient'
-import { QrCode, Truck, CheckCircle, XCircle, Clock } from 'lucide-react'
+import { QrCode, Package, CheckCircle, ClipboardCheck, Clock } from 'lucide-react'
 import { PageHeader, KpiCard, ActionCard, GlassPanel } from '../components/ui'
 
 export default function GateDashboard() {
-  const [stats, setStats] = useState({ expected: 0, arrived: 0, inside: 0, exited: 0, rejected: 0 })
+  const [stats, setStats] = useState({ readyToReceive: 0, receivedToday: 0, partialToday: 0, closedToday: 0 })
   const [recentEntries, setRecentEntries] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const { showError } = useAlert()
@@ -14,22 +14,15 @@ export default function GateDashboard() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [gateRes, deliveriesRes] = await Promise.all([
-          apiClient.get('/api/gate?action=today'),
-          apiClient.get('/api/deliveries')
-        ])
+        const gateRes = await apiClient.get('/api/gate?action=summary', { cache: false })
         if (gateRes.success) {
-          const entries = gateRes.data
           setStats({
-            expected: deliveriesRes.success
-              ? deliveriesRes.data.filter(d => ['SCHEDULED', 'PASS_GENERATED', 'AT_GATE'].includes(d.status)).length
-              : 0,
-            arrived: entries.length,
-            inside: entries.filter(e => !e.exitTime && e.decision === 'APPROVED').length,
-            exited: entries.filter(e => e.exitTime).length,
-            rejected: entries.filter(e => e.decision === 'REJECTED').length,
+            readyToReceive: gateRes.data.readyToReceive || 0,
+            receivedToday: gateRes.data.receivedToday || 0,
+            partialToday: gateRes.data.partialToday || 0,
+            closedToday: gateRes.data.closedToday || 0,
           })
-          setRecentEntries(entries.slice(0, 8))
+          setRecentEntries(gateRes.data.recent || [])
         }
       } catch (err) { showError('Error', err.message) }
       finally { setIsLoading(false) }
@@ -43,17 +36,16 @@ export default function GateDashboard() {
     <div className="space-y-6 page-enter">
       <PageHeader
         title="Gate Security Dashboard"
-        subtitle="Monitor campus entry and exit activity"
+        subtitle="Verify purchase orders and monitor goods receiving"
         role="gate"
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Expected Today', value: stats.expected, icon: Truck, color: 'text-blue-600', bg: 'bg-blue-50' },
-          { label: 'Arrived', value: stats.arrived, icon: Truck, color: 'text-violet-600', bg: 'bg-violet-50' },
-          { label: 'Inside Campus', value: stats.inside, icon: Truck, color: 'text-amber-600', bg: 'bg-amber-50' },
-          { label: 'Exited', value: stats.exited, icon: CheckCircle, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-          { label: 'Rejected', value: stats.rejected, icon: XCircle, color: 'text-rose-600', bg: 'bg-rose-50' },
+          { label: 'Ready to Receive', value: stats.readyToReceive, icon: Package, color: 'text-blue-600', bg: 'bg-blue-50' },
+          { label: 'Received Today', value: stats.receivedToday, icon: ClipboardCheck, color: 'text-violet-600', bg: 'bg-violet-50' },
+          { label: 'Partial Today', value: stats.partialToday, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50' },
+          { label: 'POs Closed Today', value: stats.closedToday, icon: CheckCircle, color: 'text-emerald-600', bg: 'bg-emerald-50' },
         ].map(({ label, value, icon, color, bg }) => (
           <KpiCard key={label} label={label} value={value} icon={icon} iconBg={bg} iconColor={color} centered />
         ))}
@@ -69,15 +61,15 @@ export default function GateDashboard() {
             {recentEntries.length === 0 ? (
               <p className="text-xs text-slate-400 text-center py-6">No entries today</p>
             ) : recentEntries.map((entry, idx) => (
-              <div key={idx} className={`flex items-center justify-between p-3 rounded-lg border ${entry.decision === 'APPROVED' ? 'bg-emerald-50/80 border-emerald-200/60' : 'bg-rose-50/80 border-rose-200/60'}`}>
+              <div key={entry._id || idx} className="flex items-center justify-between rounded-lg border border-emerald-200/60 bg-emerald-50/80 p-3">
                 <div className="flex items-center space-x-2">
-                  {entry.decision === 'APPROVED' ? <CheckCircle size={14} className="text-emerald-600" /> : <XCircle size={14} className="text-rose-600" />}
+                  <CheckCircle size={14} className="text-emerald-600" />
                   <div>
-                    <div className="text-xs font-bold text-slate-800">{entry.poNumber || 'Unknown'}</div>
-                    <div className="text-xs text-slate-500">{entry.actualDeliveryPersonName} · {entry.actualVehicleNumber}</div>
+                    <div className="text-xs font-bold text-slate-800">{entry.poNumber || 'Unknown PO'}</div>
+                    <div className="text-xs text-slate-500">{entry.grnNumber} · {entry.grnType}</div>
                   </div>
                 </div>
-                <div className="text-xs text-slate-400">{new Date(entry.entryTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</div>
+                <div className="text-xs text-slate-400">{new Date(entry.receivedAt || entry.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</div>
               </div>
             ))}
           </div>
@@ -86,9 +78,8 @@ export default function GateDashboard() {
         <GlassPanel>
           <h2 className="section-title mb-4">Quick Actions</h2>
           <div className="space-y-3">
-            <ActionCard to="/gate" icon={QrCode} title="Scan QR / Manual Entry" desc="Verify delivery pass" />
-            <ActionCard to="/gate/history" icon={Clock} iconBg="bg-blue-50" iconColor="text-blue-600" title="Gate History" desc="View past entries" />
-            <ActionCard to="/gate/vehicles" icon={Truck} iconBg="bg-amber-50" iconColor="text-amber-600" title="Vehicles Inside" desc="Currently on campus" />
+            <ActionCard to="/gate" icon={QrCode} title="Scan PO QR / Enter PO Number" desc="Verify and record received goods" />
+            <ActionCard to="/gate/history" icon={Clock} iconBg="bg-blue-50" iconColor="text-blue-600" title="Receiving History" desc="View past PO and GRN receipts" />
           </div>
         </GlassPanel>
       </div>

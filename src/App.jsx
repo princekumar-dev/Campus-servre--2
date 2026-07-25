@@ -4,7 +4,7 @@ import ErrorBoundary from './components/ErrorBoundary'
 import Header from './components/Header'
 import BottomNav from './components/BottomNav'
 import { AlertProvider } from './components/AlertContext'
-import { getAuthOrNull } from './utils/auth'
+import { getAuthOrNull, getDashboardPath } from './utils/auth'
 import GlobalExecutionLoader from './components/GlobalExecutionLoader'
 
 const clearStoredAuth = () => {
@@ -38,7 +38,6 @@ const Deliveries = lazy(() => import('./pages/Deliveries'))
 const GateScanner = lazy(() => import('./pages/GateScanner'))
 const GateDashboard = lazy(() => import('./pages/GateDashboard'))
 const GateHistory = lazy(() => import('./pages/GateHistory'))
-const GateVehicles = lazy(() => import('./pages/GateVehicles'))
 const GatePOVerification = lazy(() => import('./pages/GatePOVerification'))
 const GRN = lazy(() => import('./pages/GRN'))
 const VendorDashboard = lazy(() => import('./pages/VendorDashboard'))
@@ -55,7 +54,7 @@ const ManagerVehicles = lazy(() => import('./pages/ManagerVehicles'))
 const RootRedirect = () => {
   const parsed = getAuthOrNull()
   if (!parsed || !parsed.isAuthenticated) return <Navigate to="/login" replace />
-  return <Navigate to="/dashboard" replace />
+  return <Navigate to={getDashboardPath(parsed.role)} replace />
 }
 
 // Protected route wrapper with optional role checks
@@ -69,7 +68,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   }
   
   if (allowedRoles && !allowedRoles.includes(parsed.role)) {
-    return <Navigate to="/dashboard" replace />
+    return <Navigate to={getDashboardPath(parsed.role)} replace />
   }
   
   return children
@@ -79,7 +78,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
 const RedirectIfAuthenticated = ({ children }) => {
   const parsed = getAuthOrNull()
   if (parsed && parsed.isAuthenticated) {
-    return <Navigate to="/dashboard" replace />
+    return <Navigate to={getDashboardPath(parsed.role)} replace />
   }
   return children
 }
@@ -230,7 +229,6 @@ function AppContent() {
                   <Route path="/gate/po/:id" element={<GatePOVerification />} />
                   <Route path="/gate/dashboard" element={<ProtectedRoute allowedRoles={['admin', 'super_admin', 'gate']}><GateDashboard /></ProtectedRoute>} />
                   <Route path="/gate/history" element={<ProtectedRoute allowedRoles={['admin', 'super_admin', 'gate']}><GateHistory /></ProtectedRoute>} />
-                  <Route path="/gate/vehicles" element={<ProtectedRoute allowedRoles={['admin', 'super_admin', 'gate']}><GateVehicles /></ProtectedRoute>} />
                   
                   {/* GRN routes */}
                   <Route path="/grn" element={<ProtectedRoute allowedRoles={['super_admin', 'receiving_officer', 'accounts', 'manager']}><GRN /></ProtectedRoute>} />

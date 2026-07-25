@@ -4,6 +4,8 @@ import { storeNotification } from '../lib/notificationService.js'
 import { getProductId } from '../lib/productId.js'
 import { canReceivePo, getPoReceivingBlockReason } from '../lib/poReceiving.js'
 
+const roundMoney = value => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100
+
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end()
 
@@ -30,7 +32,8 @@ export default async function handler(req, res) {
       if (poId) filter.poId = poId
       if (deliveryId) filter.deliveryScheduleId = deliveryId
       if (req.query.grnType) filter.grnType = req.query.grnType
-      const grns = await GoodsReceipt.find(filter).sort({ createdAt: -1 }).lean()
+      const grns = await GoodsReceipt.find(filter).select('-receiptEvidence.url').sort({ createdAt: -1 }).lean()
+      grns.forEach(grn => { grn.hasReceiptEvidence = Boolean(grn.receiptEvidence?.name) })
       const poIds = [...new Set(grns.map(grn => String(grn.poId || '')).filter(Boolean))]
       const purchaseOrders = poIds.length
         ? await PurchaseOrder.find({ _id: { $in: poIds } })
@@ -47,12 +50,31 @@ export default async function handler(req, res) {
         return res.status(403).json({ success: false, error: 'You are not authorized to record a GRN' })
       }
 
-      const { poId: bodyPoId, deliveryScheduleId, items, remarks, qrToken } = req.body
+      const { poId: bodyPoId, deliveryScheduleId, items, remarks, qrToken, receiptEvidence } = req.body
       if (!bodyPoId || !items || !items.length) {
         return res.status(400).json({ success: false, error: 'poId and items are required' })
       }
       if ((hasQrAccess || actorRole === 'gate') && req.poQrAccess?.poId !== String(bodyPoId)) {
         return res.status(403).json({ success: false, error: 'A valid PO QR code is required for gate receipt entry' })
+      }
+      let validatedReceiptEvidence
+      if (receiptEvidence) {
+        const { name, url, mimeType, size } = receiptEvidence
+        const allowedTypes = ['image/jpeg', 'image/png']
+        const parsedSize = Number(size || 0)
+        if (!name || !url || !allowedTypes.includes(mimeType) || !String(url).startsWith(`data:${mimeType};base64,`)) {
+          return res.status(400).json({ success: false, error: 'Received-goods proof must be a valid JPG or PNG photo' })
+        }
+        if (!Number.isFinite(parsedSize) || parsedSize <= 0 || parsedSize > 4 * 1024 * 1024 || String(url).length > 5.7 * 1024 * 1024) {
+          return res.status(413).json({ success: false, error: 'Received-goods proof photo must be 4 MB or smaller' })
+        }
+        validatedReceiptEvidence = {
+          name: String(name).slice(0, 160),
+          url,
+          mimeType,
+          size: parsedSize,
+          uploadedAt: new Date()
+        }
       }
 
       const receiptActorId = hasQrAccess ? `po-qr:${bodyPoId}` : actorId
@@ -64,6 +86,13 @@ export default async function handler(req, res) {
         return res.status(409).json({ success: false, error: getPoReceivingBlockReason(po) })
       }
 
+      // Financial values are allocated only to quantities accepted in this
+      // receipt. Using cumulative targets and taking their difference prevents
+      // rounding drift across multiple partial GRNs.
+      const previousAcceptedSubtotal = roundMoney(po.items.reduce(
+        (sum, poItem) => sum + Number(poItem.quantityAccepted || 0) * Number(poItem.unitPrice || 0),
+        0
+      ))
       // Validate quantities per spec:
       // accepted + damaged + rejected <= delivered
       // cumulative accepted <= ordered
@@ -112,6 +141,26 @@ export default async function handler(req, res) {
           item.quantityPreviouslyAccepted = prevAccepted
         }
 
+        const quantityOrdered = Math.max(1, Number(poItem.quantityOrdered || 1))
+        const unitPrice = roundMoney(poItem.unitPrice)
+        const taxRate = Math.max(0, Number(poItem.taxRate || 0))
+        const fullItemDiscount = Math.max(0, Number(poItem.discount || 0))
+        const cumulativeAccepted = Number(poItem.quantityAccepted || 0)
+        const previousAccepted = Number(item.quantityPreviouslyAccepted || 0)
+        const cumulativeDiscountTarget = cumulativeAccepted >= quantityOrdered
+          ? roundMoney(fullItemDiscount)
+          : roundMoney(fullItemDiscount * cumulativeAccepted / quantityOrdered)
+        const previousDiscountTarget = roundMoney(fullItemDiscount * previousAccepted / quantityOrdered)
+        const lineSubtotal = roundMoney(acceptedNow * unitPrice)
+        const discountAllocated = Math.max(0, roundMoney(cumulativeDiscountTarget - previousDiscountTarget))
+        const taxableAmount = Math.max(0, roundMoney(lineSubtotal - discountAllocated))
+        const previousTaxableTarget = Math.max(0, roundMoney(previousAccepted * unitPrice - previousDiscountTarget))
+        const cumulativeTaxableTarget = Math.max(0, roundMoney(cumulativeAccepted * unitPrice - cumulativeDiscountTarget))
+        const previousTaxTarget = roundMoney(previousTaxableTarget * taxRate / 100)
+        const cumulativeTaxTarget = roundMoney(cumulativeTaxableTarget * taxRate / 100)
+        const taxAmount = Math.max(0, roundMoney(cumulativeTaxTarget - previousTaxTarget))
+        const lineTotal = roundMoney(taxableAmount + taxAmount)
+
         processedItems.push({
           ...item,
           productId: getProductId(poItem),
@@ -119,7 +168,14 @@ export default async function handler(req, res) {
           quantityDeliveredNow: deliveredNow,
           quantityAcceptedNow: acceptedNow,
           quantityDamaged: damaged,
-          quantityRejected: rejected
+          quantityRejected: rejected,
+          unitPrice,
+          taxRate,
+          lineSubtotal,
+          discountAllocated,
+          taxableAmount,
+          taxAmount,
+          lineTotal
         })
       }
       if (!processedItems.some(item => item.quantityDeliveredNow > 0)) {
@@ -129,6 +185,22 @@ export default async function handler(req, res) {
       // Determine GRN type
       const allFulfilled = po.items.every(pi => (pi.quantityRemaining || 0) === 0)
       const grnType = allFulfilled ? 'FINAL' : 'PARTIAL'
+      const subtotal = roundMoney(processedItems.reduce((sum, item) => sum + item.lineSubtotal, 0))
+      const discountTotal = roundMoney(processedItems.reduce((sum, item) => sum + item.discountAllocated, 0))
+      const taxTotal = roundMoney(processedItems.reduce((sum, item) => sum + item.taxAmount, 0))
+      const cumulativeAcceptedValue = roundMoney(previousAcceptedSubtotal + subtotal)
+      const poSubtotal = Math.max(0, Number(po.subtotal || 0))
+      const deliveryCharge = Math.max(0, Number(po.deliveryCharge || 0))
+      const previousDeliveryTarget = poSubtotal > 0
+        ? roundMoney(deliveryCharge * Math.min(previousAcceptedSubtotal / poSubtotal, 1))
+        : 0
+      const cumulativeDeliveryTarget = allFulfilled
+        ? roundMoney(deliveryCharge)
+        : poSubtotal > 0
+          ? roundMoney(deliveryCharge * Math.min(cumulativeAcceptedValue / poSubtotal, 1))
+          : 0
+      const deliveryChargeAllocated = Math.max(0, roundMoney(cumulativeDeliveryTarget - previousDeliveryTarget))
+      const grandTotal = roundMoney(subtotal - discountTotal + taxTotal + deliveryChargeAllocated)
 
       const year = new Date().getFullYear()
       const rnd = Math.floor(Math.random() * 900000) + 100000
@@ -139,10 +211,13 @@ export default async function handler(req, res) {
       const closesPo = grnType === 'FINAL'
       const grn = new GoodsReceipt({
         grnNumber, poId: bodyPoId, poNumber: po.poNumber, deliveryScheduleId,
-        grnType, status: closesPo ? 'FINALIZED' : 'DRAFT', receivedBy: receiptActorId, receivedByName: receiptActorName,
+        grnType, status: 'FINALIZED', receivedBy: receiptActorId, receivedByName: receiptActorName,
         source: qrToken ? 'PO_QR' : 'MANUAL',
         gateVerifiedAt: qrToken ? new Date() : undefined,
-        remarks, items: processedItems
+        remarks, items: processedItems,
+        subtotal, discountTotal, taxTotal, deliveryChargeAllocated, grandTotal,
+        cumulativeAcceptedValue, poGrandTotal: roundMoney(po.grandTotal),
+        receiptEvidence: validatedReceiptEvidence
       })
       await grn.save()
 

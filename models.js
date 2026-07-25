@@ -423,11 +423,32 @@ const GoodsReceiptSchema = new mongoose.Schema({
     quantityRejected: { type: Number, default: 0 },
     quantityRemaining: { type: Number, default: 0 },
     unit: { type: String },
+    unitPrice: { type: Number, default: 0 },
+    taxRate: { type: Number, default: 0 },
+    lineSubtotal: { type: Number, default: 0 },
+    discountAllocated: { type: Number, default: 0 },
+    taxableAmount: { type: Number, default: 0 },
+    taxAmount: { type: Number, default: 0 },
+    lineTotal: { type: Number, default: 0 },
     serialNumbers: [{ type: String }],
     batchNumber: { type: String },
     expiryDate: { type: Date },
     remarks: { type: String }
   }],
+  subtotal: { type: Number, default: 0 },
+  discountTotal: { type: Number, default: 0 },
+  taxTotal: { type: Number, default: 0 },
+  deliveryChargeAllocated: { type: Number, default: 0 },
+  grandTotal: { type: Number, default: 0 },
+  cumulativeAcceptedValue: { type: Number, default: 0 },
+  poGrandTotal: { type: Number, default: 0 },
+  receiptEvidence: {
+    name: { type: String },
+    url: { type: String },
+    mimeType: { type: String },
+    size: { type: Number },
+    uploadedAt: { type: Date }
+  },
   documentUrl: { type: String },
   createdAt: { type: Date, default: Date.now }
 })
