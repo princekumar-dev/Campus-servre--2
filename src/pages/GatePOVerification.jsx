@@ -161,7 +161,7 @@ export default function GatePOVerification() {
           CampusServe needs your precise location to confirm that this QR is being scanned at the MSEC gate. Your browser will ask for location permission next.
         </p>
         <div className="mt-4 rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-800">
-          Turn on device GPS and choose <strong>Allow precise location</strong>. Verification works only inside the defined MSEC campus boundary.
+          Turn on device GPS and choose <strong>Allow precise location</strong>. Verification works inside the MSEC campus boundary and up to 1,000 metres around it.
         </div>
         <button type="button" onClick={() => verifyAtLocation()}
           className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 py-3 text-sm font-black text-white hover:bg-violet-700">

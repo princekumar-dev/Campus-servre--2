@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { distanceInMeters, isInsideCampusBoundary, validateGateLocation } from '../../lib/gateGeofence'
+import { distanceInMeters, distanceToCampusBoundary, isInsideCampusBoundary, validateGateLocation } from '../../lib/gateGeofence'
 
 describe('gate PO geofence', () => {
-  it('rejects the previous location that falls outside the supplied boundary', () => {
+  it('allows the previous location because it is within the 1 km buffer', () => {
     expect(validateGateLocation({
       latitude: 13.050807,
       longitude: 80.224843,
       accuracy: 15
-    }).allowed).toBe(false)
+    }).allowed).toBe(true)
   })
 
   it('allows the supplied college centre point', () => {
@@ -20,7 +20,7 @@ describe('gate PO geofence', () => {
 
   it('rejects a location outside the campus boundary', () => {
     const result = validateGateLocation({
-      latitude: 13.060807,
+      latitude: 13.070807,
       longitude: 80.224843,
       accuracy: 15
     })
@@ -43,5 +43,10 @@ describe('gate PO geofence', () => {
   it('uses all four supplied corners as the campus polygon', () => {
     expect(isInsideCampusBoundary(13.0552, 80.2272)).toBe(true)
     expect(isInsideCampusBoundary(13.0535, 80.2272)).toBe(false)
+  })
+
+  it('measures zero boundary distance inside campus and a positive distance outside', () => {
+    expect(distanceToCampusBoundary(13.0552, 80.2272)).toBe(0)
+    expect(distanceToCampusBoundary(13.0652, 80.2272)).toBeGreaterThan(900)
   })
 })
