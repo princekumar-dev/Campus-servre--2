@@ -12,6 +12,13 @@ const statusColors = {
   BLACKLISTED: 'bg-rose-50 text-rose-700 border-rose-200'
 }
 
+const formatOrderValue = value => new Intl.NumberFormat('en-IN', {
+  style: 'currency',
+  currency: 'INR',
+  notation: Number(value || 0) >= 1000 ? 'compact' : 'standard',
+  maximumFractionDigits: 1
+}).format(Number(value || 0))
+
 function VendorCard({ vendor, onAction, actionLoading }) {
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-violet-200 transition-all group">
@@ -52,7 +59,7 @@ function VendorCard({ vendor, onAction, actionLoading }) {
             <div className="text-[11px] text-slate-400 uppercase tracking-wider">Orders</div>
           </div>
           <div className="text-center">
-            <div className="text-lg font-black text-violet-700">₹{((vendor.totalValue || 0) / 1000).toFixed(0)}K</div>
+            <div className="text-lg font-black text-violet-700">{formatOrderValue(vendor.totalValue)}</div>
             <div className="text-[11px] text-slate-400 uppercase tracking-wider">Total Value</div>
           </div>
         </div>
@@ -148,7 +155,7 @@ export default function Vendors() {
   const fetchVendors = useCallback(async () => {
     setIsLoading(true)
     try {
-      const res = await apiClient.get('/api/vendors')
+      const res = await apiClient.get('/api/vendors', { cache: false })
       if (res.success) setVendors(res.data)
       else showError('Load Error', res.error)
     } catch (err) { showError('Network Error', err.message) }

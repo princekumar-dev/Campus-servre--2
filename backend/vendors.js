@@ -1,5 +1,36 @@
 import { connectToDatabase } from '../lib/mongo.js'
-import { Vendor, DeliveryPerson, Vehicle, User } from '../models.js'
+import { Vendor, DeliveryPerson, Vehicle, User, PurchaseOrder } from '../models.js'
+
+const excludedOrderStatuses = ['CANCELLED', 'REJECTED', 'VENDOR_REJECTED']
+
+async function attachPurchaseOrderStats(vendors) {
+  if (!vendors.length) return vendors
+  const vendorIds = vendors.map(vendor => vendor._id)
+  const totals = await PurchaseOrder.aggregate([
+    {
+      $match: {
+        vendorId: { $in: vendorIds },
+        status: { $nin: excludedOrderStatuses }
+      }
+    },
+    {
+      $group: {
+        _id: '$vendorId',
+        totalOrders: { $sum: 1 },
+        totalValue: { $sum: { $ifNull: ['$grandTotal', 0] } }
+      }
+    }
+  ])
+  const totalsByVendor = new Map(totals.map(total => [String(total._id), total]))
+  return vendors.map(vendor => {
+    const total = totalsByVendor.get(String(vendor._id))
+    return {
+      ...vendor,
+      totalOrders: total?.totalOrders || 0,
+      totalValue: total?.totalValue || 0
+    }
+  })
+}
 
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end()
@@ -22,16 +53,18 @@ export default async function handler(req, res) {
         // Single vendor with their delivery persons and vehicles
         const vendor = await Vendor.findById(id).lean()
         if (!vendor) return res.status(404).json({ success: false, error: 'Vendor not found' })
+        const [vendorWithStats] = await attachPurchaseOrderStats([vendor])
         const deliveryPersons = await DeliveryPerson.find({ vendorId: id }).lean()
         const vehicles = await Vehicle.find({ vendorId: id }).lean()
-        return res.json({ success: true, data: vendor, deliveryPersons, vehicles })
+        return res.json({ success: true, data: vendorWithStats, deliveryPersons, vehicles })
       }
 
       // List vendors
       const filter = {}
       if (req.query.status) filter.status = req.query.status
       const vendors = await Vendor.find(filter).sort({ legalName: 1 }).lean()
-      return res.json({ success: true, data: vendors, total: vendors.length })
+      const vendorsWithStats = await attachPurchaseOrderStats(vendors)
+      return res.json({ success: true, data: vendorsWithStats, total: vendorsWithStats.length })
     }
 
     // ── POST /api/vendors — Create vendor ────────────────────────────────────
