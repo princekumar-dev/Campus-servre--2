@@ -24,7 +24,7 @@ const statusConfig = {
 
 function CreatePOModal({ onClose, onSaved, sourceRequest }) {
   const [vendors, setVendors] = useState([])
-  const [form, setForm] = useState({ vendorId: '', deliveryAddress: 'MSEC Campus, Aravayal, Chennai - 600089', deliveryLocation: sourceRequest?.location || '', expectedDeliveryDate: '', paymentTerms: 'Net 30', notes: sourceRequest ? `Generated for ${sourceRequest.requestNumber}: ${sourceRequest.title}` : '', deliveryCharge: 0 })
+  const [form, setForm] = useState({ vendorId: '', deliveryAddress: '363, Arcot Road, Kodambakkam, Chennai - 600024', deliveryLocation: sourceRequest?.location || '', expectedDeliveryDate: '', paymentTerms: 'Net 30', notes: sourceRequest ? `Generated for ${sourceRequest.requestNumber}: ${sourceRequest.title}` : '', deliveryCharge: 0 })
   const [items, setItems] = useState([{ description: sourceRequest?.requestedItem || '', specification: sourceRequest?.description || '', brand: '', quantityOrdered: sourceRequest?.requestedQuantity || 1, unit: sourceRequest?.requestedUnit || 'pcs', lineSubtotal: 0, taxRate: 18, discount: 0 }])
   const [loading, setLoading] = useState(false)
   const { showSuccess, showError } = useAlert()

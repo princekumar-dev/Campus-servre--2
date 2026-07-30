@@ -172,6 +172,9 @@ export default function PurchaseOrderDetails() {
 
   const tabs = ['Overview', 'Items', 'Signed PO', 'History']
   const cfg = statusConfig[po.status] || {}
+  const isPendingSignedPoVerification =
+    po.status === 'SUBMITTED_FOR_APPROVAL' &&
+    po.signedPo?.status === 'PENDING_VERIFICATION'
 
   return (
     <div className="space-y-6 animate-fadeIn">
@@ -253,15 +256,28 @@ export default function PurchaseOrderDetails() {
         </div>
       )}
 
-      {isAdmin && po.status === 'SUBMITTED_FOR_APPROVAL' && po.signedPo?.url && (
+      {isAdmin && isPendingSignedPoVerification && (
         <div className="bg-white p-6 rounded-xl border border-amber-200 shadow-sm space-y-4 text-left">
           <h3 className="text-sm font-bold text-amber-700 flex items-center space-x-2"><ShieldCheck size={16} /><span>Verify Signed Official PO</span></h3>
           <div className="flex flex-col gap-4 rounded-xl border border-slate-200 p-4 sm:flex-row sm:items-center">
-            <img src={po.signedPo.url} alt="Uploaded signed PO" className="h-36 w-full rounded-lg bg-slate-50 object-contain sm:w-48" />
+            {po.signedPo.url ? (
+              <img src={po.signedPo.url} alt="Uploaded signed PO" className="h-36 w-full rounded-lg bg-slate-50 object-contain sm:w-48" />
+            ) : (
+              <div className="flex h-36 w-full items-center justify-center rounded-lg bg-slate-50 text-slate-300 sm:w-48">
+                <FileText size={42} />
+              </div>
+            )}
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-bold text-slate-800">{po.signedPo.name}</p>
-              <p className="mt-1 text-xs text-slate-500">Uploaded by {po.signedPo.uploadedBy} · {new Date(po.signedPo.uploadedAt).toLocaleString('en-IN')}</p>
-              <button type="button" onClick={() => setSignedPhotoOpen(true)} className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-violet-700"><Eye size={14} />Open full photo</button>
+              <p className="truncate text-sm font-bold text-slate-800">{po.signedPo.name || 'Signed official PO'}</p>
+              <p className="mt-1 text-xs text-slate-500">
+                Uploaded by {po.signedPo.uploadedBy || 'Manager'}
+                {po.signedPo.uploadedAt ? ` · ${new Date(po.signedPo.uploadedAt).toLocaleString('en-IN')}` : ''}
+              </p>
+              {po.signedPo.url ? (
+                <button type="button" onClick={() => setSignedPhotoOpen(true)} className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-violet-700"><Eye size={14} />Open full photo</button>
+              ) : (
+                <p className="mt-3 text-xs font-semibold text-amber-700">The attachment preview is unavailable, but this PO is awaiting your verification.</p>
+              )}
             </div>
           </div>
           <textarea rows={2} placeholder="Verification notes or rejection reason..." value={comment} onChange={e => setComment(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm focus:outline-none focus:border-violet-400 resize-none" />
