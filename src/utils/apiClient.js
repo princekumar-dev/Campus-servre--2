@@ -42,6 +42,7 @@ async function request(method, url, opts = {}) {
     // dispatchEvent: string or array of events to dispatch (overrides auto-mapping)
     dispatch = true,
     dispatchEvent = null,
+    redirectOnUnauthorized = true,
   } = opts;
 
   const bodyKey = body && !(body instanceof FormData) && !raw ? JSON.stringify(body) : (body instanceof FormData ? '[FormData]' : '');
@@ -113,7 +114,7 @@ async function request(method, url, opts = {}) {
           const errData = await res.json().catch(() => null);
           
           // If 401, clear stale auth and redirect to login
-          if (res.status === 401) {
+          if (res.status === 401 && redirectOnUnauthorized) {
             try {
               localStorage.removeItem('auth')
               localStorage.removeItem('isLoggedIn')

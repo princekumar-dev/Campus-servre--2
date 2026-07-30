@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { Building2, Camera, CheckCircle, ClipboardCheck, Package, ShieldCheck, XCircle } from 'lucide-react'
+import { Building2, Camera, CheckCircle, ClipboardCheck, MapPin, Package, ShieldCheck, XCircle } from 'lucide-react'
 import apiClient from '../utils/apiClient'
 import { useAlert } from '../components/AlertContext'
 import { getGateLocation, locationQuery } from '../utils/gateLocation'
@@ -19,32 +19,44 @@ export default function GatePOVerification() {
   const [saving, setSaving] = useState(false)
   const [createdGrn, setCreatedGrn] = useState(null)
   const [gateLocation, setGateLocation] = useState(null)
+  const [locationState, setLocationState] = useState('checking')
+  const [locationError, setLocationError] = useState('')
 
   useEffect(() => {
-    let active = true
-    setLoading(true)
-    const loadPO = async () => {
-      const rawLatitude = searchParams.get('latitude')
-      const rawLongitude = searchParams.get('longitude')
-      const rawAccuracy = searchParams.get('accuracy')
-      const queryLocation = {
-        latitude: Number(rawLatitude),
-        longitude: Number(rawLongitude),
-        accuracy: Number(rawAccuracy)
-      }
-      const hasQueryLocation = [rawLatitude, rawLongitude, rawAccuracy].every(value => value !== null && value !== '') &&
-        Object.values(queryLocation).every(Number.isFinite)
-      const location = hasQueryLocation ? queryLocation : await getGateLocation()
-      setGateLocation(location)
-      return apiClient.get(`/api/gate?action=po-details&token=${encodeURIComponent(token)}&${locationQuery(location)}`, {
-        cache: false,
-        dedupe: false
-      })
+    const rawLatitude = searchParams.get('latitude')
+    const rawLongitude = searchParams.get('longitude')
+    const rawAccuracy = searchParams.get('accuracy')
+    const queryLocation = {
+      latitude: Number(rawLatitude),
+      longitude: Number(rawLongitude),
+      accuracy: Number(rawAccuracy)
     }
-    loadPO().then((result) => {
-      if (!active) return
+    const hasQueryLocation = [rawLatitude, rawLongitude, rawAccuracy].every(value => value !== null && value !== '') &&
+      Object.values(queryLocation).every(Number.isFinite)
+    if (hasQueryLocation) {
+      verifyAtLocation(queryLocation)
+    } else {
+      setLoading(false)
+      setLocationState('prompt')
+    }
+    // The URL identifies a single immutable QR landing attempt.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, token])
+
+  const verifyAtLocation = async suppliedLocation => {
+    setLoading(true)
+    setLocationError('')
+    setLocationState('checking')
+    try {
+      const location = suppliedLocation || await getGateLocation()
+      setGateLocation(location)
+      const result = await apiClient.get(`/api/gate?action=po-details&token=${encodeURIComponent(token)}&${locationQuery(location)}`, {
+        cache: false,
+        dedupe: false,
+        redirectOnUnauthorized: false
+      })
       if (!result?.success || String(result.data?._id) !== String(id)) {
-        throw new Error('The scanned QR does not match this purchase order')
+        throw new Error('The scanned QR does not match this purchase order.')
       }
       setPo(result.data)
       setItems((result.data.items || []).map(item => ({
@@ -60,13 +72,14 @@ export default function GatePOVerification() {
         quantityDamaged: 0,
         quantityRejected: 0
       })))
-    }).catch((error) => {
-      if (active) showError('QR Verification Failed', error.message)
-    }).finally(() => {
-      if (active) setLoading(false)
-    })
-    return () => { active = false }
-  }, [id, token, showError, searchParams])
+      setLocationState('verified')
+    } catch (error) {
+      setLocationState('error')
+      setLocationError(error.message || 'Location or QR verification failed.')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const updateQuantity = (index, field, value) => {
     const quantity = Math.max(0, Number(value || 0))
@@ -99,7 +112,7 @@ export default function GatePOVerification() {
         items,
         receiptEvidence: receiptEvidence || undefined,
         remarks: remarks || 'Manually verified at gate from purchase-order QR'
-      }, { timeout: 90000 })
+      }, { timeout: 90000, redirectOnUnauthorized: false })
       if (!result?.success) throw new Error(result?.error || 'Unable to create GRN')
       setCreatedGrn(result.data)
       showSuccess(
@@ -134,6 +147,47 @@ export default function GatePOVerification() {
       size: file.size
     })
     reader.readAsDataURL(file)
+  }
+
+  if (locationState === 'prompt') {
+    return (
+      <div className="mx-auto max-w-lg rounded-3xl border border-violet-200 bg-white p-7 text-center shadow-lg sm:p-9">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-violet-100 text-violet-700">
+          <MapPin size={32} />
+        </div>
+        <p className="mt-5 text-xs font-black uppercase tracking-[0.18em] text-violet-600">Campus gate verification</p>
+        <h1 className="mt-2 text-2xl font-black text-slate-900">Enable location to scan this PO</h1>
+        <p className="mt-3 text-sm leading-6 text-slate-600">
+          CampusServe needs your precise location to confirm that this QR is being scanned at the MSEC gate. Your browser will ask for location permission next.
+        </p>
+        <div className="mt-4 rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-800">
+          Turn on device GPS and choose <strong>Allow precise location</strong>. Verification works only inside the defined MSEC campus boundary.
+        </div>
+        <button type="button" onClick={() => verifyAtLocation()}
+          className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 py-3 text-sm font-black text-white hover:bg-violet-700">
+          <MapPin size={18} /> Enable Location & Verify PO
+        </button>
+      </div>
+    )
+  }
+
+  if (locationState === 'error') {
+    return (
+      <div className="mx-auto max-w-lg rounded-3xl border border-rose-200 bg-white p-7 text-center shadow-lg sm:p-9">
+        <XCircle className="mx-auto text-rose-500" size={44} />
+        <h1 className="mt-4 text-xl font-black text-slate-900">Gate verification could not continue</h1>
+        <p className="mt-3 rounded-xl bg-rose-50 p-3 text-sm leading-6 text-rose-700">{locationError}</p>
+        <p className="mt-3 text-xs leading-5 text-slate-500">Allow precise location in browser settings, make sure you are at the campus gate, and try again.</p>
+        <button type="button" onClick={() => verifyAtLocation()}
+          className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 py-3 text-sm font-black text-white hover:bg-violet-700">
+          <MapPin size={17} /> Retry Location Verification
+        </button>
+        <button type="button" onClick={() => navigate('/login?portal=gate&next=%2Fgate')}
+          className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50">
+          Gate Officer Login
+        </button>
+      </div>
+    )
   }
 
   if (loading) {
