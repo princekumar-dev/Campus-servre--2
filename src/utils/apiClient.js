@@ -45,7 +45,12 @@ async function request(method, url, opts = {}) {
   } = opts;
 
   const bodyKey = body && !(body instanceof FormData) && !raw ? JSON.stringify(body) : (body instanceof FormData ? '[FormData]' : '');
-  const key = `${method}:${url}:${bodyKey}`;
+  // Responses are role scoped on the server. Keeping the user out of this key
+  // allowed (for example) a requester's empty list to be reused by an admin
+  // who logged in within the cache window.
+  const auth = getAuthOrNull();
+  const authKey = auth ? `${auth.id || ''}:${auth.role || ''}:${auth.email || ''}` : 'anonymous';
+  const key = `${method}:${authKey}:${url}:${bodyKey}`;
 
   if (useCache && cache.has(key)) {
     const entry = cache.get(key);

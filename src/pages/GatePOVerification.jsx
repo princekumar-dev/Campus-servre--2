@@ -3,6 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Building2, Camera, CheckCircle, ClipboardCheck, Package, ShieldCheck, XCircle } from 'lucide-react'
 import apiClient from '../utils/apiClient'
 import { useAlert } from '../components/AlertContext'
+import { getGateLocation, locationQuery } from '../utils/gateLocation'
 
 export default function GatePOVerification() {
   const { id } = useParams()
@@ -17,14 +18,30 @@ export default function GatePOVerification() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [createdGrn, setCreatedGrn] = useState(null)
+  const [gateLocation, setGateLocation] = useState(null)
 
   useEffect(() => {
     let active = true
     setLoading(true)
-    apiClient.get(`/api/gate?action=po-details&token=${encodeURIComponent(token)}`, {
-      cache: false,
-      dedupe: false
-    }).then((result) => {
+    const loadPO = async () => {
+      const rawLatitude = searchParams.get('latitude')
+      const rawLongitude = searchParams.get('longitude')
+      const rawAccuracy = searchParams.get('accuracy')
+      const queryLocation = {
+        latitude: Number(rawLatitude),
+        longitude: Number(rawLongitude),
+        accuracy: Number(rawAccuracy)
+      }
+      const hasQueryLocation = [rawLatitude, rawLongitude, rawAccuracy].every(value => value !== null && value !== '') &&
+        Object.values(queryLocation).every(Number.isFinite)
+      const location = hasQueryLocation ? queryLocation : await getGateLocation()
+      setGateLocation(location)
+      return apiClient.get(`/api/gate?action=po-details&token=${encodeURIComponent(token)}&${locationQuery(location)}`, {
+        cache: false,
+        dedupe: false
+      })
+    }
+    loadPO().then((result) => {
       if (!active) return
       if (!result?.success || String(result.data?._id) !== String(id)) {
         throw new Error('The scanned QR does not match this purchase order')
@@ -49,7 +66,7 @@ export default function GatePOVerification() {
       if (active) setLoading(false)
     })
     return () => { active = false }
-  }, [id, token, showError])
+  }, [id, token, showError, searchParams])
 
   const updateQuantity = (index, field, value) => {
     const quantity = Math.max(0, Number(value || 0))
@@ -78,6 +95,7 @@ export default function GatePOVerification() {
       const result = await apiClient.post('/api/grn', {
         poId: po._id,
         qrToken: token,
+        ...gateLocation,
         items,
         receiptEvidence: receiptEvidence || undefined,
         remarks: remarks || 'Manually verified at gate from purchase-order QR'

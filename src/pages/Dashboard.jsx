@@ -80,8 +80,8 @@ function Dashboard() {
     const fetchDashboardData = async () => {
       try {
         const [statsRes, requestsRes] = await Promise.all([
-          apiClient.get('/api/reports'),
-          apiClient.get('/api/requests?summary=dashboard')
+          apiClient.get('/api/reports', { cache: false }),
+          apiClient.get('/api/requests?summary=dashboard', { cache: false })
         ])
         if (statsRes.success) setStats(statsRes.stats)
         if (requestsRes.success) {
@@ -94,6 +94,12 @@ function Dashboard() {
       }
     }
     fetchDashboardData()
+    window.addEventListener('requestsUpdated', fetchDashboardData)
+    window.addEventListener('focus', fetchDashboardData)
+    return () => {
+      window.removeEventListener('requestsUpdated', fetchDashboardData)
+      window.removeEventListener('focus', fetchDashboardData)
+    }
   }, [showError])
 
   useEffect(() => {

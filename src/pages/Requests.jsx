@@ -81,7 +81,7 @@ function Requests() {
     const fetchRequests = async () => {
       setIsLoading(true)
       try {
-        const res = await apiClient.get('/api/requests')
+        const res = await apiClient.get('/api/requests', { cache: false })
         if (res.success) {
           setRequests(res.data)
           const counts = {}
@@ -100,6 +100,12 @@ function Requests() {
       }
     }
     fetchRequests()
+    window.addEventListener('requestsUpdated', fetchRequests)
+    window.addEventListener('focus', fetchRequests)
+    return () => {
+      window.removeEventListener('requestsUpdated', fetchRequests)
+      window.removeEventListener('focus', fetchRequests)
+    }
   }, [showError])
 
   const filteredRequests = useMemo(() => {

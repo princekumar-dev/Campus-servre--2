@@ -51,7 +51,8 @@ export const WORKFLOW_PHASES = [
 export const ROLE_ACTION_STATUSES = {
   requester: [],
   admin: ['SUBMITTED'],
-  super_admin: [],
+  // Super admins can perform admin triage and must see the same pending list.
+  super_admin: ['SUBMITTED'],
   manager: ['ASSIGNED_TO_MANAGER'],
   technician: [],
   accounts: [],

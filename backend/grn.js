@@ -1,4 +1,5 @@
 import { connectToDatabase } from '../lib/mongo.js'
+import { requireGateLocation } from '../lib/gateGeofence.js'
 import { GoodsReceipt, PurchaseOrder, DeliverySchedule, User, ServiceRequest } from '../models.js'
 import { storeNotification } from '../lib/notificationService.js'
 import { getProductId } from '../lib/productId.js'
@@ -51,6 +52,7 @@ export default async function handler(req, res) {
       }
 
       const { poId: bodyPoId, deliveryScheduleId, items, remarks, qrToken, receiptEvidence } = req.body
+      if ((hasQrAccess || actorRole === 'gate') && !requireGateLocation(req, res).allowed) return
       if (!bodyPoId || !items || !items.length) {
         return res.status(400).json({ success: false, error: 'poId and items are required' })
       }
