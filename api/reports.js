@@ -67,13 +67,15 @@ export default async function handler(req, res) {
 
       // Calculate stats
       const totalRequests = requests.length
-      const pendingAdmin = requests.filter(r => r.status === 'SUBMITTED').length
+      const pendingAdmin = requests.filter(r =>
+        r.status === 'SUBMITTED' || (r.currentOwnerRole === 'admin' && !['CLOSED', 'REJECTED', 'CANCELLED'].includes(r.status))
+      ).length
       const activeWork = requests.filter(r => ['WORK_ORDER_CREATED', 'TECHNICIAN_ASSIGNED', 'WORK_ACCEPTED', 'IN_PROGRESS', 'PAUSED', 'WAITING_FOR_MATERIAL', 'ADDITIONAL_COST_PENDING'].includes(r.status)).length
       const pendingInvoicing = requests.filter(r => r.status === 'SERVICE_VERIFIED').length
       const pendingPayment = requests.filter(r => ['PAYMENT_PENDING', 'PARTIALLY_PAID'].includes(r.status)).length
       const closed = requests.filter(r => r.status === 'CLOSED').length
       const myActions = requests.filter(r => r.currentOwnerRole === userRole).length
-      const requestsToClassify = requests.filter(r => ['SUBMITTED', 'REOPENED'].includes(r.status)).length
+      const requestsToClassify = pendingAdmin
       const assignedRequests = requests.filter(r => r.status === 'ASSIGNED_TO_MANAGER').length
       const purchaseOrderCreated = requests.filter(r => r.status === 'PURCHASE_ORDER_CREATED').length
       const totalPOs = purchaseOrders.length

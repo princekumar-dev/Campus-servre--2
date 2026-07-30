@@ -3,8 +3,9 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Camera, CheckCircle, History, Keyboard, QrCode, ShieldCheck, XCircle } from 'lucide-react'
 import { useAlert } from '../components/AlertContext'
 import apiClient from '../utils/apiClient'
+import { getGateLocation, locationQuery } from '../utils/gateLocation'
 
-function CameraScanner({ onDetected }) {
+function CameraScanner({ onDetected, ensureLocation }) {
   const videoRef = useRef(null)
   const streamRef = useRef(null)
   const frameRef = useRef(null)
@@ -51,6 +52,7 @@ function CameraScanner({ onDetected }) {
       return setCameraError('Live QR detection is unavailable in this browser. Use Chrome/Edge on mobile or enter the PO number.')
     }
     try {
+      await ensureLocation()
       const supported = typeof window.BarcodeDetector.getSupportedFormats === 'function'
         ? await window.BarcodeDetector.getSupportedFormats()
         : ['qr_code']
@@ -101,7 +103,7 @@ function CameraScanner({ onDetected }) {
   )
 }
 
-function ManualPOEntry({ onResolved }) {
+function ManualPOEntry({ onResolved, ensureLocation }) {
   const [code, setCode] = useState('')
   const [loading, setLoading] = useState(false)
   const { showError } = useAlert()
@@ -111,7 +113,8 @@ function ManualPOEntry({ onResolved }) {
     if (!code.trim()) return
     setLoading(true)
     try {
-      const result = await apiClient.post('/api/gate?action=resolve-po-code', { code: code.trim() })
+      const location = await ensureLocation()
+      const result = await apiClient.post('/api/gate?action=resolve-po-code', { code: code.trim(), ...location })
       if (!result?.success) throw new Error(result?.error || 'Unable to find purchase order')
       onResolved(result.data)
     } catch (error) {
@@ -148,18 +151,30 @@ export default function GateScanner() {
   const [todayReceipts, setTodayReceipts] = useState([])
   const navigate = useNavigate()
   const { showError } = useAlert()
+  const locationRef = useRef(null)
 
-  const openPO = useCallback(({ poId, token }) => {
-    navigate(`/gate/po/${encodeURIComponent(poId)}?token=${encodeURIComponent(token)}`)
-  }, [navigate])
+  const ensureLocation = useCallback(async () => {
+    const location = await getGateLocation()
+    locationRef.current = location
+    return location
+  }, [])
 
-  const handleDetected = useCallback(value => {
+  const openPO = useCallback(async ({ poId, token }) => {
+    try {
+      const location = locationRef.current || await ensureLocation()
+      navigate(`/gate/po/${encodeURIComponent(poId)}?token=${encodeURIComponent(token)}&${locationQuery(location)}`)
+    } catch (error) {
+      showError('Gate Location Required', error.message)
+    }
+  }, [ensureLocation, navigate, showError])
+
+  const handleDetected = useCallback(async value => {
     try {
       const url = new URL(value, window.location.origin)
       const match = url.pathname.match(/^\/gate\/po\/([^/]+)$/)
       const token = url.searchParams.get('token')
       if (!match || !token) throw new Error('This is not a CampusServe purchase-order QR')
-      openPO({ poId: decodeURIComponent(match[1]), token })
+      await openPO({ poId: decodeURIComponent(match[1]), token })
     } catch (error) {
       showError('Invalid PO QR', error.message)
     }
@@ -186,7 +201,9 @@ export default function GateScanner() {
         <button onClick={() => setMode('code')} className={`flex items-center justify-center gap-2 rounded-lg py-3 text-sm font-bold ${mode === 'code' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500'}`}><Keyboard size={16} /> PO Number</button>
       </div>
 
-      {mode === 'camera' ? <CameraScanner onDetected={handleDetected} /> : <ManualPOEntry onResolved={openPO} />}
+      {mode === 'camera'
+        ? <CameraScanner onDetected={handleDetected} ensureLocation={ensureLocation} />
+        : <ManualPOEntry onResolved={openPO} ensureLocation={ensureLocation} />}
 
       <div className="premium-card space-y-4 p-5">
         <div className="flex items-center justify-between">
