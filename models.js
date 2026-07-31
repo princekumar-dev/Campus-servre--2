@@ -293,6 +293,43 @@ const PurchaseOrderSchema = new mongoose.Schema({
     verifiedAt: { type: Date },
     verificationComment: { type: String }
   },
+  serviceExecution: {
+    status: {
+      type: String,
+      enum: ['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'SUBMITTED'],
+      default: 'NOT_STARTED'
+    },
+    startedAt: { type: Date },
+    completedAt: { type: Date },
+    serviceSummary: { type: String },
+    technicianName: { type: String },
+    expenses: [{
+      category: {
+        type: String,
+        enum: ['LABOUR', 'PARTS', 'TRANSPORT', 'TAX', 'OTHER'],
+        default: 'OTHER'
+      },
+      description: { type: String, required: true },
+      amount: { type: Number, required: true, min: 0 },
+      bill: {
+        name: { type: String },
+        url: { type: String },
+        mimeType: { type: String },
+        size: { type: Number }
+      },
+      uploadedBy: { type: String },
+      createdAt: { type: Date, default: Date.now }
+    }],
+    workEvidence: [{
+      name: { type: String, required: true },
+      url: { type: String, required: true },
+      mimeType: { type: String },
+      size: { type: Number },
+      note: { type: String },
+      uploadedBy: { type: String },
+      createdAt: { type: Date, default: Date.now }
+    }]
+  },
   statusHistory: [{
     oldStatus: { type: String },
     newStatus: { type: String },
@@ -405,7 +442,7 @@ const GoodsReceiptSchema = new mongoose.Schema({
   deliveryScheduleId: { type: mongoose.Schema.Types.ObjectId, ref: 'DeliverySchedule' },
   grnType: { type: String, enum: ['PARTIAL', 'FINAL', 'REJECTION', 'RETURN'], required: true },
   status: { type: String, enum: ['DRAFT', 'FINALIZED'], default: 'DRAFT' },
-  source: { type: String, enum: ['MANUAL', 'PO_QR'], default: 'MANUAL' },
+  source: { type: String, enum: ['MANUAL', 'PO_QR', 'SERVICE_PO'], default: 'MANUAL' },
   gateVerifiedAt: { type: Date },
   receivedBy: { type: String },
   receivedByName: { type: String },
@@ -448,6 +485,14 @@ const GoodsReceiptSchema = new mongoose.Schema({
     mimeType: { type: String },
     size: { type: Number },
     uploadedAt: { type: Date }
+  },
+  serviceReceipt: {
+    summary: { type: String },
+    technicianName: { type: String },
+    completedAt: { type: Date },
+    expenseCount: { type: Number, default: 0 },
+    billCount: { type: Number, default: 0 },
+    evidenceCount: { type: Number, default: 0 }
   },
   documentUrl: { type: String },
   createdAt: { type: Date, default: Date.now }

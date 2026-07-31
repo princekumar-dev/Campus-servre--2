@@ -314,14 +314,18 @@ export default async function handler(req, res) {
         { _id: po._id },
         { $set: { qrTokenHash: hashPoQrToken(poQrToken), qrIssuedAt: new Date() } }
       )
-      const gateVerificationUrl = `${getPublicBaseUrl(req)}/gate/po/${po._id}?token=${encodeURIComponent(poQrToken)}`
+      const linkedRequest = po.requestId ? await ServiceRequest.findById(po.requestId).lean() : null
+      const isServicePo = linkedRequest?.adminAssessment?.requirementType === 'MAINTENANCE'
+      const poDocumentTitle = isServicePo ? 'SERVICE PURCHASE ORDER' : 'PURCHASE ORDER'
+      const gateVerificationUrl = isServicePo
+        ? `${getPublicBaseUrl(req)}/service/po/${po._id}`
+        : `${getPublicBaseUrl(req)}/gate/po/${po._id}?token=${encodeURIComponent(poQrToken)}`
       const gateQrImage = await QRCode.toBuffer(gateVerificationUrl, {
         type: 'png',
         width: 220,
         margin: 1,
         errorCorrectionLevel: 'M'
       })
-      const linkedRequest = po.requestId ? await ServiceRequest.findById(po.requestId).lean() : null
       const photoEvidence = (linkedRequest?.evidence || []).filter(item => {
         const url = item.url || ''
         if (!url || url.length < 20) return false
@@ -344,7 +348,7 @@ export default async function handler(req, res) {
       const doc = new PDFDocument({ size: 'A4', margin: 42, bufferPages: true, info: {
         Title: `Purchase Order ${po.poNumber}`,
         Author: 'MSEC CampusServe',
-        Subject: linkedRequest ? `Purchase order for ${linkedRequest.requestNumber}` : 'Official purchase order'
+        Subject: linkedRequest ? `${poDocumentTitle} for ${linkedRequest.requestNumber}` : `Official ${poDocumentTitle.toLowerCase()}`
       } })
       doc.pipe(res)
 
@@ -389,7 +393,7 @@ export default async function handler(req, res) {
         if (monochromeLogo) doc.image(monochromeLogo, left, headerTop, { width: logoWidth, height: logoHeight })
         doc.image(gateQrImage, right - qrSize, headerTop, { width: qrSize, height: qrSize })
         doc.fillColor(PO.muted).font('Helvetica-Bold').fontSize(6)
-          .text('GATE VERIFY', right - qrSize, headerTop + qrSize + 2, { width: qrSize, align: 'center', lineBreak: false })
+          .text(isServicePo ? 'SERVICE LOGIN' : 'GATE VERIFY', right - qrSize, headerTop + qrSize + 2, { width: qrSize, align: 'center', lineBreak: false })
         doc.fillColor(PO.black).font('Helvetica-Bold').fontSize(10.8)
           .text('MEENAKSHI SUNDARARAJAN ENGINEERING COLLEGE', textX, headerTop + 3, { width: textWidth, align: 'center', lineBreak: false })
         doc.fillColor(PO.muted).font('Helvetica').fontSize(7.7)
@@ -404,7 +408,7 @@ export default async function handler(req, res) {
         doc.y = headerTop + 110
       }
 
-      drawHeader('PURCHASE ORDER')
+      drawHeader(poDocumentTitle)
       const summaryY = doc.y
       doc.rect(left, summaryY, width, 58).fillAndStroke(PO.soft, PO.line)
       doc.strokeColor(PO.line).moveTo(297.5, summaryY + 8).lineTo(297.5, summaryY + 50).stroke()
@@ -445,7 +449,7 @@ export default async function handler(req, res) {
         const detailsHeight = details ? doc.heightOfString(details, { width: widths[1] - 12 }) : 0
         const rowHeight = Math.max(46, descriptionHeight + detailsHeight + 30)
         if (doc.y + rowHeight > 720) {
-          doc.addPage(); drawHeader('PURCHASE ORDER'); drawTableHeader()
+          doc.addPage(); drawHeader(poDocumentTitle); drawTableHeader()
         }
         const y = doc.y
         doc.rect(left, y, width, rowHeight).fillAndStroke(index % 2 ? PO.soft : PO.white, PO.line)
@@ -472,7 +476,7 @@ export default async function handler(req, res) {
         doc.y = y + rowHeight
       })
 
-      if (doc.y > 650) { doc.addPage(); drawHeader('PURCHASE ORDER - SUMMARY') }
+      if (doc.y > 650) { doc.addPage(); drawHeader(`${poDocumentTitle} - SUMMARY`) }
       const totalsY = doc.y + 10
       const totalX = 340
       doc.rect(totalX, totalsY, 213, 107).fillAndStroke(PO.white, PO.line)
@@ -498,7 +502,9 @@ export default async function handler(req, res) {
       field('Payment', po.paymentTerms || 'Net 30', left + 12, termsY + 11, 240)
       field('Warranty', po.warrantyTerms || 'As per vendor/manufacturer warranty', 306, termsY + 11, 235)
       doc.fillColor(PO.muted).font('Helvetica-Bold').fontSize(7.4).text('NOTES', left + 12, termsY + 36, { width: 62 })
-      doc.fillColor(PO.ink).font('Helvetica').fontSize(8.3).text(po.notes || 'Supply must conform to the specifications and quantities stated in this purchase order.', left + 75, termsY + 35, { width: width - 87, height: 18, ellipsis: true })
+      doc.fillColor(PO.ink).font('Helvetica').fontSize(8.3).text(po.notes || (isServicePo
+        ? 'Complete the approved repair/service, record every actual cost, and upload its scanned bill through the Service Login QR. Campus approval generates the final service GRN.'
+        : 'Supply must conform to the specifications and quantities stated in this purchase order.'), left + 75, termsY + 35, { width: width - 87, height: 18, ellipsis: true })
       doc.y = termsY + 77
       const isVerified = po.signedPo?.status === 'VERIFIED'
       if (!isVerified) {

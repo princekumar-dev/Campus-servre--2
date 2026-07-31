@@ -149,7 +149,7 @@ async function grnPdf(po, grn) {
     doc.font('Helvetica').fontSize(6.2).text('AN AUTONOMOUS INSTITUTION AFFILIATED TO ANNA UNIVERSITY', 105, 62, { width: 385, align: 'center' })
     doc.text('363, Arcot Road, Kodambakkam, Chennai - 600024', 105, 72, { width: 385, align: 'center' })
     doc.font('Helvetica-Bold').fontSize(6.5).text('MSEC CAMPUSSERVE', 105, 82, { width: 385, align: 'center' })
-    doc.font('Times-Bold').fontSize(15).text('GOODS RECEIPT NOTE', 105, 96, { width: 385, align: 'center' })
+    doc.font('Times-Bold').fontSize(15).text(grn.source === 'SERVICE_PO' ? 'SERVICE COMPLETION RECEIPT (GRN)' : 'GOODS RECEIPT NOTE', 105, 96, { width: 385, align: 'center' })
     doc.moveTo(left, 119).lineTo(left + width, 119).lineWidth(1).strokeColor(ink).stroke()
     doc.moveTo(left, 119).lineTo(left + 45, 119).lineWidth(2).strokeColor(gold).stroke()
 
@@ -171,7 +171,7 @@ async function grnPdf(po, grn) {
     label('GRN Value', 54, 274); value(money(receiptTotal), 124, 274, 155)
     label('Delivery To', 317, 234); value(po?.deliveryLocation, 387, 234, 154)
     label('Received By', 317, 254); value(grn.receivedByName, 387, 254, 154)
-    label('Source', 317, 274); value(grn.source === 'PO_QR' ? 'Gate PO QR verified' : 'Manual receipt', 387, 274, 154)
+    label('Source', 317, 274); value(grn.source === 'SERVICE_PO' ? 'Approved service PO' : grn.source === 'PO_QR' ? 'Gate PO QR verified' : 'Manual receipt', 387, 274, 154)
 
     sectionTitle('Receipt quantity summary', 304)
     const summary = [
@@ -230,7 +230,7 @@ async function grnPdf(po, grn) {
     sectionTitle('Inspection remarks and certification', remarksY)
     doc.rect(left, remarksY + 21, width, 45).fillAndStroke(pale, '#d6d3d1')
     doc.fillColor(ink).font('Helvetica').fontSize(7)
-      .text(grn.remarks || 'Goods received and inspected without additional remarks.', left + 10, remarksY + 31, { width: width - 20, height: 28, ellipsis: true })
+      .text(grn.remarks || (grn.source === 'SERVICE_PO' ? 'Service work, supporting bills, and actual costs were reviewed and accepted.' : 'Goods received and inspected without additional remarks.'), left + 10, remarksY + 31, { width: width - 20, height: 28, ellipsis: true })
     doc.fontSize(6.5).text('Certified that the above goods were physically received, inspected and recorded against the referenced purchase order.', left, remarksY + 78, { width })
 
     const stampY = Math.min(674, remarksY + 106)

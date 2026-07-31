@@ -39,6 +39,7 @@ const GateScanner = lazy(() => import('./pages/GateScanner'))
 const GateDashboard = lazy(() => import('./pages/GateDashboard'))
 const GateHistory = lazy(() => import('./pages/GateHistory'))
 const GatePOVerification = lazy(() => import('./pages/GatePOVerification'))
+const ServicePOWorkspace = lazy(() => import('./pages/ServicePOWorkspace'))
 const GRN = lazy(() => import('./pages/GRN'))
 const VendorDashboard = lazy(() => import('./pages/VendorDashboard'))
 const VendorInvoices = lazy(() => import('./pages/VendorInvoices'))
@@ -64,7 +65,8 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   if (!parsed || !parsed.isAuthenticated) {
     clearStoredAuth()
     const next = `${location.pathname}${location.search}`
-    return <Navigate to={`/login?next=${encodeURIComponent(next)}`} replace />
+    const portal = location.pathname.startsWith('/service/po/') ? '&portal=service' : ''
+    return <Navigate to={`/login?next=${encodeURIComponent(next)}${portal}`} replace />
   }
   
   if (allowedRoles && !allowedRoles.includes(parsed.role)) {
@@ -229,6 +231,7 @@ function AppContent() {
                   <Route path="/gate/po/:id" element={<GatePOVerification />} />
                   <Route path="/gate/dashboard" element={<ProtectedRoute allowedRoles={['admin', 'super_admin', 'gate']}><GateDashboard /></ProtectedRoute>} />
                   <Route path="/gate/history" element={<ProtectedRoute allowedRoles={['admin', 'super_admin', 'gate']}><GateHistory /></ProtectedRoute>} />
+                  <Route path="/service/po/:id" element={<ProtectedRoute allowedRoles={['vendor', 'manager', 'admin', 'super_admin']}><ServicePOWorkspace /></ProtectedRoute>} />
                   
                   {/* GRN routes */}
                   <Route path="/grn" element={<ProtectedRoute allowedRoles={['super_admin', 'receiving_officer', 'accounts', 'manager']}><GRN /></ProtectedRoute>} />

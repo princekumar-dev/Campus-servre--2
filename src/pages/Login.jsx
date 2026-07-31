@@ -13,6 +13,7 @@ function Login() {
   const [searchParams] = useSearchParams()
   const { showSuccess, showError } = useAlert()
   const isGatePortal = searchParams.get('portal') === 'gate'
+  const isServicePortal = searchParams.get('portal') === 'service'
 
   const handleLogin = async (e) => {
     e.preventDefault()
@@ -27,6 +28,10 @@ function Login() {
       if (res.success && res.user) {
         if (isGatePortal && !['gate', 'admin', 'super_admin'].includes(res.user.role)) {
           showError('Gate Access Required', 'Sign in with a gate officer, administrator, or super administrator account.')
+          return
+        }
+        if (isServicePortal && !['vendor', 'manager', 'admin', 'super_admin'].includes(res.user.role)) {
+          showError('Service Access Required', 'Sign in with the assigned service-provider account.')
           return
         }
         const authData = {
@@ -70,8 +75,8 @@ function Login() {
             <div className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-full bg-violet-100 sm:mb-6 sm:h-16 sm:w-16">
               <Lock className="h-7 w-7 text-violet-600 sm:h-8 sm:w-8" />
             </div>
-            <h1 className="mb-1.5 text-2xl font-black text-white sm:mb-2 sm:text-4xl">{isGatePortal ? 'Gate Officer Login' : 'Welcome Back'}</h1>
-            <p className="text-sm text-gray-100 sm:text-lg">{isGatePortal ? 'Sign in with an authorized gate account' : 'Sign in to your MSEC CampusServe account'}</p>
+            <h1 className="mb-1.5 text-2xl font-black text-white sm:mb-2 sm:text-4xl">{isGatePortal ? 'Gate Officer Login' : isServicePortal ? 'Service Provider Login' : 'Welcome Back'}</h1>
+            <p className="text-sm text-gray-100 sm:text-lg">{isGatePortal ? 'Sign in with an authorized gate account' : isServicePortal ? 'Sign in to upload repair bills and service costs' : 'Sign in to your MSEC CampusServe account'}</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-5 sm:space-y-6">
