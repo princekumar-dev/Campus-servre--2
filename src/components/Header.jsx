@@ -16,6 +16,7 @@ export const isNavPathActive = (currentPath, navPath) => {
 
 function Header() {
   const location = useLocation()
+  const isServiceWorkspace = location.pathname.startsWith('/service/po/')
   const isAuthPage = ['/login', '/signup'].includes(location.pathname)
   const [user, setUser] = useState(null)
   const [showDropdown, setShowDropdown] = useState(false)
@@ -145,10 +146,19 @@ function Header() {
       {/* Vendor */}
       {user.role === 'vendor' && (
         <>
-          <Link className={linkClass('/purchase-orders')} to="/purchase-orders">My POs</Link>
-          <Link className={linkClass('/deliveries')} to="/deliveries">Deliveries</Link>
-          <Link className={linkClass('/vendor/invoices')} to="/vendor/invoices">Invoices</Link>
-          <Link className={linkClass('/vendor/payments')} to="/vendor/payments">Payments</Link>
+          {isServiceWorkspace ? (
+            <>
+              <Link className="nav-link-premium active" to={`${location.pathname}${location.search}`}>Service Workspace</Link>
+              <Link className={linkClass('/purchase-orders')} to="/purchase-orders">My Service POs</Link>
+            </>
+          ) : (
+            <>
+              <Link className={linkClass('/purchase-orders')} to="/purchase-orders">My POs</Link>
+              <Link className={linkClass('/deliveries')} to="/deliveries">Deliveries</Link>
+              <Link className={linkClass('/vendor/invoices')} to="/vendor/invoices">Invoices</Link>
+              <Link className={linkClass('/vendor/payments')} to="/vendor/payments">Payments</Link>
+            </>
+          )}
         </>
       )}
 

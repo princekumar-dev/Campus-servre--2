@@ -46,6 +46,14 @@ function BottomNav() {
 
   // Vendor-specific bottom nav
   if (isVendor) {
+    if (location.pathname.startsWith('/service/po/')) {
+      return (
+        <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 glass-bottom-nav px-1 py-1.5 flex items-center justify-around safe-area-inset-bottom">
+          <NavItem to={`${location.pathname}${location.search}`} icon={ClipboardCheck} label="Service" isActive />
+          <NavItem to="/purchase-orders" icon={ShoppingCart} label="Service POs" isActive={false} />
+        </div>
+      )
+    }
     return (
       <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 glass-bottom-nav px-1 py-1.5 flex items-center justify-around safe-area-inset-bottom">
         <NavItem to="/vendor/dashboard" icon={LayoutDashboard} label="Home" isActive={location.pathname === '/vendor/dashboard'} />

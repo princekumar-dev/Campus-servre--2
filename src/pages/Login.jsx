@@ -14,6 +14,7 @@ function Login() {
   const { showSuccess, showError } = useAlert()
   const isGatePortal = searchParams.get('portal') === 'gate'
   const isServicePortal = searchParams.get('portal') === 'service'
+  const isAccountSwitch = isServicePortal && searchParams.get('switch') === '1'
 
   const handleLogin = async (e) => {
     e.preventDefault()
@@ -76,7 +77,7 @@ function Login() {
               <Lock className="h-7 w-7 text-violet-600 sm:h-8 sm:w-8" />
             </div>
             <h1 className="mb-1.5 text-2xl font-black text-white sm:mb-2 sm:text-4xl">{isGatePortal ? 'Gate Officer Login' : isServicePortal ? 'Service Provider Login' : 'Welcome Back'}</h1>
-            <p className="text-sm text-gray-100 sm:text-lg">{isGatePortal ? 'Sign in with an authorized gate account' : isServicePortal ? 'Sign in to upload repair bills and service costs' : 'Sign in to your MSEC CampusServe account'}</p>
+            <p className="text-sm text-gray-100 sm:text-lg">{isGatePortal ? 'Sign in with an authorized gate account' : isServicePortal ? (isAccountSwitch ? 'Switch to the service-provider account assigned to this PO' : 'Sign in to upload repair bills and service costs') : 'Sign in to your MSEC CampusServe account'}</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-5 sm:space-y-6">

@@ -32,7 +32,14 @@ export default function ServicePOWorkspace() {
       if (!result.success) throw new Error(result.error)
       setData(result)
       setSummary(result.data.serviceExecution?.serviceSummary || '')
-    } catch (error) { showError('Service PO unavailable', error.message) }
+    } catch (error) {
+      if (error?.status === 403) {
+        const next = `${window.location.pathname}${window.location.search}`
+        window.location.replace(`/login?next=${encodeURIComponent(next)}&portal=service&switch=1`)
+        return
+      }
+      showError('Service PO unavailable', error.message)
+    }
     finally { setLoading(false) }
   }
   useEffect(() => { load() }, [id])

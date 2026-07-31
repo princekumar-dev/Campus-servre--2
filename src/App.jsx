@@ -62,11 +62,21 @@ const RootRedirect = () => {
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const location = useLocation()
   const parsed = getAuthOrNull()
+  const isServicePortal = location.pathname.startsWith('/service/po/')
+  const serviceRoles = ['vendor', 'manager', 'admin', 'super_admin']
   if (!parsed || !parsed.isAuthenticated) {
     clearStoredAuth()
     const next = `${location.pathname}${location.search}`
     const portal = location.pathname.startsWith('/service/po/') ? '&portal=service' : ''
     return <Navigate to={`/login?next=${encodeURIComponent(next)}${portal}`} replace />
+  }
+
+  // A Service PO QR is a portal entry, not a generic unauthorized redirect.
+  // If another campus user scans it, offer the dedicated service sign-in so
+  // the assigned provider can switch accounts on the same device.
+  if (isServicePortal && !serviceRoles.includes(parsed.role)) {
+    const next = `${location.pathname}${location.search}`
+    return <Navigate to={`/login?next=${encodeURIComponent(next)}&portal=service&switch=1`} replace />
   }
   
   if (allowedRoles && !allowedRoles.includes(parsed.role)) {
@@ -78,7 +88,11 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
 
 // Redirect if already logged in
 const RedirectIfAuthenticated = ({ children }) => {
+  const location = useLocation()
   const parsed = getAuthOrNull()
+  const params = new URLSearchParams(location.search)
+  const isServiceAccountSwitch = params.get('portal') === 'service' && params.get('switch') === '1'
+  if (isServiceAccountSwitch) return children
   if (parsed && parsed.isAuthenticated) {
     return <Navigate to={getDashboardPath(parsed.role)} replace />
   }
