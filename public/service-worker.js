@@ -1,5 +1,5 @@
 // Service Worker for Push Notifications
-const CACHE_NAME = 'msec-connect-v3';
+const CACHE_NAME = 'msec-connect-v4';
 const urlsToCache = [
   '/',
   '/manifest.json'
@@ -97,21 +97,23 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // For other requests (like assets), use Cache First strategy
+  // Deployment assets are content-hashed, but an open SPA can still request a
+  // lazy chunk from a previous Vercel deployment. Prefer the network so a
+  // current asset is never shadowed by stale cache state, with cached fallback
+  // retained for brief outages/offline use.
   event.respondWith(
-    caches.match(event.request)
+    fetch(event.request)
       .then((response) => {
-        // Return cached response if available
-        if (response) {
-          return response;
+        if (response && response.ok) {
+          const responseToCache = response.clone();
+          event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseToCache)));
         }
-        
-        // Try to fetch from network
-        return fetch(event.request).catch(() => new Response('', {
-          status: 503,
-          statusText: 'Service Unavailable'
-        }));
+        return response;
       })
+      .catch(() => caches.match(event.request).then(response => response || new Response('', {
+        status: 503,
+        statusText: 'Service Unavailable'
+      })))
   );
 });
 

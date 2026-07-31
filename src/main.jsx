@@ -160,23 +160,13 @@ if (import.meta.env.DEV && typeof navigator !== 'undefined' && 'serviceWorker' i
 if (import.meta.env.PROD && typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
   (async () => {
     try {
-      const existing = await navigator.serviceWorker.getRegistrations();
-      if (existing && existing.length > 0) {
-        console.info('[sw-auto] already registered', existing.map(r => r.scope));
-      } else {
-        console.info('[sw-auto] attempting to register /service-worker.js');
-        try {
-          const reg = await navigator.serviceWorker.register('/service-worker.js', { scope: '/' });
-          console.info('[sw-auto] registration success', reg.scope, reg);
-          // Ensure ready
-          await navigator.serviceWorker.ready;
-          console.info('[sw-auto] service worker ready');
-          // Refresh debug status after registration
-          setTimeout(() => { window.debugSWStatus && window.debugSWStatus().catch(()=>{}); }, 200);
-        } catch (err) {
-          console.warn('[sw-auto] registration failed', err);
-        }
-      }
+      // Register on every production load and explicitly check for updates.
+      // Browsers reuse the existing registration but fetch the latest worker.
+      const reg = await navigator.serviceWorker.register('/service-worker.js', { scope: '/', updateViaCache: 'none' });
+      await reg.update();
+      await navigator.serviceWorker.ready;
+      console.info('[sw-auto] service worker ready', reg.scope);
+      setTimeout(() => { window.debugSWStatus && window.debugSWStatus().catch(()=>{}); }, 200);
     } catch (e) {
       console.warn('[sw-auto] failed to check/register', e);
     }

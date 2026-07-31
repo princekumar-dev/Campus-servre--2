@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import ReactDOM from 'react-dom'
-import { useNavigate } from 'react-router-dom'
 import { useAlert } from './AlertContext'
 import apiClient from '../utils/apiClient'
 import {
@@ -23,7 +22,6 @@ const validateSignatureFile = (file) => {
 const optimizeSignatureForPDF = async (dataUrl) => dataUrl
 
 function Settings({ isOpen, onClose, userEmail, userRole, isMobile = false }) {
-  const navigate = useNavigate()
   const { showSuccess, showError, showWarning, showInfo } = useAlert()
   const settingsRef = useRef(null)
   const canvasRef = useRef(null)
@@ -522,13 +520,10 @@ function Settings({ isOpen, onClose, userEmail, userRole, isMobile = false }) {
     localStorage.removeItem('userRole')
     localStorage.removeItem('userId')
 
-    window.dispatchEvent(new Event('authStateChanged'))
-
-    try {
-      navigate('/login')
-    } catch (err) {
-      window.location.href = '/login'
-    }
+    // Use a document navigation for logout. On a newly deployed Vercel build,
+    // an older open tab may still reference an expired lazy Login chunk. A
+    // fresh navigation retrieves the current index and asset manifest.
+    window.location.replace('/login')
   }
 
   const handleEmailSupport = (e) => {
