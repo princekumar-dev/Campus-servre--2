@@ -60,6 +60,14 @@ const campusUsers = [
     phoneNumber: '+91-9876543206'
   },
   {
+    name: 'MSEC Service Provider',
+    email: 'service@msec.edu.in',
+    password: '123',
+    role: 'service_provider',
+    department: 'MAINTENANCE',
+    phoneNumber: '+91-9876543209'
+  },
+  {
     name: 'Receiving Officer Kumar',
     email: 'receiving@msec.edu.in',
     password: '123',

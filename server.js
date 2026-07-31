@@ -166,6 +166,15 @@ app.use('/api', async (req, res, next) => {
       return next();
     }
   }
+  if (req.path === '/service-orders') {
+    const suppliedToken = req.method === 'GET' ? req.query.token : req.body?.qrToken
+    const requestedPoId = String(req.query.id || req.body?.poId || '')
+    const qrPoId = await verifyIssuedPoQrToken(suppliedToken)
+    if (qrPoId && qrPoId === requestedPoId) {
+      req.poQrAccess = { poId: qrPoId, portal: 'service' }
+      return next()
+    }
+  }
 
   authenticate(req, res, next);
 });
@@ -257,8 +266,14 @@ app.all('/api/grn', grnHandler);
 
 // Connect to MongoDB and start server
 connectToDatabase()
-  .then(() => {
+  .then(async () => {
     console.log(`📊 MongoDB connected successfully`);
+    try {
+      const serviceAccount = await ensureServiceAccount()
+      console.log(`🔧 Service portal account ready: ${serviceAccount.email || process.env.SERVICE_PORTAL_EMAIL || 'service@msec.edu.in'}`)
+    } catch (error) {
+      console.error('⚠️ Unable to ensure service portal account:', error.message)
+    }
   })
   .catch((err) => {
     console.error('❌ Failed to connect to MongoDB:', err.message);
@@ -274,6 +289,7 @@ connectToDatabase()
 // Start server regardless of MongoDB connection
 // Support optional TLS if certs are provided (useful for testing HTTPS locally or in certain deploys)
 import fs from 'fs'
+import { ensureServiceAccount } from './lib/ensureServiceAccount.js'
 if (process.env.SSL_KEY_PATH && process.env.SSL_CERT_PATH && fs.existsSync(process.env.SSL_KEY_PATH) && fs.existsSync(process.env.SSL_CERT_PATH)) {
   const https = await import('https')
   const key = fs.readFileSync(process.env.SSL_KEY_PATH)

@@ -101,7 +101,7 @@ export default async function handler(req, res) {
         return res.status(400).json({ success: false, error: 'name, email, password, role and department are required' })
       }
 
-      const validRoles = ['admin', 'requester', 'manager', 'technician', 'accounts', 'vendor', 'super_admin', 'gate', 'receiving_officer', 'delivery_person', 'hod', 'staff']
+      const validRoles = ['admin', 'requester', 'manager', 'technician', 'accounts', 'vendor', 'service_provider', 'super_admin', 'gate', 'receiving_officer', 'delivery_person', 'hod', 'staff']
       if (!validRoles.includes(role)) {
         return res.status(400).json({ success: false, error: `role must be one of: ${validRoles.join(', ')}` })
       }

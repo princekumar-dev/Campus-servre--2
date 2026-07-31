@@ -96,6 +96,7 @@ function AdminUsers() {
     accounts: 'bg-emerald-100 text-emerald-700',
     requester: 'bg-violet-100 text-violet-700',
     vendor: 'bg-slate-100 text-slate-700',
+    service_provider: 'bg-violet-100 text-violet-700',
     super_admin: 'bg-red-100 text-red-700'
   }
 
@@ -201,6 +202,7 @@ function AdminUsers() {
                 <option value="accounts">Accounts Officer</option>
                 <option value="admin">Administrator</option>
                 <option value="vendor">Vendor</option>
+                <option value="service_provider">Service Provider</option>
               </select>
               <input type="text" placeholder="Department" value={newUser.department} onChange={e => setNewUser({...newUser, department: e.target.value})} className="w-full px-4 py-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-violet-500" />
               <input type="tel" placeholder="Phone Number" value={newUser.phoneNumber} onChange={e => setNewUser({...newUser, phoneNumber: e.target.value})} className="w-full px-4 py-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-violet-500" />

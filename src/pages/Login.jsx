@@ -31,7 +31,7 @@ function Login() {
           showError('Gate Access Required', 'Sign in with a gate officer, administrator, or super administrator account.')
           return
         }
-        if (isServicePortal && !['vendor', 'manager', 'admin', 'super_admin'].includes(res.user.role)) {
+        if (isServicePortal && !['service_provider', 'vendor', 'manager', 'admin', 'super_admin'].includes(res.user.role)) {
           showError('Service Access Required', 'Sign in with the assigned service-provider account.')
           return
         }

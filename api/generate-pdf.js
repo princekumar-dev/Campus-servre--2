@@ -318,7 +318,7 @@ export default async function handler(req, res) {
       const isServicePo = linkedRequest?.adminAssessment?.requirementType === 'MAINTENANCE'
       const poDocumentTitle = isServicePo ? 'SERVICE PURCHASE ORDER' : 'PURCHASE ORDER'
       const gateVerificationUrl = isServicePo
-        ? `${getPublicBaseUrl(req)}/service/po/${po._id}?portal=service`
+        ? `${getPublicBaseUrl(req)}/service/po/${po._id}?portal=service&token=${encodeURIComponent(poQrToken)}`
         : `${getPublicBaseUrl(req)}/gate/po/${po._id}?token=${encodeURIComponent(poQrToken)}`
       const gateQrImage = await QRCode.toBuffer(gateVerificationUrl, {
         type: 'png',

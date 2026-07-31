@@ -1,6 +1,6 @@
 import { GoodsReceipt, PurchaseOrder, ServiceRequest } from '../models.js'
 
-const allowedRoles = new Set(['vendor', 'manager', 'admin', 'super_admin'])
+const allowedRoles = new Set(['vendor', 'service_provider', 'manager', 'admin', 'super_admin'])
 
 function actor(req) {
   return {
@@ -23,6 +23,7 @@ async function loadServiceOrder(id) {
 
 function canAccess(po, user) {
   if (!allowedRoles.has(user.role)) return false
+  if (user.role === 'service_provider') return true
   if (user.role !== 'vendor') return true
   return !po.vendorEmail || po.vendorEmail.toLowerCase() === user.email
 }
@@ -30,11 +31,23 @@ function canAccess(po, user) {
 export default async function serviceOrdersHandler(req, res) {
   try {
     const id = String(req.query.id || req.body?.poId || '')
+    const hasQrAccess = req.poQrAccess?.portal === 'service' && req.poQrAccess.poId === id
+    const user = hasQrAccess
+      ? { id: `service-qr:${id}`, name: 'Service PO QR Login', email: '', role: 'service_provider' }
+      : actor(req)
+    if (!allowedRoles.has(user.role)) return res.status(403).json({ success: false, error: 'Service-provider access is required' })
+    if (!id && req.method === 'GET') {
+      const serviceRequests = await ServiceRequest.find({ 'adminAssessment.requirementType': 'MAINTENANCE' }).select('_id title location assetCode').lean()
+      const requestById = new Map(serviceRequests.map(request => [String(request._id), request]))
+      const filter = { requestId: { $in: serviceRequests.map(request => request._id) } }
+      if (user.role === 'vendor') filter.vendorEmail = user.email
+      const orders = await PurchaseOrder.find(filter).select('-signedPo.url -qrTokenHash').sort({ createdAt: -1 }).lean()
+      return res.json({ success: true, data: orders.map(order => ({ ...order, request: requestById.get(String(order.requestId)) })) })
+    }
     if (!id) return res.status(400).json({ success: false, error: 'Service PO id is required' })
     const loaded = await loadServiceOrder(id)
     if (loaded.error) return res.status(loaded.status).json({ success: false, error: loaded.error })
     const { po, request } = loaded
-    const user = actor(req)
     if (!canAccess(po, user)) return res.status(403).json({ success: false, error: 'This service order is not assigned to your account' })
 
     if (req.method === 'GET') {

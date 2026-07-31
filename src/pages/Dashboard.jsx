@@ -36,6 +36,7 @@ const ROLE_GREETINGS = {
   gate: { title: 'Goods Receiving', sub: 'Scan purchase orders and record received goods' },
   receiving_officer: { title: 'Receiving Desk', sub: 'Log goods received and inspect deliveries' },
   vendor: { title: 'Vendor Portal', sub: 'Manage assigned orders and deliveries' },
+  service_provider: { title: 'Service Provider Portal', sub: 'Manage maintenance POs, repair bills, and service costs' },
   hod: { title: 'Department Hub', sub: 'Submit and track department requests' },
   staff: { title: 'Staff Portal', sub: 'Submit and track your service requests' },
   delivery_person: { title: 'Delivery Dashboard', sub: 'View your delivery schedule and status' },

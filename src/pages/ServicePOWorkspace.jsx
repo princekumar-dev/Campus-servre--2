@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { CheckCircle2, FileText, Plus, Upload, Wrench } from 'lucide-react'
 import apiClient from '../utils/apiClient'
 import { useAlert } from '../components/AlertContext'
@@ -18,6 +18,9 @@ function readFile(file) {
 
 export default function ServicePOWorkspace() {
   const { id } = useParams()
+  const [searchParams] = useSearchParams()
+  const qrToken = searchParams.get('token') || ''
+  const currentAuth = getAuthOrNull()
   const { showError, showSuccess } = useAlert()
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -28,7 +31,8 @@ export default function ServicePOWorkspace() {
 
   const load = async () => {
     try {
-      const result = await apiClient.get(`/api/service-orders?id=${id}`, { cache: false })
+      const tokenQuery = qrToken ? `&token=${encodeURIComponent(qrToken)}` : ''
+      const result = await apiClient.get(`/api/service-orders?id=${id}${tokenQuery}`, { cache: false })
       if (!result.success) throw new Error(result.error)
       setData(result)
       setSummary(result.data.serviceExecution?.serviceSummary || '')
@@ -42,12 +46,19 @@ export default function ServicePOWorkspace() {
     }
     finally { setLoading(false) }
   }
-  useEffect(() => { load() }, [id])
+  useEffect(() => {
+    if (!qrToken && !currentAuth?.isAuthenticated) {
+      const next = `${window.location.pathname}${window.location.search}`
+      window.location.replace(`/login?next=${encodeURIComponent(next)}&portal=service`)
+      return
+    }
+    load()
+  }, [id, qrToken])
 
   const run = async (action, payload = {}) => {
     setSaving(true)
     try {
-      const result = await apiClient.post(`/api/service-orders?id=${id}&action=${action}`, payload)
+      const result = await apiClient.post(`/api/service-orders?id=${id}&action=${action}`, { ...payload, poId: id, qrToken: qrToken || undefined })
       if (!result.success) throw new Error(result.error)
       setData(current => ({ ...current, data: result.data }))
       showSuccess('Service order updated', action === 'submit' ? 'Repair costs and bills were submitted for review.' : 'Your update was saved.')

@@ -162,6 +162,14 @@ function Header() {
         </>
       )}
 
+      {/* Dedicated database-backed service login */}
+      {user.role === 'service_provider' && (
+        <>
+          <Link className={linkClass('/service/dashboard')} to="/service/dashboard">Service Orders</Link>
+          {isServiceWorkspace && <Link className="nav-link-premium active" to={`${location.pathname}${location.search}`}>Current Service</Link>}
+        </>
+      )}
+
       {/* Accounts */}
       {user.role === 'accounts' && (
         <>
