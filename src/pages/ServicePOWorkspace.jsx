@@ -6,6 +6,7 @@ import { useAlert } from '../components/AlertContext'
 import { getAuthOrNull } from '../utils/auth'
 
 const money = value => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(value || 0))
+const categoryLabels = { PARTS: 'Parts', LABOUR: 'Labour', TRANSPORT: 'Transport', TAX: 'Tax', OTHER: 'Other' }
 
 function readFile(file) {
   return new Promise((resolve, reject) => {
@@ -101,17 +102,38 @@ export default function ServicePOWorkspace() {
           <h2 className="font-black text-slate-800">Repair costs and scanned bills</h2>
           <p className="mt-1 text-xs text-slate-500">Record every parts, labour, transport, tax, or other charge separately.</p>
           {!submitted && <div className="mt-5 grid gap-3">
-            <select value={expense.category} onChange={e => setExpense({ ...expense, category: e.target.value })} className="rounded-xl border-slate-200 text-sm">
+            <select value={expense.category} onChange={e => setExpense(current => ({ ...current, category: e.target.value }))} className="rounded-xl border-slate-200 text-sm">
               <option value="PARTS">Parts</option><option value="LABOUR">Labour</option><option value="TRANSPORT">Transport</option><option value="TAX">Tax</option><option value="OTHER">Other</option>
             </select>
-            <input value={expense.description} onChange={e => setExpense({ ...expense, description: e.target.value })} placeholder="Cost description" className="rounded-xl border-slate-200 text-sm"/>
-            <input type="number" min="0" value={expense.amount} onChange={e => setExpense({ ...expense, amount: e.target.value })} placeholder="Amount (₹)" className="rounded-xl border-slate-200 text-sm"/>
+            <input value={expense.description} onChange={e => setExpense(current => ({ ...current, description: e.target.value }))} placeholder="Cost description (optional)" className="rounded-xl border-slate-200 text-sm"/>
+            <input type="number" min="0.01" step="0.01" value={expense.amount} onChange={e => setExpense(current => ({ ...current, amount: e.target.value }))} placeholder="Amount (₹)" className="rounded-xl border-slate-200 text-sm"/>
             <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-dashed border-violet-300 bg-violet-50 p-3 text-xs font-bold text-violet-700">
               <Upload size={16}/>{expense.bill?.name || 'Upload scanned bill (image or PDF)'}
-              <input className="hidden" type="file" accept="image/*,.pdf" onChange={async e => e.target.files[0] && setExpense({ ...expense, bill: await readFile(e.target.files[0]) })}/>
+              <input className="hidden" type="file" accept="image/*,.pdf" onChange={async e => {
+                const file = e.target.files?.[0]
+                if (!file) return
+                try {
+                  const bill = await readFile(file)
+                  setExpense(current => ({ ...current, bill }))
+                } catch (error) { showError('Bill upload failed', error.message) }
+              }}/>
             </label>
-            <button disabled={saving} onClick={async () => {
-              if (await run('expense', expense)) setExpense({ category: 'PARTS', description: '', amount: '', bill: null })
+            {expense.bill && <p className="text-xs font-semibold text-emerald-700">Bill selected. Tap “Add cost and bill” to save it with the amount.</p>}
+            <button type="button" disabled={saving} onClick={async () => {
+              const amount = Number(expense.amount)
+              if (!Number.isFinite(amount) || amount <= 0) {
+                showError('Cost required', 'Enter a cost greater than ₹0.')
+                return
+              }
+              if (!expense.bill?.url) {
+                showError('Scanned bill required', 'Choose a bill image or PDF before adding this cost.')
+                return
+              }
+              const payload = {
+                ...expense,
+                description: expense.description.trim() || categoryLabels[expense.category] || 'Service cost'
+              }
+              if (await run('expense', payload)) setExpense({ category: 'PARTS', description: '', amount: '', bill: null })
             }} className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-bold text-white"><Plus size={16}/> Add cost and bill</button>
           </div>}
           <div className="mt-5 space-y-2">

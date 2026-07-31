@@ -65,16 +65,18 @@ export default async function serviceOrdersHandler(req, res) {
       po.serviceExecution.technicianName = String(req.body.technicianName || user.name).trim()
     } else if (action === 'expense') {
       const amount = Number(req.body.amount)
-      const description = String(req.body.description || '').trim()
-      if (!description || !Number.isFinite(amount) || amount < 0) {
-        return res.status(400).json({ success: false, error: 'A description and valid cost are required' })
+      const category = String(req.body.category || 'OTHER').toUpperCase()
+      const categoryLabels = { PARTS: 'Parts', LABOUR: 'Labour', TRANSPORT: 'Transport', TAX: 'Tax', OTHER: 'Other' }
+      const description = String(req.body.description || '').trim() || categoryLabels[category] || 'Service cost'
+      if (!Number.isFinite(amount) || amount <= 0) {
+        return res.status(400).json({ success: false, error: 'Enter a cost greater than zero' })
       }
       const bill = req.body.bill
       if (!bill?.url) return res.status(400).json({ success: false, error: 'Upload the scanned bill for this cost' })
       po.serviceExecution.status = 'IN_PROGRESS'
       po.serviceExecution.startedAt ||= new Date()
       po.serviceExecution.expenses.push({
-        category: req.body.category || 'OTHER', description, amount,
+        category, description, amount,
         bill: { name: bill.name, url: bill.url, mimeType: bill.mimeType, size: bill.size },
         uploadedBy: user.name
       })
