@@ -23,9 +23,10 @@ const statusConfig = {
 }
 
 function CreatePOModal({ onClose, onSaved, sourceRequest }) {
+  const isServicePo = sourceRequest?.adminAssessment?.requirementType === 'MAINTENANCE'
   const [vendors, setVendors] = useState([])
   const [form, setForm] = useState({ vendorId: '', deliveryAddress: '363, Arcot Road, Kodambakkam, Chennai - 600024', deliveryLocation: sourceRequest?.location || '', expectedDeliveryDate: '', paymentTerms: 'Net 30', notes: sourceRequest ? `Generated for ${sourceRequest.requestNumber}: ${sourceRequest.title}` : '', deliveryCharge: 0 })
-  const [items, setItems] = useState([{ description: sourceRequest?.requestedItem || '', specification: sourceRequest?.description || '', brand: '', quantityOrdered: sourceRequest?.requestedQuantity || 1, unit: sourceRequest?.requestedUnit || 'pcs', lineSubtotal: 0, taxRate: 18, discount: 0 }])
+  const [items, setItems] = useState([{ description: isServicePo ? sourceRequest?.title : sourceRequest?.requestedItem || '', specification: sourceRequest?.description || '', brand: '', quantityOrdered: isServicePo ? 1 : sourceRequest?.requestedQuantity || 1, unit: isServicePo ? 'service' : sourceRequest?.requestedUnit || 'pcs', lineSubtotal: 0, taxRate: 18, discount: 0 }])
   const [loading, setLoading] = useState(false)
   const { showSuccess, showError } = useAlert()
 
@@ -70,15 +71,16 @@ function CreatePOModal({ onClose, onSaved, sourceRequest }) {
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!form.vendorId || !items.some(i => i.description)) return showError('Missing Info', 'Select vendor and add at least one item')
+    if (isServicePo && Number(items[0]?.lineSubtotal || 0) <= 0) return showError('Service Cost Required', 'Enter the approved estimated service cost before creating the Service PO')
     setLoading(true)
     try {
       const normalizedItems = items.map(item => ({ ...item, unitPrice: getLineValues(item).unitPrice }))
       const submittedItems = sourceRequest ? [{
         ...normalizedItems[0],
-        description: sourceRequest.requestedItem || sourceRequest.title,
+        description: isServicePo ? sourceRequest.title : sourceRequest.requestedItem || sourceRequest.title,
         specification: sourceRequest.description || normalizedItems[0].specification,
-        quantityOrdered: sourceRequest.requestedQuantity || 1,
-        unit: sourceRequest.requestedUnit || 'pcs',
+        quantityOrdered: isServicePo ? 1 : sourceRequest.requestedQuantity || 1,
+        unit: isServicePo ? 'service' : sourceRequest.requestedUnit || 'pcs',
       }] : normalizedItems
       const res = await apiClient.post('/api/purchase-orders', { ...form, requestId: sourceRequest?._id, items: submittedItems })
       if (res.success) {
@@ -117,7 +119,7 @@ function CreatePOModal({ onClose, onSaved, sourceRequest }) {
           {/* Line Items */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">Line Items *</label>
+              <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">{isServicePo ? 'Service Scope and Cost *' : 'Line Items *'}</label>
               {!sourceRequest && (
                 <button type="button" onClick={addItem} className="text-xs text-violet-600 font-bold hover:text-violet-700 flex items-center space-x-1">
                   <Plus size={12} /><span>Add Item</span>
@@ -150,8 +152,8 @@ function CreatePOModal({ onClose, onSaved, sourceRequest }) {
                     <input type="number" value={item.taxRate} onChange={e => updateItem(idx, 'taxRate', e.target.value)} min="0" max="100" step="0.01" className="mt-1 w-full rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs font-semibold outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100" />
                   </div>
                   <div className="sm:col-span-3">
-                    <label className="whitespace-nowrap text-[11px] font-bold uppercase tracking-wider text-slate-400">Total price (₹) *</label>
-                    <input type="number" value={item.lineSubtotal} onChange={e => updateItem(idx, 'lineSubtotal', e.target.value)} min="0" step="0.01" placeholder="Full quantity total" className="mt-1 w-full rounded-lg border border-violet-300 bg-white p-2 text-xs font-semibold outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100" />
+                    <label className="whitespace-nowrap text-[11px] font-bold uppercase tracking-wider text-slate-400">{isServicePo ? 'Estimated service cost (₹) *' : 'Total price (₹) *'}</label>
+                    <input type="number" value={item.lineSubtotal} onChange={e => updateItem(idx, 'lineSubtotal', e.target.value)} min={isServicePo ? '0.01' : '0'} step="0.01" placeholder={isServicePo ? 'Approved service estimate' : 'Full quantity total'} required={isServicePo} className="mt-1 w-full rounded-lg border border-violet-300 bg-white p-2 text-xs font-semibold outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100" />
                   </div>
                   <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200/70 pt-3 sm:col-span-12">
                     <span className="text-xs text-slate-500">₹{getLineValues(item).subtotal.toFixed(2)} total ÷ {item.quantityOrdered || 1} {item.unit || 'unit'} = ₹{getLineValues(item).unitPrice.toFixed(2)} per {item.unit || 'unit'} · GST {Number(item.taxRate) || 0}%</span>
@@ -175,11 +177,11 @@ function CreatePOModal({ onClose, onSaved, sourceRequest }) {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Delivery Address *</label>
+              <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">{isServicePo ? 'Service Address *' : 'Delivery Address *'}</label>
               <input type="text" value={form.deliveryAddress} onChange={e => setForm(p => ({ ...p, deliveryAddress: e.target.value }))} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:outline-none focus:border-violet-500 transition-all" />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Expected Delivery Date</label>
+              <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">{isServicePo ? 'Expected Service Date' : 'Expected Delivery Date'}</label>
               <input type="date" value={form.expectedDeliveryDate} onChange={e => setForm(p => ({ ...p, expectedDeliveryDate: e.target.value }))} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:outline-none focus:border-violet-500 transition-all" />
             </div>
           </div>

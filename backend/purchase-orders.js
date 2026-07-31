@@ -126,16 +126,23 @@ export default async function handler(req, res) {
         const requestedQuantity = Number(serviceRequest.requestedQuantity || 1)
         const requestedUnit = String(serviceRequest.requestedUnit || 'pcs').trim().toLowerCase()
         const submittedItem = items[0]
+        const isServicePo = serviceRequest.adminAssessment?.requirementType === 'MAINTENANCE'
+        const expectedDescription = isServicePo ? String(serviceRequest.title || '').trim().toLowerCase() : requestedDescription
+        const expectedQuantity = isServicePo ? 1 : requestedQuantity
+        const expectedUnit = isServicePo ? 'service' : requestedUnit
         if (
           items.length !== 1 ||
-          String(submittedItem?.description || '').trim().toLowerCase() !== requestedDescription ||
-          Number(submittedItem?.quantityOrdered) !== requestedQuantity ||
-          String(submittedItem?.unit || '').trim().toLowerCase() !== requestedUnit
+          String(submittedItem?.description || '').trim().toLowerCase() !== expectedDescription ||
+          Number(submittedItem?.quantityOrdered) !== expectedQuantity ||
+          String(submittedItem?.unit || '').trim().toLowerCase() !== expectedUnit
         ) {
           return res.status(400).json({
             success: false,
             error: 'A request-based purchase order must contain only the single item, quantity, and unit approved in that request'
           })
+        }
+        if (isServicePo && Number(submittedItem?.unitPrice || 0) <= 0) {
+          return res.status(400).json({ success: false, error: 'An approved estimated service cost greater than zero is required' })
         }
       }
 

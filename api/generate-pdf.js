@@ -434,7 +434,9 @@ export default async function handler(req, res) {
       const drawTableHeader = () => {
         const y = doc.y
         doc.rect(left, y, width, 28).fillAndStroke(PO.black, PO.black)
-        ;['#', 'Description / Specification', 'Qty', 'Unit Price', 'Tax', 'Amount'].forEach((label, i) =>
+        ;(isServicePo
+          ? ['#', 'Service Scope / Specification', 'Unit', 'Est. Cost', 'Tax', 'Approved Total']
+          : ['#', 'Description / Specification', 'Qty', 'Unit Price', 'Tax', 'Amount']).forEach((label, i) =>
           doc.fillColor(PO.white).font('Helvetica-Bold').fontSize(7.7).text(label, columns[i] + 4, y + 9, { width: widths[i] - 8, align: i >= 2 ? 'right' : 'left', characterSpacing: 0.18 })
         )
         columns.slice(1).forEach(x => doc.strokeColor('#4b4b4b').lineWidth(0.4).moveTo(x, y).lineTo(x, y + 28).stroke())
@@ -484,7 +486,7 @@ export default async function handler(req, res) {
         ['Subtotal', money(po.subtotal)],
         ['Discount', `- ${money(po.discountTotal)}`],
         ['GST / Tax', money(po.taxTotal)],
-        ['Delivery', money(po.deliveryCharge)]
+        [isServicePo ? 'Additional Charge' : 'Delivery', money(po.deliveryCharge)]
       ].forEach(([label, value], index) => {
         const rowY = totalsY + 11 + (index * 17)
         doc.fillColor(PO.muted).font('Helvetica').fontSize(8.4).text(label, totalX + 12, rowY, { width: 92 })
@@ -492,7 +494,7 @@ export default async function handler(req, res) {
       })
       const grandTotalY = totalsY + 76
       doc.rect(totalX + 6, grandTotalY, 201, 25).fillAndStroke(PO.accentSoft, PO.accent)
-      doc.fillColor(PO.accent).font('Helvetica-Bold').fontSize(9.5).text('GRAND TOTAL', totalX + 16, grandTotalY + 7)
+      doc.fillColor(PO.accent).font('Helvetica-Bold').fontSize(9.5).text(isServicePo ? 'APPROVED COST' : 'GRAND TOTAL', totalX + 16, grandTotalY + 7)
       doc.fontSize(10).text(money(po.grandTotal), totalX + 108, grandTotalY + 7, { width: 88, align: 'right' })
       doc.y = totalsY + 119
 
