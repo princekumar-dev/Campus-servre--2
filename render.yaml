@@ -3,6 +3,9 @@ services:
     name: campus-servre-2
     runtime: node
     plan: free
+    # Never run seed-users here. The seed command is safe, but deployment
+    # should only install dependencies; server startup creates missing portal
+    # accounts non-destructively.
     buildCommand: npm ci --omit=dev
     startCommand: npm run server
     healthCheckPath: /api/health

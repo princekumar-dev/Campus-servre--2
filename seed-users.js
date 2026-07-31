@@ -251,28 +251,41 @@ async function seedAllUsers() {
   try {
     console.log('🔄 Connecting to database...')
     await connectToDatabase()
-    
-    console.log('🧹 Clearing all existing users and all other collections...')
-    await User.deleteMany({})
-    await ServiceRequest.deleteMany({})
-    await Notification.deleteMany({})
-    await Vendor.deleteMany({})
-    await PurchaseOrder.deleteMany({})
-    await DeliverySchedule.deleteMany({})
-    await GoodsReceipt.deleteMany({})
-    await GateEntry.deleteMany({})
+
+    // Seeding must be safe when accidentally configured as a Render build
+    // command. Production data may never be deleted by a deployment script.
+    const isProduction = process.env.NODE_ENV === 'production' || String(process.env.RENDER || '').toLowerCase() === 'true'
+    const resetRequested = process.env.SEED_RESET_CONFIRM === 'RESET_LOCAL_DATABASE'
+    if (resetRequested && isProduction) {
+      throw new Error('Destructive database reset is permanently disabled in production and on Render')
+    }
+    if (resetRequested) {
+      console.warn('🧹 Confirmed LOCAL reset: clearing demo collections...')
+      await User.deleteMany({})
+      await ServiceRequest.deleteMany({})
+      await Notification.deleteMany({})
+      await Vendor.deleteMany({})
+      await PurchaseOrder.deleteMany({})
+      await DeliverySchedule.deleteMany({})
+      await GoodsReceipt.deleteMany({})
+      await GateEntry.deleteMany({})
+    } else {
+      console.log('🛡️ Safe seed mode: existing users and operational data will be preserved')
+    }
     
     const allUsers = [...campusUsers, ...academicUsers]
     console.log(`🌱 Seeding ${allUsers.length} total demo users (Campus + Academic)...`)
     
     for (const userData of allUsers) {
+      const email = userData.email.trim().toLowerCase()
+      const existing = await User.findOne({ email }).select('_id role').lean()
+      if (existing) {
+        console.log(`↪ Preserved existing [${existing.role.toUpperCase()}] account ${email}`)
+        continue
+      }
       const hashedPassword = await bcrypt.hash(userData.password, 10)
-      const user = new User({
-        ...userData,
-        password: hashedPassword
-      })
-      await user.save()
-      console.log(`✅ Created [${userData.role.toUpperCase()}] ${userData.name} (${userData.email})`)
+      await User.create({ ...userData, email, password: hashedPassword })
+      console.log(`✅ Created missing [${userData.role.toUpperCase()}] ${userData.name} (${email})`)
     }
     
     console.log('\n🎉 Successfully seeded all demo users with password: 123!')
