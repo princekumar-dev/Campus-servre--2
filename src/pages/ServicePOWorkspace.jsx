@@ -77,7 +77,7 @@ export default function ServicePOWorkspace() {
   const execution = po.serviceExecution || {}
   const submitted = ['SUBMITTED', 'COMPLETED'].includes(execution.status)
   const approved = execution.status === 'COMPLETED'
-  const canApprove = ['manager', 'admin', 'super_admin'].includes(auth?.role)
+  const canFinalize = Boolean(qrToken) || ['service_provider', 'vendor', 'manager', 'admin', 'super_admin'].includes(auth?.role)
   return (
     <div className="mx-auto w-full max-w-5xl space-y-5">
       <section className="rounded-3xl bg-gradient-to-br from-violet-700 to-indigo-900 p-6 text-white shadow-xl">
@@ -155,10 +155,12 @@ export default function ServicePOWorkspace() {
           </label>}
           <p className="mt-3 text-xs font-semibold text-slate-500">{execution.workEvidence?.length || 0} evidence file(s) uploaded</p>
           <textarea disabled={submitted} rows="5" value={summary} onChange={e => setSummary(e.target.value)} placeholder="Describe the fault found, repair completed, and final condition…" className="mt-5 w-full rounded-xl border-slate-200 text-sm"/>
-          {!submitted ? <button disabled={saving} onClick={() => run('submit', { serviceSummary: summary })} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white"><CheckCircle2 size={17}/> Submit completed service</button>
+          {!submitted ? <button disabled={saving} onClick={async () => {
+              if (await run('submit', { serviceSummary: summary })) await run('approve-grn')
+            }} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white"><CheckCircle2 size={17}/> Complete service and generate GRN</button>
             : <div className="mt-4 space-y-3">
-                <div className="rounded-xl bg-emerald-50 p-4 text-sm font-bold text-emerald-700">{approved ? 'Service approved and the final GRN has been generated.' : 'Service records submitted for campus review.'}</div>
-                {canApprove && !approved && <button disabled={saving} onClick={() => run('approve-grn')} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-violet-700 px-4 py-3 text-sm font-bold text-white"><CheckCircle2 size={17}/> Approve service and generate final GRN</button>}
+                <div className="rounded-xl bg-emerald-50 p-4 text-sm font-bold text-emerald-700">{approved ? 'Service completed, the PO is closed, and the final GRN has been generated.' : 'Service records are saved. Generate the final GRN to close this PO.'}</div>
+                {canFinalize && !approved && <button disabled={saving} onClick={() => run('approve-grn')} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-violet-700 px-4 py-3 text-sm font-bold text-white"><CheckCircle2 size={17}/> Generate final GRN and close PO</button>}
               </div>}
         </section>
       </div>

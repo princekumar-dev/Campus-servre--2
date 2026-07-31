@@ -95,9 +95,10 @@ export default async function serviceOrdersHandler(req, res) {
       po.serviceExecution.completedAt = new Date()
       po.serviceExecution.serviceSummary = String(req.body.serviceSummary || '').trim()
     } else if (action === 'approve-grn') {
-      if (!['manager', 'admin', 'super_admin'].includes(user.role)) {
-        return res.status(403).json({ success: false, error: 'Only an authorized campus officer can approve the service GRN' })
-      }
+      // Completing through the signed service-PO workspace is the service
+      // equivalent of gate QR confirmation. It must be able to finish records
+      // that were submitted by the service provider, including older records
+      // left at SUBMITTED by the previous two-step UI.
       if (po.serviceExecution.status !== 'SUBMITTED') {
         return res.status(409).json({ success: false, error: 'The service provider must submit completed work before GRN approval' })
       }

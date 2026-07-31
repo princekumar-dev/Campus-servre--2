@@ -251,7 +251,7 @@ function AppContent() {
                   <Route path="/service/po/:id" element={<ServicePOWorkspace />} />
                   
                   {/* GRN routes */}
-                  <Route path="/grn" element={<ProtectedRoute allowedRoles={['super_admin', 'receiving_officer', 'accounts', 'manager']}><GRN /></ProtectedRoute>} />
+                  <Route path="/grn" element={<ProtectedRoute allowedRoles={['admin', 'super_admin', 'receiving_officer', 'accounts', 'manager']}><GRN /></ProtectedRoute>} />
                   
                   {/* Vendor Portal */}
                   <Route path="/vendor/dashboard" element={<ProtectedRoute allowedRoles={['vendor']}><VendorDashboard /></ProtectedRoute>} />
