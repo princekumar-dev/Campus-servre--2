@@ -4,6 +4,7 @@ import { useAlert } from '../components/AlertContext'
 import ModalShell from '../components/ModalShell'
 import apiClient from '../utils/apiClient'
 import { getAuthOrNull } from '../utils/auth'
+import { normalizeUnit, UnitOptions } from '../utils/unitOptions'
 import { ShoppingCart, Plus, Search, ChevronRight, Clock, CheckCircle2, AlertCircle, Send, XCircle, RefreshCw, Package } from 'lucide-react'
 
 const statusConfig = {
@@ -26,7 +27,7 @@ function CreatePOModal({ onClose, onSaved, sourceRequest }) {
   const isServicePo = sourceRequest?.adminAssessment?.requirementType === 'MAINTENANCE'
   const [vendors, setVendors] = useState([])
   const [form, setForm] = useState({ vendorId: '', deliveryAddress: '363, Arcot Road, Kodambakkam, Chennai - 600024', deliveryLocation: sourceRequest?.location || '', expectedDeliveryDate: '', paymentTerms: 'Net 30', notes: sourceRequest ? `Generated for ${sourceRequest.requestNumber}: ${sourceRequest.title}` : '', deliveryCharge: 0 })
-  const [items, setItems] = useState([{ description: isServicePo ? sourceRequest?.title : sourceRequest?.requestedItem || '', specification: sourceRequest?.description || '', brand: '', quantityOrdered: isServicePo ? 1 : sourceRequest?.requestedQuantity || 1, unit: isServicePo ? 'service' : sourceRequest?.requestedUnit || 'pcs', lineSubtotal: 0, taxRate: 18, discount: 0 }])
+  const [items, setItems] = useState([{ description: isServicePo ? sourceRequest?.title : sourceRequest?.requestedItem || '', specification: sourceRequest?.description || '', brand: '', quantityOrdered: isServicePo ? 1 : sourceRequest?.requestedQuantity || 1, unit: isServicePo ? 'service' : normalizeUnit(sourceRequest?.requestedUnit), unitPrice: 0, taxRate: 18, discount: 0 }])
   const [loading, setLoading] = useState(false)
   const { showSuccess, showError } = useAlert()
 
@@ -36,15 +37,15 @@ function CreatePOModal({ onClose, onSaved, sourceRequest }) {
 
   const addItem = () => {
     if (sourceRequest) return
-    setItems(p => [...p, { description: '', specification: '', brand: '', quantityOrdered: 1, unit: 'pcs', lineSubtotal: 0, taxRate: 18, discount: 0 }])
+    setItems(p => [...p, { description: '', specification: '', brand: '', quantityOrdered: 1, unit: 'pcs', unitPrice: 0, taxRate: 18, discount: 0 }])
   }
   const removeItem = idx => setItems(p => p.filter((_, i) => i !== idx))
   const updateItem = (idx, field, val) => setItems(p => p.map((item, i) => i === idx ? { ...item, [field]: val } : item))
 
   const getLineValues = (item) => {
     const quantity = Math.max(1, Number(item.quantityOrdered) || 1)
-    const subtotal = Math.max(0, Number(item.lineSubtotal) || 0)
-    const unitPrice = subtotal / quantity
+    const unitPrice = Math.max(0, Number(item.unitPrice) || 0)
+    const subtotal = quantity * unitPrice
     const discount = Math.max(0, Number(item.discount) || 0)
     const tax = Math.max(0, subtotal - discount) * (Math.max(0, Number(item.taxRate) || 0) / 100)
     return { unitPrice, subtotal, tax, total: subtotal - discount + tax }
@@ -71,7 +72,7 @@ function CreatePOModal({ onClose, onSaved, sourceRequest }) {
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!form.vendorId || !items.some(i => i.description)) return showError('Missing Info', 'Select vendor and add at least one item')
-    if (isServicePo && Number(items[0]?.lineSubtotal || 0) <= 0) return showError('Service Cost Required', 'Enter the approved estimated service cost before creating the Service PO')
+    if (isServicePo && Number(items[0]?.unitPrice || 0) <= 0) return showError('Service Cost Required', 'Enter the approved estimated service cost before creating the Service PO')
     setLoading(true)
     try {
       const normalizedItems = items.map(item => ({ ...item, unitPrice: getLineValues(item).unitPrice }))
@@ -139,24 +140,22 @@ function CreatePOModal({ onClose, onSaved, sourceRequest }) {
                   </div>
                   <div className="sm:col-span-1">
                     <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Unit</label>
-                    <input type="text" value={item.unit} onChange={e => updateItem(idx, 'unit', e.target.value)} readOnly={Boolean(sourceRequest)} placeholder="pcs" className={`w-full mt-1 border border-slate-200 rounded-lg p-2 text-xs focus:outline-none focus:border-violet-500 ${sourceRequest ? 'cursor-not-allowed bg-slate-100 text-slate-600' : 'bg-white'}`} />
+                    <select value={item.unit} onChange={e => updateItem(idx, 'unit', e.target.value)} disabled={Boolean(sourceRequest)} className={`w-full mt-1 border border-slate-200 rounded-lg p-2 text-xs focus:outline-none focus:border-violet-500 ${sourceRequest ? 'cursor-not-allowed bg-slate-100 text-slate-600' : 'bg-white'}`}><UnitOptions /></select>
                   </div>
                   <div className="sm:col-span-3">
-                    <label className="whitespace-nowrap text-[11px] font-bold uppercase tracking-wider text-slate-400">Calculated unit price</label>
-                    <div className="mt-1 flex min-h-[34px] items-center justify-end rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-extrabold text-slate-700">
-                      ₹{getLineValues(item).unitPrice.toFixed(2)}
-                    </div>
+                    <label className="whitespace-nowrap text-[11px] font-bold uppercase tracking-wider text-slate-400">{isServicePo ? 'Estimated service cost (₹) *' : 'Unit price (₹) *'}</label>
+                    <input type="number" value={item.unitPrice} onChange={e => updateItem(idx, 'unitPrice', e.target.value)} min={isServicePo ? '0.01' : '0'} step="0.01" required className="mt-1 w-full rounded-lg border border-violet-300 bg-white p-2 text-xs font-semibold outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100" />
                   </div>
                   <div className="sm:col-span-2">
                     <label className="whitespace-nowrap text-[11px] font-bold uppercase tracking-wider text-slate-400">GST (%) *</label>
                     <input type="number" value={item.taxRate} onChange={e => updateItem(idx, 'taxRate', e.target.value)} min="0" max="100" step="0.01" className="mt-1 w-full rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs font-semibold outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100" />
                   </div>
                   <div className="sm:col-span-3">
-                    <label className="whitespace-nowrap text-[11px] font-bold uppercase tracking-wider text-slate-400">{isServicePo ? 'Estimated service cost (₹) *' : 'Total price (₹) *'}</label>
-                    <input type="number" value={item.lineSubtotal} onChange={e => updateItem(idx, 'lineSubtotal', e.target.value)} min={isServicePo ? '0.01' : '0'} step="0.01" placeholder={isServicePo ? 'Approved service estimate' : 'Full quantity total'} required={isServicePo} className="mt-1 w-full rounded-lg border border-violet-300 bg-white p-2 text-xs font-semibold outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100" />
+                    <label className="whitespace-nowrap text-[11px] font-bold uppercase tracking-wider text-slate-400">Calculated total (₹)</label>
+                    <div className="mt-1 flex min-h-[34px] items-center justify-end rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-extrabold text-slate-700">₹{getLineValues(item).subtotal.toFixed(2)}</div>
                   </div>
                   <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200/70 pt-3 sm:col-span-12">
-                    <span className="text-xs text-slate-500">₹{getLineValues(item).subtotal.toFixed(2)} total ÷ {item.quantityOrdered || 1} {item.unit || 'unit'} = ₹{getLineValues(item).unitPrice.toFixed(2)} per {item.unit || 'unit'} · GST {Number(item.taxRate) || 0}%</span>
+                    <span className="text-xs text-slate-500">{item.quantityOrdered || 1} {item.unit || 'unit'} × ₹{getLineValues(item).unitPrice.toFixed(2)} = ₹{getLineValues(item).subtotal.toFixed(2)} · GST {Number(item.taxRate) || 0}%</span>
                     {items.length > 1 && (
                       <button type="button" onClick={() => removeItem(idx)} className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-600 transition-all hover:bg-rose-100">
                         Remove item

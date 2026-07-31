@@ -1,5 +1,9 @@
 import { PurchaseOrder, Vendor, User, ServiceRequest, GoodsReceipt } from '../models.js'
 
+const roundMoney = value => Math.round((Number(value) + Number.EPSILON) * 100) / 100
+const normalizeUnit = value => ({ pieces: 'pcs', sets: 'set', units: 'unit', boxes: 'box', meters: 'm' }[String(value || '').toLowerCase()] || String(value || 'pcs').toLowerCase())
+const invalidOrder = message => Object.assign(new Error(message), { status: 400 })
+
 async function reconcileLegacyQrClosures() {
   const finalQrPoIds = await GoodsReceipt.distinct('poId', { grnType: 'FINAL', source: 'PO_QR' })
   if (!finalQrPoIds.length) return
@@ -124,7 +128,7 @@ export default async function handler(req, res) {
         }
         const requestedDescription = String(serviceRequest.requestedItem || serviceRequest.title || '').trim().toLowerCase()
         const requestedQuantity = Number(serviceRequest.requestedQuantity || 1)
-        const requestedUnit = String(serviceRequest.requestedUnit || 'pcs').trim().toLowerCase()
+        const requestedUnit = normalizeUnit(serviceRequest.requestedUnit)
         const submittedItem = items[0]
         const isServicePo = serviceRequest.adminAssessment?.requirementType === 'MAINTENANCE'
         const expectedDescription = isServicePo ? String(serviceRequest.title || '').trim().toLowerCase() : requestedDescription
@@ -134,7 +138,7 @@ export default async function handler(req, res) {
           items.length !== 1 ||
           String(submittedItem?.description || '').trim().toLowerCase() !== expectedDescription ||
           Number(submittedItem?.quantityOrdered) !== expectedQuantity ||
-          String(submittedItem?.unit || '').trim().toLowerCase() !== expectedUnit
+          normalizeUnit(submittedItem?.unit) !== expectedUnit
         ) {
           return res.status(400).json({
             success: false,
@@ -149,20 +153,26 @@ export default async function handler(req, res) {
       // Calculate totals
       let subtotal = 0, taxTotal = 0, discountTotal = 0
       const processedItems = items.map(item => {
-        const qty = Number(item.quantityOrdered || 1)
-        const price = Number(item.unitPrice || 0)
+        const qty = Number(item.quantityOrdered)
+        const price = Number(item.unitPrice)
         const parsedTaxRate = Number(item.taxRate)
         const taxRate = Number.isFinite(parsedTaxRate) ? Math.min(100, Math.max(0, parsedTaxRate)) : 18
         const discount = Number(item.discount || 0)
-        const lineSubtotal = qty * price
-        const lineDiscount = discount
-        const lineTax = (lineSubtotal - lineDiscount) * (taxRate / 100)
-        const lineTotal = lineSubtotal - lineDiscount + lineTax
+        if (!Number.isFinite(qty) || qty <= 0 || !Number.isFinite(price) || price < 0 || !Number.isFinite(discount) || discount < 0) {
+          throw invalidOrder(`Invalid quantity, unit price, or discount for ${item.description}`)
+        }
+        const lineSubtotal = roundMoney(qty * price)
+        if (discount > lineSubtotal) throw invalidOrder(`Discount cannot exceed the line subtotal for ${item.description}`)
+        const lineDiscount = roundMoney(discount)
+        const lineTax = roundMoney((lineSubtotal - lineDiscount) * (taxRate / 100))
+        const lineTotal = roundMoney(lineSubtotal - lineDiscount + lineTax)
         subtotal += lineSubtotal; discountTotal += lineDiscount; taxTotal += lineTax
-        return { ...item, productId: generateProductId(), quantityOrdered: qty, unitPrice: price, taxRate, discount, lineTotal, quantityAccepted: 0, quantityRemaining: qty }
+        return { ...item, productId: generateProductId(), quantityOrdered: qty, unit: normalizeUnit(item.unit), unitPrice: roundMoney(price), taxRate, discount: lineDiscount, lineTotal, quantityAccepted: 0, quantityRemaining: qty }
       })
-      const dc = Number(deliveryCharge || 0)
-      const grandTotal = subtotal - discountTotal + taxTotal + dc
+      subtotal = roundMoney(subtotal); discountTotal = roundMoney(discountTotal); taxTotal = roundMoney(taxTotal)
+      const dc = roundMoney(deliveryCharge || 0)
+      if (!Number.isFinite(dc) || dc < 0) return res.status(400).json({ success: false, error: 'Additional or delivery charge must be a valid non-negative amount' })
+      const grandTotal = roundMoney(subtotal - discountTotal + taxTotal + dc)
 
       const year = new Date().getFullYear()
       const rnd = Math.floor(Math.random() * 900000) + 100000
@@ -399,6 +409,6 @@ export default async function handler(req, res) {
     return res.status(405).json({ success: false, error: 'Method not allowed' })
   } catch (err) {
     console.error('Purchase Orders API error:', err)
-    return res.status(500).json({ success: false, error: 'Internal server error' })
+    return res.status(err.status || 500).json({ success: false, error: err.status ? err.message : 'Internal server error' })
   }
 }

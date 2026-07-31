@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useAlert } from '../components/AlertContext'
 import apiClient from '../utils/apiClient'
+import { normalizeUnit, UnitOptions } from '../utils/unitOptions'
 import { getAuthOrNull } from '../utils/auth'
 import { ChevronRight, ArrowLeft, PenTool, Loader2, CheckCircle2, AlertTriangle, ImagePlus, Package, X, FileText, MapPin, Camera, Send } from 'lucide-react'
 
@@ -69,7 +70,7 @@ function CreateRequest() {
           title: request.title || '', category: request.category || 'Classroom Equipment',
           location: request.location || '', assetCode: request.assetCode || '', priority: request.priority || 'LOW',
           emergencyReason: request.emergencyReason || '', requestedItem: request.requestedItem || '',
-          requestedQuantity: String(request.requestedQuantity || 1), requestedUnit: request.requestedUnit || 'pcs',
+          requestedQuantity: String(request.requestedQuantity || 1), requestedUnit: normalizeUnit(request.requestedUnit),
           description: request.description || ''
         }))
         const photo = request.evidence?.find(item => item.kind === 'ISSUE_PHOTO' && item.url?.startsWith('data:image/'))
@@ -311,7 +312,7 @@ function CreateRequest() {
               <div className="sm:col-span-2">
                 <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-600">Unit</label>
                 <select name="requestedUnit" value={formData.requestedUnit} onChange={handleInputChange} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-800 outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500">
-                  <option value="pcs">Pieces</option><option value="sets">Sets</option><option value="units">Units</option><option value="boxes">Boxes</option><option value="meters">Meters</option><option value="service">Service</option>
+                  <UnitOptions />
                 </select>
               </div>
             </div>
