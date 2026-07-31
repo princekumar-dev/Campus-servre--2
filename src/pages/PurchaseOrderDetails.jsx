@@ -23,6 +23,20 @@ const statusConfig = {
 
 const poSteps = ['Draft', 'Signed PO Uploaded', 'Verified & Active', 'Partial Receipt', 'GRN Fulfilled', 'Closed']
 
+const numberValue = value => {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+const money = value => numberValue(value).toFixed(2)
+
+const displayDate = (value, includeTime = false) => {
+  if (!value) return '—'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '—'
+  return includeTime ? date.toLocaleString('en-IN') : date.toLocaleDateString('en-IN')
+}
+
 function StatusTimeline({ currentStatus }) {
   const cfg = statusConfig[currentStatus] || {}
   const currentStep = cfg.step ?? 0
@@ -172,6 +186,8 @@ export default function PurchaseOrderDetails() {
 
   const tabs = ['Overview', 'Items', 'Signed PO', 'History']
   const cfg = statusConfig[po.status] || {}
+  const items = Array.isArray(po.items) ? po.items.filter(item => item && typeof item === 'object') : []
+  const statusHistory = Array.isArray(po.statusHistory) ? po.statusHistory.filter(entry => entry && typeof entry === 'object') : []
   const isPendingSignedPoVerification =
     po.status === 'SUBMITTED_FOR_APPROVAL' &&
     po.signedPo?.status === 'PENDING_VERIFICATION'
@@ -206,7 +222,7 @@ export default function PurchaseOrderDetails() {
         <div className="min-w-0 max-w-full">
           <span className="text-xs font-mono text-violet-600 font-bold">{po.poNumber}</span>
           <h1 className="text-xl font-black text-slate-800 mt-1">{po.vendorName}</h1>
-          <p className="text-sm text-slate-500">Created by {po.createdBy} · {new Date(po.createdAt).toLocaleDateString('en-IN')}</p>
+          <p className="text-sm text-slate-500">Created by {po.createdBy || 'Unknown'} · {displayDate(po.createdAt)}</p>
         </div>
         <div className="flex w-full flex-col gap-3 md:w-auto md:min-w-fit md:items-end">
           <span className={`self-end whitespace-nowrap rounded-full border px-3 py-1 text-xs font-bold ${cfg.color}`}>{cfg.label || po.status}</span>
@@ -217,7 +233,7 @@ export default function PurchaseOrderDetails() {
             </button>
             <div className="min-w-fit text-right">
               <div className="text-xs text-slate-400">Grand Total</div>
-              <div className="whitespace-nowrap text-2xl font-black text-violet-700">₹{(po.grandTotal || 0).toFixed(2)}</div>
+              <div className="whitespace-nowrap text-2xl font-black text-violet-700">₹{money(po.grandTotal)}</div>
             </div>
           </div>
         </div>
@@ -308,7 +324,7 @@ export default function PurchaseOrderDetails() {
               { label: 'Vendor', value: po.vendorName },
               { label: 'Delivery Address', value: po.deliveryAddress },
               { label: 'Payment Terms', value: po.paymentTerms },
-              { label: 'Expected Delivery', value: po.expectedDeliveryDate ? new Date(po.expectedDeliveryDate).toLocaleDateString('en-IN') : '—' },
+              { label: 'Expected Delivery', value: displayDate(po.expectedDeliveryDate) },
               { label: 'Approved By', value: po.approvedBy || '—' },
             ].map(({ label, value }) => (
               <div key={label} className="flex justify-between text-sm">
@@ -320,10 +336,10 @@ export default function PurchaseOrderDetails() {
           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-3">
             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Financial Summary</h3>
             {[
-              { label: 'Subtotal', value: `₹${(po.subtotal || 0).toFixed(2)}` },
-              { label: 'Discount', value: `-₹${(po.discountTotal || 0).toFixed(2)}` },
-              { label: 'GST / Tax', value: `₹${(po.taxTotal || 0).toFixed(2)}` },
-              { label: 'Delivery Charge', value: `₹${(po.deliveryCharge || 0).toFixed(2)}` },
+              { label: 'Subtotal', value: `₹${money(po.subtotal)}` },
+              { label: 'Discount', value: `-₹${money(po.discountTotal)}` },
+              { label: 'GST / Tax', value: `₹${money(po.taxTotal)}` },
+              { label: 'Delivery Charge', value: `₹${money(po.deliveryCharge)}` },
             ].map(({ label, value }) => (
               <div key={label} className="flex justify-between text-sm">
                 <span className="text-slate-500">{label}</span>
@@ -332,7 +348,7 @@ export default function PurchaseOrderDetails() {
             ))}
             <div className="flex justify-between text-sm border-t border-slate-100 pt-3">
               <span className="font-bold text-slate-800">Grand Total</span>
-              <span className="font-black text-violet-700 text-base">₹{(po.grandTotal || 0).toFixed(2)}</span>
+              <span className="font-black text-violet-700 text-base">₹{money(po.grandTotal)}</span>
             </div>
           </div>
         </div>
@@ -341,7 +357,7 @@ export default function PurchaseOrderDetails() {
       {activeTab === 'Items' && (
         <div className="premium-card overflow-hidden">
           <div className="p-5 border-b border-slate-100">
-            <h3 className="font-bold text-slate-800">Line Items ({po.items?.length || 0})</h3>
+            <h3 className="font-bold text-slate-800">Line Items ({items.length})</h3>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
@@ -357,9 +373,10 @@ export default function PurchaseOrderDetails() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {(po.items || []).map((item, idx) => {
-                  const remaining = item.quantityRemaining ?? item.quantityOrdered
-                  const progress = ((item.quantityOrdered - remaining) / item.quantityOrdered) * 100
+                {items.map((item, idx) => {
+                  const ordered = numberValue(item?.quantityOrdered)
+                  const remaining = item?.quantityRemaining == null ? ordered : numberValue(item.quantityRemaining)
+                  const progress = ordered > 0 ? Math.max(0, ((ordered - remaining) / ordered) * 100) : 0
                   return (
                     <tr key={idx} className="hover:bg-slate-50/50">
                       <td className="whitespace-nowrap px-6 py-4 font-mono text-xs font-bold text-violet-700">{item.productId || '—'}</td>
@@ -372,11 +389,11 @@ export default function PurchaseOrderDetails() {
                         </div>
                         <div className="text-[11px] text-slate-400 mt-0.5">{progress.toFixed(0)}% received</div>
                       </td>
-                      <td className="px-6 py-4 text-right text-slate-600">{item.quantityOrdered} {item.unit}</td>
-                      <td className="px-6 py-4 text-right text-emerald-600 font-semibold">{item.quantityAccepted || 0}</td>
+                      <td className="px-6 py-4 text-right text-slate-600">{ordered} {item.unit || 'unit'}</td>
+                      <td className="px-6 py-4 text-right text-emerald-600 font-semibold">{numberValue(item.quantityAccepted)}</td>
                       <td className="px-6 py-4 text-right"><span className={`font-bold ${remaining > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>{remaining}</span></td>
-                      <td className="px-6 py-4 text-right text-slate-600">₹{(item.unitPrice || 0).toFixed(2)}</td>
-                      <td className="px-6 py-4 text-right font-bold text-slate-800">₹{(item.lineTotal || 0).toFixed(2)}</td>
+                      <td className="px-6 py-4 text-right text-slate-600">₹{money(item.unitPrice)}</td>
+                      <td className="px-6 py-4 text-right font-bold text-slate-800">₹{money(item.lineTotal)}</td>
                     </tr>
                   )
                 })}
@@ -398,7 +415,7 @@ export default function PurchaseOrderDetails() {
               po.signedPo?.status === 'PENDING_VERIFICATION' ? 'border-amber-200 bg-amber-50 text-amber-700' :
               po.signedPo?.status === 'REJECTED' ? 'border-rose-200 bg-rose-50 text-rose-700' :
               'border-slate-200 bg-slate-50 text-slate-500'
-            }`}>{po.signedPo?.status?.replace(/_/g, ' ') || 'NOT UPLOADED'}</span>
+            }`}>{po.signedPo?.status ? String(po.signedPo.status).replace(/_/g, ' ') : 'NOT UPLOADED'}</span>
           </div>
           {po.signedPo?.url ? (
             <div className="grid gap-6 p-5 lg:grid-cols-[minmax(0,1fr)_300px]">
@@ -409,9 +426,9 @@ export default function PurchaseOrderDetails() {
                 {[
                   ['File', po.signedPo.name],
                   ['Uploaded by', po.signedPo.uploadedBy],
-                  ['Uploaded at', po.signedPo.uploadedAt ? new Date(po.signedPo.uploadedAt).toLocaleString('en-IN') : '—'],
+                  ['Uploaded at', displayDate(po.signedPo.uploadedAt, true)],
                   ['Verified by', po.signedPo.verifiedBy || 'Pending'],
-                  ['Verified at', po.signedPo.verifiedAt ? new Date(po.signedPo.verifiedAt).toLocaleString('en-IN') : '—'],
+                  ['Verified at', displayDate(po.signedPo.verifiedAt, true)],
                   ['Decision notes', po.signedPo.verificationComment || '—']
                 ].map(([label, value]) => (
                   <div key={label} className="rounded-xl bg-slate-50 p-3">
@@ -436,16 +453,16 @@ export default function PurchaseOrderDetails() {
         <div className="premium-card p-6 space-y-4">
           <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Status History</h3>
           <div className="space-y-3">
-            {(po.statusHistory || []).slice().reverse().map((entry, idx) => (
+            {statusHistory.slice().reverse().map((entry, idx) => (
               <div key={idx} className="flex space-x-3 text-sm">
                 <div className="flex flex-col items-center">
                   <div className="w-2 h-2 rounded-full bg-violet-500 mt-1.5 flex-shrink-0" />
-                  {idx < (po.statusHistory?.length || 0) - 1 && <div className="w-px flex-1 bg-slate-200 mt-1" />}
+                  {idx < statusHistory.length - 1 && <div className="w-px flex-1 bg-slate-200 mt-1" />}
                 </div>
                 <div className="pb-4 flex-1">
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-slate-800">{entry.newStatus?.replace(/_/g, ' ')}</span>
-                    <span className="text-xs text-slate-400">{new Date(entry.createdAt).toLocaleString('en-IN')}</span>
+                    <span className="text-xs text-slate-400">{displayDate(entry.createdAt, true)}</span>
                   </div>
                   {entry.comment && <p className="text-xs text-slate-500 mt-0.5">{entry.comment}</p>}
                   <p className="text-xs text-slate-400 mt-0.5">by {entry.actorName}</p>
