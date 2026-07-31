@@ -129,32 +129,32 @@ function CreatePOModal({ onClose, onSaved, sourceRequest }) {
             </div>
             <div className="space-y-3">
               {items.map((item, idx) => (
-                <div key={idx} className="grid grid-cols-1 gap-3 rounded-xl border border-slate-100 bg-slate-50 p-4 sm:grid-cols-12 sm:gap-x-3 sm:gap-y-2">
-                  <div className="sm:col-span-2">
+                <div key={idx} className="grid grid-cols-1 gap-3 rounded-xl border border-slate-100 bg-slate-50 p-4 sm:grid-cols-3 sm:gap-x-3 sm:gap-y-3">
+                  <div className="min-w-0">
                     <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Description *</label>
                     <input type="text" value={item.description} onChange={e => updateItem(idx, 'description', e.target.value)} readOnly={Boolean(sourceRequest)} placeholder="Item name..." className={`w-full mt-1 border border-slate-200 rounded-lg p-2 text-xs focus:outline-none focus:border-violet-500 ${sourceRequest ? 'cursor-not-allowed bg-slate-100 text-slate-600' : 'bg-white'}`} />
                   </div>
-                  <div className="sm:col-span-1">
+                  <div className="min-w-0">
                     <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Qty *</label>
                     <input type="number" value={item.quantityOrdered} onChange={e => updateItem(idx, 'quantityOrdered', e.target.value)} readOnly={Boolean(sourceRequest)} min="1" className={`w-full mt-1 border border-slate-200 rounded-lg p-2 text-xs focus:outline-none focus:border-violet-500 ${sourceRequest ? 'cursor-not-allowed bg-slate-100 text-slate-600' : 'bg-white'}`} />
                   </div>
-                  <div className="sm:col-span-1">
+                  <div className="min-w-0">
                     <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Unit</label>
                     <select value={item.unit} onChange={e => updateItem(idx, 'unit', e.target.value)} disabled={Boolean(sourceRequest)} className={`w-full mt-1 border border-slate-200 rounded-lg p-2 text-xs focus:outline-none focus:border-violet-500 ${sourceRequest ? 'cursor-not-allowed bg-slate-100 text-slate-600' : 'bg-white'}`}><UnitOptions /></select>
                   </div>
-                  <div className="sm:col-span-3">
-                    <label className="whitespace-nowrap text-[11px] font-bold uppercase tracking-wider text-slate-400">{isServicePo ? 'Estimated service cost (₹) *' : 'Unit price (₹) *'}</label>
+                  <div className="min-w-0">
+                    <label className="block truncate whitespace-nowrap text-[11px] font-bold uppercase tracking-wider text-slate-400" title={isServicePo ? 'Estimated service cost' : 'Unit price'}>{isServicePo ? 'Service cost (₹) *' : 'Unit price (₹) *'}</label>
                     <input type="number" value={item.unitPrice} onChange={e => updateItem(idx, 'unitPrice', e.target.value)} min={isServicePo ? '0.01' : '0'} step="0.01" required className="mt-1 w-full rounded-lg border border-violet-300 bg-white p-2 text-xs font-semibold outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100" />
                   </div>
-                  <div className="sm:col-span-2">
+                  <div className="min-w-0">
                     <label className="whitespace-nowrap text-[11px] font-bold uppercase tracking-wider text-slate-400">GST (%) *</label>
                     <input type="number" value={item.taxRate} onChange={e => updateItem(idx, 'taxRate', e.target.value)} min="0" max="100" step="0.01" className="mt-1 w-full rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs font-semibold outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100" />
                   </div>
-                  <div className="sm:col-span-3">
-                    <label className="whitespace-nowrap text-[11px] font-bold uppercase tracking-wider text-slate-400">Calculated total (₹)</label>
+                  <div className="min-w-0">
+                    <label className="block truncate whitespace-nowrap text-[11px] font-bold uppercase tracking-wider text-slate-400" title="Calculated total">Calculated total (₹)</label>
                     <div className="mt-1 flex min-h-[34px] items-center justify-end rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-extrabold text-slate-700">₹{getLineValues(item).subtotal.toFixed(2)}</div>
                   </div>
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200/70 pt-3 sm:col-span-12">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200/70 pt-3 sm:col-span-full">
                     <span className="text-xs text-slate-500">{item.quantityOrdered || 1} {item.unit || 'unit'} × ₹{getLineValues(item).unitPrice.toFixed(2)} = ₹{getLineValues(item).subtotal.toFixed(2)} · GST {Number(item.taxRate) || 0}%</span>
                     {items.length > 1 && (
                       <button type="button" onClick={() => removeItem(idx)} className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-600 transition-all hover:bg-rose-100">
