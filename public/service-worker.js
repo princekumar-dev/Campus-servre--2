@@ -1,7 +1,6 @@
 // Service Worker for Push Notifications
-const CACHE_NAME = 'msec-connect-v4';
+const CACHE_NAME = 'msec-connect-v5';
 const urlsToCache = [
-  '/',
   '/manifest.json'
 ];
 
@@ -70,29 +69,14 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   
-  // For HTML navigations, use Network First, falling back to cache.
-  // This ensures users always get the latest index.html pointing to correct asset hashes.
+  // Never cache the SPA HTML. A cached authenticated route can reference chunks
+  // from an older Vercel deployment and crash before React can recover.
   if (event.request.mode === 'navigate' || event.request.headers.get('accept')?.includes('text/html')) {
     event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          // Update the cache with the latest version
-          const responseToCache = response.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseToCache);
-          });
-          return response;
-        })
-        .catch(() => {
-          // If network is absent, fall back to cache
-          return caches.match(event.request).then((cachedResponse) => {
-            if (cachedResponse) {
-              return cachedResponse;
-            }
-            // If there's no cache, return the root cache as a last resort
-            return caches.match('/');
-          });
-        })
+      fetch(event.request, { cache: 'no-store' }).catch(() => new Response(
+        '<!doctype html><title>CampusServe offline</title><h1>Connection unavailable</h1><p>Please reconnect and reload.</p>',
+        { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+      ))
     );
     return;
   }

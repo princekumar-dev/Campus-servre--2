@@ -42,6 +42,14 @@ const ROLE_GREETINGS = {
   delivery_person: { title: 'Delivery Dashboard', sub: 'View your delivery schedule and status' },
 }
 
+function formatRelativeTime(value) {
+  if (!value) return 'recently'
+  const date = new Date(value)
+  return Number.isNaN(date.getTime())
+    ? 'recently'
+    : formatDistanceToNow(date, { addSuffix: true })
+}
+
 function SkeletonLoader() {
   return (
     <div className="space-y-8 animate-pulse">
@@ -84,9 +92,11 @@ function Dashboard() {
           apiClient.get('/api/reports', { cache: false }),
           apiClient.get('/api/requests?summary=dashboard', { cache: false })
         ])
-        if (statsRes.success) setStats(statsRes.stats)
+        if (statsRes.success && statsRes.stats && typeof statsRes.stats === 'object') {
+          setStats(current => ({ ...current, ...statsRes.stats }))
+        }
         if (requestsRes.success) {
-          setRecentRequests(requestsRes.data.slice(0, 8))
+          setRecentRequests(Array.isArray(requestsRes.data) ? requestsRes.data.slice(0, 8) : [])
         }
       } catch (err) {
         showError('Fetch Error', 'Failed to retrieve dashboard data')
@@ -135,7 +145,7 @@ function Dashboard() {
     return currentTime.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
   }
 
-  const pieData = stats.byStatus ? Object.entries(stats.byStatus)
+  const pieData = stats.byStatus && typeof stats.byStatus === 'object' ? Object.entries(stats.byStatus)
     .filter(([, v]) => v > 0)
     .map(([name, value]) => ({
       name: name.replace(/_/g, ' '),
@@ -381,8 +391,8 @@ function Dashboard() {
                         </span>
                       </td>
                       <td className="py-3.5">
-                        <span className={`status-badge status-${req.status.toLowerCase()}`}>
-                          {req.status.replace(/_/g, ' ')}
+                        <span className={`status-badge status-${String(req.status || 'pending').toLowerCase()}`}>
+                          {String(req.status || 'PENDING').replace(/_/g, ' ')}
                         </span>
                       </td>
                       <td className="py-3.5 text-right">
@@ -417,7 +427,7 @@ function Dashboard() {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-slate-700 truncate">{req.title}</p>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    {req.status.replace(/_/g, ' ')} · {req.updatedAt ? formatDistanceToNow(new Date(req.updatedAt), { addSuffix: true }) : 'recently'}
+                    {String(req.status || 'PENDING').replace(/_/g, ' ')} · {formatRelativeTime(req.updatedAt)}
                   </p>
                 </div>
                 <Link to={`/requests/${req._id}`} className="opacity-0 group-hover:opacity-100 transition-opacity">

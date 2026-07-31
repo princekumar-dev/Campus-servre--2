@@ -1,5 +1,31 @@
 import React from 'react'
 
+const RECOVERY_KEY = 'campusserve-deployment-recovery'
+
+async function reloadFresh() {
+  try {
+    if ('caches' in window) {
+      const names = await window.caches.keys()
+      await Promise.all(names.map(name => window.caches.delete(name)))
+    }
+    if ('serviceWorker' in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations()
+      await Promise.all(registrations.map(registration => registration.update().catch(() => null)))
+    }
+  } finally {
+    const url = new URL(window.location.href)
+    url.searchParams.set('_deployment', Date.now().toString())
+    window.location.replace(url.toString())
+  }
+}
+
+function isDeploymentAssetError(error) {
+  const message = String(error?.message || error || '').toLowerCase()
+  return ['chunkloaderror', 'loading chunk', 'dynamically imported module', 'module script', 'failed to fetch'].some(
+    text => message.includes(text)
+  )
+}
+
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props)
@@ -16,6 +42,15 @@ class ErrorBoundary extends React.Component {
       error: error,
       errorInfo: errorInfo
     })
+
+    // An open tab can briefly reference a removed Vercel chunk after a new
+    // deployment. Clear only app caches and retry once to prevent a reload loop.
+    if (isDeploymentAssetError(error) && sessionStorage.getItem(RECOVERY_KEY) !== '1') {
+      sessionStorage.setItem(RECOVERY_KEY, '1')
+      reloadFresh()
+    } else {
+      sessionStorage.removeItem(RECOVERY_KEY)
+    }
   }
 
   render() {
@@ -33,10 +68,10 @@ class ErrorBoundary extends React.Component {
               We're sorry, but there was an error loading the application.
             </p>
             <button
-              onClick={() => window.location.reload()}
+              onClick={reloadFresh}
               className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded"
             >
-              Reload Page
+              Reload Latest Version
             </button>
             {process.env.NODE_ENV === 'development' && this.state.error && (
               <details className="mt-4 text-left">
