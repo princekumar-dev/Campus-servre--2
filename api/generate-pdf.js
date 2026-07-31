@@ -401,8 +401,8 @@ export default async function handler(req, res) {
         doc.text('363, Arcot Road, Kodambakkam, Chennai - 600024', textX, headerTop + 34, { width: textWidth, align: 'center', lineBreak: false })
         doc.fillColor(PO.black).font('Helvetica-Bold').fontSize(8)
           .text('MSEC CAMPUSSERVE', textX, headerTop + 48, { width: textWidth, align: 'center', characterSpacing: 0.6, lineBreak: false })
-        doc.fillColor(PO.black).font('Times-Bold').fontSize(17)
-          .text(subtitle, textX + 55, headerTop + 65, { width: textWidth - 110, align: 'center', characterSpacing: 1.25, lineBreak: false })
+        doc.fillColor(PO.black).font('Times-Bold').fontSize(isServicePo ? 15 : 17)
+          .text(subtitle, textX, headerTop + 65, { width: textWidth, align: 'center', characterSpacing: isServicePo ? 0.75 : 1.25, lineBreak: false })
         doc.strokeColor(PO.black).lineWidth(1).moveTo(left, headerTop + 96).lineTo(right, headerTop + 96).stroke()
         doc.strokeColor(PO.accent).lineWidth(2).moveTo(left, headerTop + 96).lineTo(left + 54, headerTop + 96).stroke()
         doc.y = headerTop + 110
@@ -415,20 +415,20 @@ export default async function handler(req, res) {
       field('PO Number', po.poNumber, left + 12, summaryY + 11, 230)
       field('Issue Date', dateText(po.createdAt), 310, summaryY + 11, 230)
       field('Request Reference', linkedRequest?.requestNumber || 'Direct purchase', left + 12, summaryY + 35, 230)
-      field('Expected Delivery', dateText(po.expectedDeliveryDate), 310, summaryY + 35, 230)
+      field(isServicePo ? 'Expected Service' : 'Expected Delivery', dateText(po.expectedDeliveryDate), 310, summaryY + 35, 230)
       doc.y = summaryY + 70
 
-      sectionTitle('Vendor and delivery information')
+      sectionTitle(isServicePo ? 'Service provider and work location' : 'Vendor and delivery information')
       const detailsY = doc.y
-      doc.rect(left, detailsY, 247, 65).fillAndStroke(PO.white, PO.line)
-      doc.rect(306, detailsY, 247, 65).fillAndStroke(PO.white, PO.line)
-      field('Vendor', po.vendorName, left + 10, detailsY + 12, 227)
-      field('Email', po.vendorEmail || 'N/A', left + 10, detailsY + 40, 227)
-      field('Deliver To', po.deliveryAddress, 316, detailsY + 12, 227)
-      field('Location', po.deliveryLocation || linkedRequest?.location || 'MSEC Campus', 316, detailsY + 40, 227)
-      doc.y = detailsY + 77
+      doc.rect(left, detailsY, 247, 86).fillAndStroke(PO.white, PO.line)
+      doc.rect(306, detailsY, 247, 86).fillAndStroke(PO.white, PO.line)
+      field(isServicePo ? 'Service Provider' : 'Vendor', po.vendorName, left + 10, detailsY + 12, 227)
+      field('Email', po.vendorEmail || 'N/A', left + 10, detailsY + 60, 227)
+      field(isServicePo ? 'Service At' : 'Deliver To', po.deliveryAddress, 316, detailsY + 12, 227)
+      field(isServicePo ? 'Asset / Location' : 'Location', po.deliveryLocation || linkedRequest?.location || 'MSEC Campus', 316, detailsY + 60, 227)
+      doc.y = detailsY + 98
 
-      sectionTitle('Order items')
+      sectionTitle(isServicePo ? 'Service scope and approved cost' : 'Order items')
       const columns = [left, left + 28, left + 250, left + 305, left + 380, left + 440]
       const widths = [28, 222, 55, 75, 60, 71]
       const drawTableHeader = () => {
