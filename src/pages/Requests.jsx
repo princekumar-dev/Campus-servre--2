@@ -369,7 +369,7 @@ function Requests() {
           </div>
         ) : (
           <>
-            <div className="space-y-3 p-3 sm:hidden">
+            <div className="space-y-3 p-3 lg:hidden">
               {paginatedRequests.map((req) => (
                 (() => {
                   const guidance = getWorkflowGuidance(req.status, auth?.role)
@@ -399,7 +399,7 @@ function Requests() {
                     </span>
                     {req.isEscalated && <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-1 text-[10px] font-bold text-rose-700"><TimerReset size={10} /> Overdue</span>}
                     <span className="ml-auto text-[10px] text-slate-400">
-                      {req.updatedAt ? formatDistanceToNow(new Date(req.updatedAt), { addSuffix: true }) : ''}
+                      {formatDistanceToNow(new Date(req.updatedAt || req.createdAt), { addSuffix: true })}
                     </span>
                   </div>
                   <div className={`mt-3 rounded-lg px-3 py-2 text-[11px] ${guidance.isMyTurn ? 'bg-violet-50 font-semibold text-violet-700' : 'bg-slate-50 text-slate-500'}`}>
@@ -411,7 +411,7 @@ function Requests() {
               ))}
             </div>
 
-            <div className="requests-table-scroll hidden overflow-x-auto sm:block lg:overflow-x-hidden">
+            <div className="requests-table-scroll hidden overflow-x-auto lg:block lg:overflow-x-hidden">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="border-b border-slate-200 text-xs font-bold text-slate-400 uppercase tracking-wider bg-slate-50/50">
@@ -459,7 +459,7 @@ function Requests() {
                         {req.isEscalated && <span className="ml-1 inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-1 text-[10px] font-bold text-rose-700"><TimerReset size={10} /> Overdue</span>}
                       </td>
                       <td className="py-4 px-2 hidden md:table-cell text-xs text-slate-400">
-                        {req.updatedAt ? formatDistanceToNow(new Date(req.updatedAt), { addSuffix: true }) : '—'}
+                        {formatDistanceToNow(new Date(req.updatedAt || req.createdAt), { addSuffix: true })}
                       </td>
                       <td className="py-4 px-6 text-right">
                         <div className="inline-flex items-center justify-end gap-1.5">

@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { getRoleActionStatuses, getWorkflowGuidance, getWorkflowPhase } from '../utils/workflowGuidance'
 
 describe('workflow guidance', () => {
-  it('directs managers to purchase-order generation', () => {
-    expect(getWorkflowGuidance('ASSIGNED_TO_MANAGER', 'manager')).toMatchObject({ tab: 'Overview', isMyTurn: true, title: 'Generate the purchase order' })
+  it('directs managers through quotation selection before PO generation', () => {
+    expect(getWorkflowGuidance('ASSIGNED_TO_MANAGER', 'manager')).toMatchObject({ tab: 'Quotation', isMyTurn: true, title: 'Collect and compare quotations' })
   })
 
   it('treats removed legacy actions as read-only history', () => {
@@ -22,6 +22,6 @@ describe('workflow guidance', () => {
 
   it('builds role-specific action queues', () => {
     expect(getRoleActionStatuses('admin')).toEqual(['SUBMITTED'])
-    expect(getRoleActionStatuses('manager')).toEqual(['ASSIGNED_TO_MANAGER'])
+    expect(getRoleActionStatuses('manager')).toEqual(['ASSIGNED_TO_MANAGER', 'QUOTATION_IN_PROGRESS', 'QUOTATION_REVISION_REQUIRED', 'QUOTATION_REJECTED'])
   })
 })

@@ -43,11 +43,9 @@ export default defineConfig({
     host: true,
     proxy: {
       '/api': {
-        // For local development: use localhost
-        // For testing with deployed backend: use Render URL
-        target: process.env.VITE_USE_REMOTE_API === 'true' 
-          ? 'https://campus-servre-2.onrender.com'
-          : 'http://localhost:3001',
+        // Local development must use the matching local API. A remote backend
+        // can still be selected deliberately with VITE_API_TARGET.
+        target: process.env.VITE_API_TARGET || 'http://localhost:3001',
         changeOrigin: true,
         secure: false
       }

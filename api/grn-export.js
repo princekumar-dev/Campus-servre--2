@@ -3,6 +3,7 @@ import JSZip from 'jszip'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import sharp from 'sharp'
 import { connectToDatabase } from '../lib/mongo.js'
 import { GoodsReceipt, PurchaseOrder } from '../models.js'
 
@@ -95,6 +96,127 @@ async function grnPdf(po, grn) {
     } catch {
       receiptEvidenceBuffer = null
     }
+  }
+  const serviceBills = []
+  if (grn.source === 'SERVICE_PO') {
+    for (const [index, expense] of (po?.serviceExecution?.expenses || []).entries()) {
+      const bill = expense.bill || {}
+      const match = String(bill.url || '').match(/^data:([^;,]+);base64,(.+)$/s)
+      let buffer = null
+      let preview = null
+      if (match) {
+        try {
+          buffer = Buffer.from(match[2], 'base64')
+          if (match[1].startsWith('image/')) preview = await sharp(buffer).rotate().png().toBuffer()
+        } catch {
+          buffer = null
+          preview = null
+        }
+      }
+      serviceBills.push({
+        index: index + 1,
+        category: expense.category || 'OTHER',
+        description: expense.description || 'Service cost',
+        amount: Number(expense.amount || 0),
+        uploadedBy: expense.uploadedBy,
+        createdAt: expense.createdAt,
+        name: bill.name || `service-bill-${index + 1}`,
+        mimeType: bill.mimeType || match?.[1] || 'application/octet-stream',
+        url: bill.url,
+        buffer,
+        preview
+      })
+    }
+  }
+  if (grn.source === 'SERVICE_PO') {
+    return collectPdf(doc => {
+      const left = 48, width = 505, ink = '#172033', muted = '#5b6472', violet = '#6d28d9', pale = '#f5f3ff'
+      const expenses = po?.serviceExecution?.expenses || []
+      const actualTotal = expenses.reduce((sum, expense) => sum + Number(expense.amount || 0), 0)
+      const drawServiceHeader = subtitle => {
+        if (fs.existsSync(crestPath)) doc.image(crestPath, 48, 38, { fit: [62, 62] })
+        doc.fillColor(ink).font('Helvetica-Bold').fontSize(10).text('MEENAKSHI SUNDARARAJAN ENGINEERING COLLEGE', 110, 43, { width: 380, align: 'center' })
+        doc.font('Helvetica').fontSize(6.2).text('AN AUTONOMOUS INSTITUTION AFFILIATED TO ANNA UNIVERSITY', 110, 59, { width: 380, align: 'center' })
+        doc.text('363, Arcot Road, Kodambakkam, Chennai - 600024', 110, 70, { width: 380, align: 'center' })
+        doc.fillColor(violet).font('Helvetica-Bold').fontSize(6.5).text('MSEC CAMPUSSERVE · SERVICE MANAGEMENT', 110, 82, { width: 380, align: 'center' })
+        doc.fillColor(ink).font('Times-Bold').fontSize(15).text(subtitle, 90, 99, { width: 415, align: 'center' })
+        doc.moveTo(left, 124).lineTo(left + width, 124).lineWidth(1).strokeColor(ink).stroke()
+        doc.moveTo(left, 124).lineTo(left + 72, 124).lineWidth(3).strokeColor(violet).stroke()
+      }
+      const section = (title, y) => {
+        doc.fillColor(ink).font('Helvetica-Bold').fontSize(8).text(title.toUpperCase(), left, y)
+        doc.moveTo(left, y + 14).lineTo(left + width, y + 14).lineWidth(0.6).strokeColor('#cbd5e1').stroke()
+        doc.moveTo(left, y + 14).lineTo(left + 32, y + 14).lineWidth(2).strokeColor(violet).stroke()
+      }
+      const field = (labelText, valueText, x, y, fieldWidth = 220) => {
+        doc.fillColor(muted).font('Helvetica-Bold').fontSize(6).text(labelText.toUpperCase(), x, y, { width: 75 })
+        doc.fillColor(ink).font('Helvetica-Bold').fontSize(7.5).text(String(valueText || '—'), x + 76, y, { width: fieldWidth - 76, ellipsis: true })
+      }
+
+      drawServiceHeader('SERVICE COMPLETION CERTIFICATE')
+      doc.rect(left, 142, width, 74).fillAndStroke(pale, '#ddd6fe')
+      field('Certificate', grn.grnNumber, left + 12, 154, 235)
+      field('Service PO', po?.poNumber || grn.poNumber, 305, 154, 235)
+      field('Completed', date(po?.serviceExecution?.completedAt || grn.receivedAt || grn.createdAt), left + 12, 176, 235)
+      field('Status', 'SERVICE VERIFIED & CLOSED', 305, 176, 235)
+      field('Location', po?.deliveryLocation || po?.deliveryAddress, left + 12, 198, 235)
+      field('Technician', po?.serviceExecution?.technicianName || grn.serviceReceipt?.technicianName, 305, 198, 235)
+
+      section('Service provider and completion details', 238)
+      doc.rect(left, 262, width, 82).fillAndStroke('#ffffff', '#d6d3d1')
+      field('Provider', po?.vendorName, left + 12, 276, 235)
+      field('Verified by', grn.receivedByName || 'Purchase Manager', 305, 276, 235)
+      field('PO estimate', money(po?.grandTotal), left + 12, 300, 235)
+      field('Actual cost', money(actualTotal || grn.grandTotal), 305, 300, 235)
+      field('Bills checked', `${serviceBills.length} supporting bill(s)`, left + 12, 324, 235)
+      field('Evidence', `${grn.serviceReceipt?.evidenceCount || po?.serviceExecution?.workEvidence?.length || 0} work file(s)`, 305, 324, 235)
+
+      section('Work completed', 365)
+      doc.rect(left, 389, width, 68).fillAndStroke('#ffffff', '#d6d3d1')
+      doc.fillColor(ink).font('Helvetica').fontSize(8).text(po?.serviceExecution?.serviceSummary || grn.serviceReceipt?.summary || grn.remarks || 'The approved service scope was completed and verified.', left + 12, 402, { width: width - 24, height: 43, ellipsis: true, lineGap: 2 })
+
+      section('Verified service expenses', 479)
+      let y = 503
+      doc.rect(left, y, width, 22).fill(ink)
+      doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(6.5)
+        .text('#', left + 8, y + 7, { width: 20 }).text('CATEGORY / DESCRIPTION', left + 31, y + 7, { width: 280 }).text('BILL', left + 316, y + 7, { width: 110 }).text('AMOUNT', left + 426, y + 7, { width: 70, align: 'right' })
+      y += 22
+      expenses.slice(0, 6).forEach((expense, index) => {
+        doc.rect(left, y, width, 34).fillAndStroke(index % 2 ? '#ffffff' : '#f8fafc', '#e2e8f0')
+        doc.fillColor(ink).font('Helvetica-Bold').fontSize(6.8).text(String(index + 1), left + 8, y + 11, { width: 20 })
+        doc.text(`${expense.category || 'OTHER'} · ${expense.description || 'Service cost'}`, left + 31, y + 7, { width: 280, height: 20, ellipsis: true })
+        doc.fillColor(muted).font('Helvetica').fontSize(6.2).text(expense.bill?.name || 'No bill', left + 316, y + 10, { width: 110, ellipsis: true })
+        doc.fillColor(ink).font('Helvetica-Bold').fontSize(7).text(money(expense.amount), left + 426, y + 10, { width: 70, align: 'right' })
+        y += 34
+      })
+      doc.fillColor(violet).font('Helvetica-Bold').fontSize(9).text(`TOTAL ACTUAL SERVICE COST: ${money(actualTotal || grn.grandTotal)}`, left, y + 10, { width, align: 'right' })
+
+      const certY = Math.min(710, y + 42)
+      doc.rect(left, certY, width, 54).fillAndStroke(pale, '#ddd6fe')
+      doc.fillColor(ink).font('Helvetica-Bold').fontSize(7.5).text('SERVICE ACCEPTANCE CERTIFICATION', left + 12, certY + 10)
+      doc.font('Helvetica').fontSize(6.7).text('Certified that the service described above was completed, inspected, and accepted. Actual costs and supporting bills were verified against the approved service purchase order.', left + 12, certY + 25, { width: width - 24, height: 23 })
+      doc.fillColor(muted).fontSize(5.5).text(`System-generated service completion certificate · ${new Date().toLocaleString('en-IN')}`, left, 785, { width })
+
+      serviceBills.forEach(bill => {
+        if (bill.buffer) {
+          try { doc.file(bill.buffer, { name: bill.name, description: `${bill.description} · ${money(bill.amount)}` }) } catch { /* annexure remains visible */ }
+        }
+        doc.addPage(); drawServiceHeader(`VERIFIED SERVICE BILL ${bill.index}`)
+        doc.rect(left, 145, width, 58).fillAndStroke(pale, '#ddd6fe')
+        field('Expense', bill.description, left + 12, 158, 300)
+        field('Amount', money(bill.amount), 385, 158, 155)
+        field('Category', bill.category, left + 12, 181, 235)
+        field('File', bill.name, 305, 181, 235)
+        if (bill.preview) {
+          doc.rect(left, 220, width, 510).stroke('#d6d3d1')
+          doc.image(bill.preview, left + 10, 230, { fit: [width - 20, 490], align: 'center', valign: 'center' })
+        } else {
+          doc.rect(left, 260, width, 145).fillAndStroke('#f8fafc', '#d6d3d1')
+          doc.fillColor(ink).font('Helvetica-Bold').fontSize(12).text('ORIGINAL BILL EMBEDDED', left + 20, 305, { width: width - 40, align: 'center' })
+          doc.fillColor(muted).font('Helvetica').fontSize(8).text('Open this PDF’s attachments panel to view the original scanned PDF bill.', left + 30, 335, { width: width - 60, align: 'center' })
+        }
+      })
+    })
   }
   return collectPdf(doc => {
     const items = (grn.items || []).filter(item => Number(item.quantityDeliveredNow || 0) > 0).map(item => {
@@ -275,6 +397,50 @@ async function grnPdf(po, grn) {
       doc.moveTo(left, 774).lineTo(left + width, 774).lineWidth(0.4).strokeColor('#d6d3d1').stroke()
       doc.fillColor('#4b5563').font('Helvetica').fontSize(5.5)
         .text(`Continuation of ${grn.grnNumber} · ${items.length} received products total`, left, 781, { width, lineBreak: false })
+    }
+    if (serviceBills.length) {
+      doc.addPage()
+      if (fs.existsSync(crestPath)) doc.image(crestPath, 48, 42, { fit: [58, 58] })
+      doc.fillColor(ink).font('Helvetica-Bold').fontSize(10)
+        .text('MEENAKSHI SUNDARARAJAN ENGINEERING COLLEGE', 105, 48, { width: 385, align: 'center' })
+      doc.font('Times-Bold').fontSize(14).text('SERVICE BILL REGISTER', 105, 78, { width: 385, align: 'center' })
+      doc.fillColor('#4b5563').font('Helvetica').fontSize(7)
+        .text(`${grn.grnNumber} · PO ${po?.poNumber || grn.poNumber} · ${serviceBills.length} verified bill(s)`, left, 112, { width })
+      doc.moveTo(left, 128).lineTo(left + width, 128).lineWidth(1).strokeColor(ink).stroke()
+      let billY = 148
+      serviceBills.forEach(bill => {
+        doc.rect(left, billY, width, 56).fillAndStroke('#ffffff', '#d6d3d1')
+        doc.fillColor(ink).font('Helvetica-Bold').fontSize(8).text(`${bill.index}. ${bill.description}`, left + 10, billY + 9, { width: 280, ellipsis: true })
+        doc.fillColor('#4b5563').font('Helvetica').fontSize(6.5).text(`${bill.category} · ${bill.name} · ${bill.mimeType}`, left + 10, billY + 25, { width: 360, ellipsis: true })
+        doc.text(`Uploaded by ${bill.uploadedBy || 'Service provider'}${bill.createdAt ? ` on ${date(bill.createdAt)}` : ''}`, left + 10, billY + 39, { width: 360, ellipsis: true })
+        doc.fillColor('#047857').font('Helvetica-Bold').fontSize(10).text(money(bill.amount), left + width - 120, billY + 19, { width: 105, align: 'right' })
+        billY += 64
+      })
+      doc.fillColor(ink).font('Helvetica-Bold').fontSize(9).text(`TOTAL VERIFIED SERVICE BILLS: ${money(serviceBills.reduce((sum, bill) => sum + bill.amount, 0))}`, left, Math.min(735, billY + 8), { width, align: 'right' })
+
+      serviceBills.forEach(bill => {
+        if (bill.buffer) {
+          try { doc.file(bill.buffer, { name: bill.name, description: `${bill.description} · ${money(bill.amount)}` }) } catch { /* visible annexure remains */ }
+        }
+        doc.addPage()
+        if (fs.existsSync(crestPath)) doc.image(crestPath, 48, 42, { fit: [58, 58] })
+        doc.fillColor(ink).font('Helvetica-Bold').fontSize(10).text('MEENAKSHI SUNDARARAJAN ENGINEERING COLLEGE', 105, 48, { width: 385, align: 'center' })
+        doc.font('Times-Bold').fontSize(14).text(`SERVICE BILL ${bill.index}`, 105, 78, { width: 385, align: 'center' })
+        doc.fillColor('#4b5563').font('Helvetica-Bold').fontSize(7).text(`${bill.description} · ${bill.category} · ${money(bill.amount)}`, left, 111, { width })
+        doc.font('Helvetica').fontSize(6.5).text(`File: ${bill.name} (${bill.mimeType})`, left, 124, { width })
+        doc.moveTo(left, 140).lineTo(left + width, 140).lineWidth(0.7).strokeColor('#d6d3d1').stroke()
+        if (bill.preview) {
+          doc.rect(left, 152, width, 575).stroke('#d6d3d1')
+          doc.image(bill.preview, left + 10, 162, { fit: [width - 20, 555], align: 'center', valign: 'center' })
+        } else {
+          doc.rect(left, 190, width, 155).fillAndStroke(pale, '#d6d3d1')
+          doc.fillColor(ink).font('Helvetica-Bold').fontSize(13).text('SCANNED BILL ATTACHED TO THIS PDF', left + 20, 232, { width: width - 40, align: 'center' })
+          doc.fillColor('#4b5563').font('Helvetica').fontSize(9).text('Open the PDF attachments panel and select the bill filename shown above.', left + 30, 265, { width: width - 60, align: 'center' })
+          if (!bill.buffer && /^https?:\/\//.test(String(bill.url || ''))) {
+            doc.fillColor('#2563eb').font('Helvetica-Bold').fontSize(8).text('Open original bill', left + 30, 300, { width: width - 60, align: 'center', link: bill.url, underline: true })
+          }
+        }
+      })
     }
     if (receiptEvidenceBuffer) {
       doc.addPage()
