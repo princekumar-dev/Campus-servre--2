@@ -5,7 +5,7 @@ import ModalShell from '../components/ModalShell'
 import apiClient from '../utils/apiClient'
 import { getAuthOrNull } from '../utils/auth'
 import { normalizeUnit, UnitOptions } from '../utils/unitOptions'
-import { ShoppingCart, Plus, Search, ChevronRight, Clock, CheckCircle2, AlertCircle, Send, XCircle, RefreshCw, Package } from 'lucide-react'
+import { ShoppingCart, Plus, Search, ChevronRight, Clock, CheckCircle2, AlertCircle, Send, XCircle, RefreshCw, Package, FileText } from 'lucide-react'
 
 const statusConfig = {
   DRAFT: { label: 'Draft', color: 'bg-zinc-100 text-zinc-700 border-zinc-300 ring-1 ring-zinc-200' },
@@ -23,11 +23,12 @@ const statusConfig = {
   CANCELLED: { label: 'Cancelled', color: 'bg-slate-200 text-slate-700 border-slate-400 ring-1 ring-slate-300' },
 }
 
-function CreatePOModal({ onClose, onSaved, sourceRequest }) {
+function CreatePOModal({ onClose, onSaved, sourceRequest, selectedQuotation }) {
+  const navigate = useNavigate()
   const isServicePo = sourceRequest?.adminAssessment?.requirementType === 'MAINTENANCE'
   const [vendors, setVendors] = useState([])
-  const [form, setForm] = useState({ vendorId: '', deliveryAddress: '363, Arcot Road, Kodambakkam, Chennai - 600024', deliveryLocation: sourceRequest?.location || '', expectedDeliveryDate: '', paymentTerms: 'Net 30', notes: sourceRequest ? `Generated for ${sourceRequest.requestNumber}: ${sourceRequest.title}` : '', deliveryCharge: 0 })
-  const [items, setItems] = useState([{ description: isServicePo ? sourceRequest?.title : sourceRequest?.requestedItem || '', specification: sourceRequest?.description || '', brand: '', quantityOrdered: isServicePo ? 1 : sourceRequest?.requestedQuantity || 1, unit: isServicePo ? 'service' : normalizeUnit(sourceRequest?.requestedUnit), unitPrice: 0, taxRate: 18, discount: 0 }])
+  const [form, setForm] = useState({ vendorId: selectedQuotation?.vendorId || '', deliveryAddress: '363, Arcot Road, Kodambakkam, Chennai - 600024', deliveryLocation: sourceRequest?.location || '', expectedDeliveryDate: '', paymentTerms: 'Net 30', notes: sourceRequest ? `Generated for ${sourceRequest.requestNumber}: ${sourceRequest.title}` : '', deliveryCharge: 0 })
+  const [items, setItems] = useState(selectedQuotation?.items?.length ? selectedQuotation.items.map(item => ({ description: item.description, specification: sourceRequest?.description || '', brand: '', quantityOrdered: item.quantity, unit: normalizeUnit(item.unit), unitPrice: item.unitPrice, taxRate: item.taxRate, discount: item.discount || 0 })) : [{ description: isServicePo ? sourceRequest?.title : sourceRequest?.requestedItem || '', specification: sourceRequest?.description || '', brand: '', quantityOrdered: isServicePo ? 1 : sourceRequest?.requestedQuantity || 1, unit: isServicePo ? 'service' : normalizeUnit(sourceRequest?.requestedUnit), unitPrice: 0, taxRate: 18, discount: 0 }])
   const [loading, setLoading] = useState(false)
   const { showSuccess, showError } = useAlert()
 
@@ -76,14 +77,14 @@ function CreatePOModal({ onClose, onSaved, sourceRequest }) {
     setLoading(true)
     try {
       const normalizedItems = items.map(item => ({ ...item, unitPrice: getLineValues(item).unitPrice }))
-      const submittedItems = sourceRequest ? [{
+      const submittedItems = sourceRequest && !selectedQuotation ? [{
         ...normalizedItems[0],
         description: isServicePo ? sourceRequest.title : sourceRequest.requestedItem || sourceRequest.title,
         specification: sourceRequest.description || normalizedItems[0].specification,
         quantityOrdered: isServicePo ? 1 : sourceRequest.requestedQuantity || 1,
         unit: isServicePo ? 'service' : sourceRequest.requestedUnit || 'pcs',
       }] : normalizedItems
-      const res = await apiClient.post('/api/purchase-orders', { ...form, requestId: sourceRequest?._id, items: submittedItems })
+      const res = await apiClient.post('/api/purchase-orders', { ...form, requestId: sourceRequest?._id, selectedQuotationId: selectedQuotation?._id, items: submittedItems })
       if (res.success) {
         showSuccess(res.existing ? 'PO Already Created' : 'PO Created', res.existing ? `${res.data.poNumber} opened for this request` : `${res.data.poNumber} created as draft`)
         onSaved(res.data)
@@ -102,10 +103,21 @@ function CreatePOModal({ onClose, onSaved, sourceRequest }) {
         </div>
         <form onSubmit={handleSubmit} className="space-y-5">
           {sourceRequest && (
-            <div className="grid gap-3 rounded-2xl border border-violet-100 bg-violet-50/60 p-4 sm:grid-cols-3">
-              <div><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Request</p><p className="mt-1 text-xs font-extrabold text-violet-700">{sourceRequest.requestNumber}</p></div>
-              <div><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Purpose</p><p className="mt-1 text-xs font-extrabold text-slate-800">{requirementLabel}</p></div>
-              <div><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Requested</p><p className="mt-1 text-xs font-extrabold text-slate-800">{sourceRequest.requestedQuantity || 1} {sourceRequest.requestedUnit || 'pcs'} · {sourceRequest.requestedItem || sourceRequest.title}</p></div>
+            <div className="space-y-3 rounded-2xl border border-violet-100 bg-violet-50/60 p-4">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Request</p><p className="mt-1 text-xs font-extrabold text-violet-700">{sourceRequest.requestNumber}</p></div>
+                <div><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Purpose</p><p className="mt-1 text-xs font-extrabold text-slate-800">{requirementLabel}</p></div>
+                <div><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Requested</p><p className="mt-1 text-xs font-extrabold text-slate-800">{sourceRequest.requestedQuantity || 1} {sourceRequest.requestedUnit || 'pcs'} · {sourceRequest.requestedItem || sourceRequest.title}</p></div>
+              </div>
+              <div className="flex flex-col gap-2 border-t border-violet-100 pt-3 sm:flex-row">
+                <button type="button" onClick={() => navigate(`/quotations?requestId=${sourceRequest._id}&mode=create`)} className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-white px-3 py-2 text-xs font-bold text-violet-700 ring-1 ring-violet-200 transition-all hover:bg-violet-100">
+                  <FileText size={14} /> Create quotation for this request
+                </button>
+                <button type="button" onClick={() => navigate('/quotations')} className="inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-bold text-slate-600 transition-all hover:bg-white hover:text-violet-700">
+                  View all quotations <ChevronRight size={14} />
+                </button>
+              </div>
+              {selectedQuotation && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">Selected quotation: {selectedQuotation.quotationNumber} · {selectedQuotation.vendorName} · ₹{Number(selectedQuotation.grandTotal || 0).toFixed(2)}</div>}
             </div>
           )}
           {/* Vendor */}
@@ -207,7 +219,9 @@ export default function PurchaseOrders() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const requestId = searchParams.get('requestId')
+  const quotationId = searchParams.get('quotationId')
   const [sourceRequest, setSourceRequest] = useState(null)
+  const [selectedQuotation, setSelectedQuotation] = useState(null)
 
   const canCreate = auth?.role === 'manager'
 
@@ -218,13 +232,17 @@ export default function PurchaseOrders() {
 
   useEffect(() => {
     if (!requestId) return
-    apiClient.get(`/api/requests?id=${requestId}`, { cache: false }).then(res => {
-      if (res?.success) {
+    Promise.all([
+      apiClient.get(`/api/requests?id=${requestId}`, { cache: false }),
+      quotationId ? apiClient.get(`/api/quotations?id=${quotationId}`, { cache: false }) : Promise.resolve(null)
+    ]).then(([res, quoteRes]) => {
+      if (res?.success && (!quotationId || quoteRes?.success)) {
         setSourceRequest(res.data)
+        setSelectedQuotation(quoteRes?.data || null)
         setShowCreate(true)
       }
     }).catch(err => showError('Request unavailable', err.message))
-  }, [requestId, showError])
+  }, [requestId, quotationId, showError])
 
   const fetchPOs = useCallback(async () => {
     setIsLoading(true)
@@ -275,7 +293,7 @@ export default function PurchaseOrders() {
 
   return (
     <div className="space-y-6 animate-fadeIn">
-      {showCreate && <CreatePOModal sourceRequest={sourceRequest} onClose={() => setShowCreate(false)} onSaved={(po) => { setShowCreate(false); if (po?._id) navigate(`/purchase-orders/${po._id}`); else fetchPOs() }} />}
+      {showCreate && <CreatePOModal sourceRequest={sourceRequest} selectedQuotation={selectedQuotation} onClose={() => setShowCreate(false)} onSaved={(po) => { setShowCreate(false); if (po?._id) navigate(`/purchase-orders/${po._id}`); else fetchPOs() }} />}
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
         <div>

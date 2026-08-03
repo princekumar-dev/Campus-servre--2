@@ -1,4 +1,4 @@
-import { PurchaseOrder, Vendor, User, ServiceRequest, GoodsReceipt } from '../models.js'
+import { PurchaseOrder, Vendor, VendorQuotation, User, ServiceRequest, GoodsReceipt } from '../models.js'
 
 const roundMoney = value => Math.round((Number(value) + Number.EPSILON) * 100) / 100
 const normalizeUnit = value => ({ pieces: 'pcs', sets: 'set', units: 'unit', boxes: 'box', meters: 'm' }[String(value || '').toLowerCase()] || String(value || 'pcs').toLowerCase())
@@ -92,7 +92,28 @@ export default async function handler(req, res) {
       if (userRole !== 'manager') {
         return res.status(403).json({ success: false, error: 'Only the assigned manager can generate a purchase order' })
       }
-      const { vendorId, requestId, items, deliveryAddress, deliveryLocation, expectedDeliveryDate, paymentTerms, warrantyTerms, notes, deliveryCharge } = req.body
+      const { vendorId: requestedVendorId, selectedQuotationId, requestId, items: requestedItems, deliveryAddress, deliveryLocation, expectedDeliveryDate, paymentTerms, warrantyTerms, notes, deliveryCharge } = req.body
+      let vendorId = requestedVendorId
+      let items = requestedItems
+      let selectedQuotation = null
+      if (selectedQuotationId) {
+        selectedQuotation = await VendorQuotation.findById(selectedQuotationId).lean()
+        if (!selectedQuotation || !selectedQuotation.selected || selectedQuotation.status !== 'SELECTED') {
+          return res.status(400).json({ success: false, error: 'Select a valid quotation before generating the purchase order' })
+        }
+        if (String(selectedQuotation.requestId) !== String(requestId || '')) {
+          return res.status(400).json({ success: false, error: 'The selected quotation does not belong to this indent' })
+        }
+        vendorId = selectedQuotation.vendorId
+        items = selectedQuotation.items.map(item => ({
+          description: item.description,
+          quantityOrdered: item.quantity,
+          unit: item.unit,
+          unitPrice: item.unitPrice,
+          taxRate: item.taxRate,
+          discount: item.discount || 0
+        }))
+      }
       if (!vendorId || !Array.isArray(items) || !items.length || !deliveryAddress) {
         return res.status(400).json({ success: false, error: 'A vendor, at least one item, and a delivery address are required' })
       }
@@ -108,6 +129,13 @@ export default async function handler(req, res) {
         if (!serviceRequest) return res.status(404).json({ success: false, error: 'Service request not found' })
         if (userRole === 'manager' && String(serviceRequest.assignedManagerId) !== String(actorId)) {
           return res.status(403).json({ success: false, error: 'This request is not assigned to you' })
+        }
+        const quotationCount = await VendorQuotation.countDocuments({ requestId })
+        if (quotationCount > 0 && !selectedQuotationId) {
+          return res.status(400).json({ success: false, error: 'Compare and select a quotation before generating the PO' })
+        }
+        if (serviceRequest.selectedQuotationId && String(serviceRequest.selectedQuotationId) !== String(selectedQuotationId || '')) {
+          return res.status(400).json({ success: false, error: 'Generate the PO from the quotation selected for this indent' })
         }
         const existingPo = await PurchaseOrder.findOne({ requestId }).lean()
         // Repeated clicks reopen the order already generated for this request.

@@ -7,7 +7,11 @@ const cache = new Map();
 function buildUrl(url) {
   if (!url) return url;
   if (url.startsWith('http://') || url.startsWith('https://')) return url;
-  const origin = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+  // A developer may have VITE_API_URL set globally for deployments. Never let
+  // that inherited value send a localhost UI to a remote API; local Vite owns
+  // the /api proxy and points it at the matching local backend.
+  const isLocalhost = typeof window !== 'undefined' && ['localhost', '127.0.0.1'].includes(window.location.hostname);
+  const origin = (isLocalhost ? '' : (import.meta.env.VITE_API_URL || '')).replace(/\/$/, '');
   const path = url.startsWith('/') ? url : `/${url}`;
   return `${origin}${path}`;
 }

@@ -2,10 +2,10 @@ const guidance = {
   DRAFT: { tab: 'Overview', owner: 'requester', title: 'Submit this request', description: 'Review the details, then submit it for administrative review.' },
   SUBMITTED: { tab: 'Overview', owner: 'admin', title: 'Admin triage required', description: 'Classify the requirement as maintenance, replacement, or new purchase, then assign a manager.' },
   UNDER_ADMIN_REVIEW: { tab: 'Overview', owner: 'admin', title: 'Complete the administrative review', description: 'Approve, reject, or return the request with a clear comment.' },
-  CLARIFICATION_REQUIRED: { tab: 'Overview', owner: 'requester', title: 'Clarification requested', description: 'Add the missing information and resubmit the request.' },
+  CLARIFICATION_REQUIRED: { tab: 'History', owner: null, title: 'Archived clarification record', description: 'This status belongs to the previous service workflow and is available for reference only.' },
   REOPENED: { tab: 'Overview', owner: 'super_admin', title: 'Review the reopened request', description: 'Confirm the new information and move the request forward.' },
   APPROVED: { tab: 'Overview', owner: 'super_admin', title: 'Assign an operations manager', description: 'Choose the manager who will inspect and scope the work.' },
-  ASSIGNED_TO_MANAGER: { tab: 'Overview', owner: 'manager', title: 'Generate the purchase order', description: 'Review the admin classification, select a vendor, confirm items and pricing, then generate the PO.' },
+  ASSIGNED_TO_MANAGER: { tab: 'Quotation', owner: 'manager', title: 'Collect and compare quotations', description: 'Add vendor quotations for this indent, select the preferred offer, then generate the PO.' },
   PURCHASE_ORDER_CREATED: { tab: 'Overview', owner: null, title: 'Purchase order generated', description: 'The assigned manager generated the purchase order for this request.' },
   UNDER_INSPECTION: { tab: 'Diagnosis', owner: 'manager', title: 'Finish the inspection', description: 'Complete the diagnosis so a quotation can be prepared.' },
   QUOTATION_IN_PROGRESS: { tab: 'Quotation', owner: 'manager', title: 'Prepare the quotation', description: 'Add scoped items and terms, then submit the quotation for approval.' },
@@ -18,7 +18,7 @@ const guidance = {
   PAUSED: { tab: 'Work Order', owner: 'technician', title: 'Resume or update the work', description: 'Record what is blocking progress, then resume when ready.' },
   IN_PROGRESS: { tab: 'Work Order', owner: 'technician', title: 'Update service progress', description: 'Record progress, materials, and completion details as the work advances.' },
   ADDITIONAL_COST_PENDING: { tab: 'Work Order', owner: 'super_admin', title: 'Review the additional cost', description: 'Approve or reject the cost request so work can continue.' },
-  TECHNICIAN_COMPLETED: { tab: 'Overview', owner: 'requester', title: 'Verify the completed service', description: 'Confirm the outcome, rate the service, or reopen the request.' },
+  TECHNICIAN_COMPLETED: { tab: 'History', owner: null, title: 'Archived service record', description: 'This status belongs to the previous service workflow and is available for reference only.' },
   SERVICE_VERIFIED: { tab: 'Invoice', owner: 'manager', title: 'Create the invoice', description: 'Use the approved scope and final work details to prepare the invoice.' },
   INVOICE_IN_PROGRESS: { tab: 'Invoice', owner: 'manager', title: 'Finish the invoice', description: 'Check totals and supporting details, then submit it for approval.' },
   INVOICE_REVISION_REQUIRED: { tab: 'Invoice', owner: 'manager', title: 'Revise the invoice', description: 'Address the finance review comments and resubmit it.' },
@@ -43,7 +43,7 @@ const normalizeRole = role => ['hod', 'staff'].includes(role) ? 'requester' : ro
 export const WORKFLOW_PHASES = [
   { key: 'request', label: 'Intent Request', short: 'Request', statuses: ['DRAFT'] },
   { key: 'review', label: 'Admin Review', short: 'Review', statuses: ['SUBMITTED'] },
-  { key: 'assignment', label: 'PM Assignment', short: 'Assigned', statuses: ['ASSIGNED_TO_MANAGER'] },
+  { key: 'assignment', label: 'Quotation & Selection', short: 'Quotation', statuses: ['ASSIGNED_TO_MANAGER', 'QUOTATION_IN_PROGRESS', 'QUOTATION_REVISION_REQUIRED', 'QUOTATION_REJECTED'] },
   { key: 'order', label: 'Order Created', short: 'Order', statuses: ['PURCHASE_ORDER_CREATED'] },
   { key: 'complete', label: 'Completed', short: 'Complete', statuses: ['CLOSED'] },
 ]
@@ -53,7 +53,7 @@ export const ROLE_ACTION_STATUSES = {
   admin: ['SUBMITTED'],
   // Super admins can perform admin triage and must see the same pending list.
   super_admin: ['SUBMITTED'],
-  manager: ['ASSIGNED_TO_MANAGER'],
+  manager: ['ASSIGNED_TO_MANAGER', 'QUOTATION_IN_PROGRESS', 'QUOTATION_REVISION_REQUIRED', 'QUOTATION_REJECTED'],
   technician: [],
   accounts: [],
 }
@@ -67,10 +67,7 @@ export function getWorkflowPhase(status) {
 }
 
 export function getWorkflowGuidance(status, role) {
-  const activeStatuses = new Set(['DRAFT', 'SUBMITTED', 'ASSIGNED_TO_MANAGER', 'PURCHASE_ORDER_CREATED', 'CLOSED', 'REJECTED', 'CANCELLED'])
-  const item = activeStatuses.has(status)
-    ? guidance[status]
-    : { tab: 'History', owner: null, title: 'Archived workflow record', description: 'This request belongs to the previous workflow and is available for reference only.' }
+  const item = guidance[status] || { tab: 'History', owner: null, title: 'Archived workflow record', description: 'This request belongs to the previous workflow and is available for reference only.' }
   const normalizedRole = normalizeRole(role)
   return {
     ...item,

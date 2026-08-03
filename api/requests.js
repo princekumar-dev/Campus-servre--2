@@ -57,7 +57,13 @@ export default async function handler(req, res) {
       }
       const requests = await requestsQuery.lean()
       const now = Date.now()
-      const data = requests.map(item => ({ ...item, isEscalated: Boolean(item.slaDueAt && new Date(item.slaDueAt).getTime() < now && !['CLOSED', 'REJECTED', 'CANCELLED'].includes(item.status)) }))
+      const data = requests.map(item => ({
+        ...item,
+        // Legacy requests predate automatic timestamps. Use their latest audit
+        // entry (or creation time) so list views never render an empty update.
+        updatedAt: item.updatedAt || item.statusHistory?.[item.statusHistory.length - 1]?.createdAt || item.createdAt,
+        isEscalated: Boolean(item.slaDueAt && new Date(item.slaDueAt).getTime() < now && !['CLOSED', 'REJECTED', 'CANCELLED'].includes(item.status))
+      }))
       return res.status(200).json({ success: true, data })
     }
 

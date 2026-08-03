@@ -47,6 +47,7 @@ const ServiceRequestSchema = new mongoose.Schema({
   
   assignedManagerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   assignedManagerName: { type: String },
+  selectedQuotationId: { type: mongoose.Schema.Types.ObjectId, ref: 'VendorQuotation' },
   assignedManagerEmail: { type: String },
   
   createdAt: { type: Date, default: Date.now },
@@ -84,6 +85,10 @@ const ServiceRequestSchema = new mongoose.Schema({
   
   quotation: {
     quotationNumber: { type: String },
+    vendorId: { type: mongoose.Schema.Types.ObjectId, ref: 'Vendor' },
+    vendorName: { type: String },
+    vendorCode: { type: String },
+    vendorEmail: { type: String },
     version: { type: Number, default: 1 },
     status: { type: String, enum: ['DRAFT', 'SUBMITTED', 'REVISION_REQUIRED', 'APPROVED', 'REJECTED'] },
     subtotal: { type: Number, default: 0 },
@@ -190,7 +195,7 @@ const ServiceRequestSchema = new mongoose.Schema({
     recordedBy: { type: String },
     notes: { type: String }
   }]
-})
+}, { timestamps: true })
 
 ServiceRequestSchema.index({ status: 1 })
 ServiceRequestSchema.index({ requesterId: 1 })
@@ -227,6 +232,42 @@ const VendorSchema = new mongoose.Schema({
   createdBy: { type: String }
 })
 VendorSchema.index({ status: 1 })
+
+// ─── Vendor Quotation Schema ─────────────────────────────────────────────────
+// Kept as separate records so one indent/request can compare multiple vendors.
+const VendorQuotationSchema = new mongoose.Schema({
+  quotationNumber: { type: String, required: true, unique: true },
+  requestId: { type: mongoose.Schema.Types.ObjectId, ref: 'ServiceRequest', required: true, index: true },
+  requestNumber: { type: String },
+  requestTitle: { type: String },
+  assignedManagerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  vendorId: { type: mongoose.Schema.Types.ObjectId, ref: 'Vendor', required: true },
+  vendorName: { type: String, required: true },
+  vendorCode: { type: String },
+  vendorEmail: { type: String },
+  status: { type: String, enum: ['DRAFT', 'SELECTED', 'NOT_SELECTED'], default: 'DRAFT' },
+  selected: { type: Boolean, default: false },
+  selectedBy: { type: String },
+  selectedAt: { type: Date },
+  subtotal: { type: Number, default: 0 },
+  taxTotal: { type: Number, default: 0 },
+  discountTotal: { type: Number, default: 0 },
+  grandTotal: { type: Number, default: 0 },
+  validUntil: { type: Date },
+  terms: { type: String },
+  createdBy: { type: String },
+  items: [{
+    itemType: { type: String, enum: ['MATERIAL', 'LABOUR', 'SERVICE'], default: 'MATERIAL' },
+    description: { type: String, required: true },
+    quantity: { type: Number, required: true },
+    unit: { type: String, required: true },
+    unitPrice: { type: Number, required: true },
+    taxRate: { type: Number, default: 18 },
+    discount: { type: Number, default: 0 },
+    lineTotal: { type: Number, required: true }
+  }]
+}, { timestamps: true })
+VendorQuotationSchema.index({ requestId: 1, vendorId: 1, createdAt: -1 })
 
 // ─── Purchase Order Schema ────────────────────────────────────────────────────
 const PurchaseOrderSchema = new mongoose.Schema({
@@ -541,6 +582,7 @@ export const User = mongoose.models.User || mongoose.model('User', UserSchema)
 export const ServiceRequest = mongoose.models.ServiceRequest || mongoose.model('ServiceRequest', ServiceRequestSchema)
 export const Notification = mongoose.models.Notification || mongoose.model('Notification', NotificationSchema)
 export const Vendor = mongoose.models.Vendor || mongoose.model('Vendor', VendorSchema)
+export const VendorQuotation = mongoose.models.VendorQuotation || mongoose.model('VendorQuotation', VendorQuotationSchema)
 export const PurchaseOrder = mongoose.models.PurchaseOrder || mongoose.model('PurchaseOrder', PurchaseOrderSchema)
 export const DeliveryPerson = mongoose.models.DeliveryPerson || mongoose.model('DeliveryPerson', DeliveryPersonSchema)
 export const Vehicle = mongoose.models.Vehicle || mongoose.model('Vehicle', VehicleSchema)

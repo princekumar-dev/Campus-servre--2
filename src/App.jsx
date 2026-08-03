@@ -32,6 +32,7 @@ const SignUp = lazy(() => import('./pages/SignUp'))
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword'))
 const NotFound = lazy(() => import('./pages/NotFound'))
 const Vendors = lazy(() => import('./pages/Vendors'))
+const ManagerQuotations = lazy(() => import('./pages/ManagerQuotations'))
 const PurchaseOrders = lazy(() => import('./pages/PurchaseOrders'))
 const PurchaseOrderDetails = lazy(() => import('./pages/PurchaseOrderDetails'))
 const Deliveries = lazy(() => import('./pages/Deliveries'))
@@ -232,6 +233,7 @@ function AppContent() {
                   
                   {/* Vendor routes */}
                   <Route path="/vendors" element={<ProtectedRoute allowedRoles={['super_admin', 'manager']}><Vendors /></ProtectedRoute>} />
+                  <Route path="/quotations" element={<ProtectedRoute allowedRoles={['super_admin', 'manager']}><ManagerQuotations /></ProtectedRoute>} />
                   
                   {/* Purchase Orders */}
                   <Route path="/purchase-orders" element={<ProtectedRoute allowedRoles={['admin', 'super_admin', 'manager', 'vendor']}><PurchaseOrders /></ProtectedRoute>} />

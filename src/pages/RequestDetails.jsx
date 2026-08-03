@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAlert } from '../components/AlertContext'
 import apiClient from '../utils/apiClient'
 import { getAuthOrNull } from '../utils/auth'
@@ -187,11 +187,12 @@ function ActionButton({ onClick, loading, variant = 'primary', disabled, childre
 function RequestDetails() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { showSuccess, showError } = useAlert()
   const auth = getAuthOrNull()
 
   const [request, setRequest] = useState(null)
-  const [activeTab, setActiveTab] = useState('Overview')
+  const [activeTab, setActiveTab] = useState(() => searchParams.get('tab') || 'Overview')
   const [isLoading, setIsLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
 
@@ -339,6 +340,12 @@ function RequestDetails() {
     window.open(`${origin}/api/generate-pdf?type=${type}&id=${id}`, '_blank')
   }
 
+  const openSelectedQuotationPdf = () => {
+    if (!request?.selectedQuotationId) return
+    const origin = import.meta.env.VITE_API_URL || ''
+    window.open(`${origin}/api/generate-pdf?type=vendor-quotation&id=${request.selectedQuotationId}`, '_blank', 'noopener,noreferrer')
+  }
+
   const addEvidence = async () => {
     if (!evidenceName.trim() || !evidenceUrl.trim()) {
       showError('Evidence required', 'Upload a photo or add a valid document link')
@@ -393,6 +400,15 @@ function RequestDetails() {
 
   const nextAction = getWorkflowGuidance(request?.status, auth?.role)
   const visibleTabs = TABS
+
+  const openNextAction = () => {
+    if (nextAction.tab === 'Quotation' && auth?.role === 'manager') {
+      navigate(`/quotations?requestId=${id}`)
+      return
+    }
+    setActiveTab(nextAction.tab)
+    requestAnimationFrame(() => document.querySelector('.request-detail-tabs')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+  }
 
   const isRequestOwner = request && String(request.requesterId) === String(auth?.id)
   const canManageRequest = isRequestOwner
@@ -485,7 +501,7 @@ function RequestDetails() {
           </div>
           <button
             type="button"
-            onClick={() => setActiveTab(nextAction.tab)}
+            onClick={openNextAction}
             className={`inline-flex flex-shrink-0 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all ${
               nextAction.isMyTurn ? 'bg-violet-600 text-white hover:bg-violet-700' : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
             }`}
@@ -494,6 +510,26 @@ function RequestDetails() {
           </button>
         </div>
       </section>
+
+      {auth?.role === 'manager' && ['ASSIGNED_TO_MANAGER', 'QUOTATION_IN_PROGRESS', 'QUOTATION_REVISION_REQUIRED', 'QUOTATION_REJECTED'].includes(request.status) && (
+        <section className="rounded-2xl border border-violet-200 bg-white p-4 shadow-sm sm:p-5" aria-labelledby="procurement-actions-title">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-violet-500">Quotation in progress</p>
+              <h2 id="procurement-actions-title" className="mt-1 text-sm font-extrabold text-slate-900">Quotation and purchase-order actions</h2>
+              <p className="mt-1 text-xs text-slate-500">Compare vendor quotations, select one, then create the PO from the selected quotation.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => navigate(`/quotations?requestId=${id}&mode=create`)} className="inline-flex items-center gap-2 rounded-xl border border-violet-200 px-4 py-2.5 text-xs font-bold text-violet-700 hover:bg-violet-50"><Plus size={14} /> Add quotation</button>
+              <button type="button" onClick={() => navigate(`/quotations?requestId=${id}`)} className="inline-flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-violet-700">View quotations <ChevronRight size={14} /></button>
+              {request.selectedQuotationId && <>
+                <button type="button" onClick={openSelectedQuotationPdf} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50"><Download size={14} /> Quotation PDF</button>
+                <button type="button" onClick={() => navigate(`/purchase-orders?requestId=${id}&quotationId=${request.selectedQuotationId}`)} className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-emerald-700"><FileCheck size={14} /> Create PO</button>
+              </>}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Hero Header */}
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">

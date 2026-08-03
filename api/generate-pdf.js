@@ -1,5 +1,5 @@
 import { connectToDatabase } from '../lib/mongo.js'
-import { ServiceRequest, PurchaseOrder, GoodsReceipt } from '../models.js'
+import { ServiceRequest, PurchaseOrder, GoodsReceipt, VendorQuotation } from '../models.js'
 import PDFDocument from 'pdfkit'
 import sharp from 'sharp'
 import QRCode from 'qrcode'
@@ -302,6 +302,14 @@ export default async function handler(req, res) {
   }
 
   try {
+    if (type === 'vendor-quotation') {
+      const quotation = await VendorQuotation.findById(id).lean()
+      if (!quotation) return res.status(404).json({ success: false, error: 'Quotation not found' })
+      const request = await ServiceRequest.findById(quotation.requestId).lean()
+      if (!request) return res.status(404).json({ success: false, error: 'Linked request not found' })
+      return renderServiceDocument(res, 'quotation', { ...request, quotation })
+    }
+
     if (type === 'purchase-order') {
       const po = await PurchaseOrder.findById(id).lean()
       if (!po) return res.status(404).json({ success: false, error: 'Purchase Order not found' })

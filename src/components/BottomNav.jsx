@@ -142,6 +142,7 @@ function BottomNav() {
         <NavItem to="/dashboard" icon={LayoutDashboard} label="Home" isActive={location.pathname === '/dashboard'} />
         <NavItem to="/requests" icon={ClipboardList} label="Assigned" isActive={isActive('/requests')} />
         <NavItem to="/vendors" icon={Building2} label="Vendors" isActive={isActive('/vendors')} />
+        <NavItem to="/quotations" icon={FileText} label="Quotes" isActive={isActive('/quotations')} />
         <NavItem to="/purchase-orders" icon={ShoppingCart} label="POs" isActive={isActive('/purchase-orders')} />
       </div>
     )
