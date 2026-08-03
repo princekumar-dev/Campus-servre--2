@@ -166,7 +166,7 @@ function Dashboard() {
     }
     if (auth?.role === 'manager') {
       return [
-        { label: 'Assigned Requests', value: stats.assignedRequests, icon: ClipboardCheck, bg: 'bg-violet-50', textColor: 'text-violet-600', sub: 'Ready for PO creation' },
+        { label: 'Assigned Requests', value: stats.assignedRequests, icon: ClipboardCheck, bg: 'bg-violet-50', textColor: 'text-violet-600', sub: 'Ready for diagnosis and quotation' },
         { label: 'Draft / Revision POs', value: stats.draftPOs, icon: FileCheck, bg: 'bg-amber-50', textColor: 'text-amber-600', sub: 'Signed proof required' },
         { label: 'Awaiting Admin Verification', value: stats.signedPOsPending, icon: Clock, bg: 'bg-blue-50', textColor: 'text-blue-600', sub: 'Signed proof submitted' },
         { label: 'Completed POs', value: (stats.fulfilledPOs || 0) + (stats.closedPOs || 0), icon: CheckCircle2, bg: 'bg-emerald-50', textColor: 'text-emerald-600', sub: 'Fulfilled or closed' },
@@ -207,7 +207,7 @@ function Dashboard() {
     return [
       { label: 'Total Requests', value: stats.totalRequests, icon: ClipboardList, bg: 'bg-violet-50', textColor: 'text-violet-600', sub: 'Requests submitted' },
       { label: 'Awaiting Admin', value: stats.byStatus?.submitted, icon: Clock, bg: 'bg-amber-50', textColor: 'text-amber-600', sub: 'Pending classification' },
-      { label: 'Assigned to Manager', value: stats.assignedRequests, icon: Wrench, bg: 'bg-blue-50', textColor: 'text-blue-600', sub: 'PO preparation' },
+      { label: 'Assigned to Manager', value: stats.assignedRequests, icon: Wrench, bg: 'bg-blue-50', textColor: 'text-blue-600', sub: 'Diagnosis and quotation' },
       { label: 'PO Completed', value: (stats.fulfilledPOs || 0) + (stats.closedPOs || 0), icon: CheckCircle2, bg: 'bg-emerald-50', textColor: 'text-emerald-600', sub: 'Fulfilled or closed' },
     ]
   }

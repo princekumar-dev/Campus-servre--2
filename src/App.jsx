@@ -51,6 +51,7 @@ const AccountsDashboard = lazy(() => import('./pages/AccountsDashboard'))
 const AccountsPayments = lazy(() => import('./pages/AccountsPayments'))
 const ManagerDeliveryPersons = lazy(() => import('./pages/ManagerDeliveryPersons'))
 const ManagerVehicles = lazy(() => import('./pages/ManagerVehicles'))
+const ManagerQuotations = lazy(() => import('./pages/ManagerQuotations'))
 
 // Root route handler
 const RootRedirect = () => {
@@ -267,6 +268,7 @@ function AppContent() {
                   <Route path="/accounts/payments" element={<ProtectedRoute allowedRoles={['admin', 'super_admin', 'accounts']}><AccountsPayments /></ProtectedRoute>} />
                   
                   {/* Manager routes */}
+                  <Route path="/manager/quotations" element={<ProtectedRoute allowedRoles={['manager']}><ManagerQuotations /></ProtectedRoute>} />
                   <Route path="/manager/delivery-persons" element={<ProtectedRoute allowedRoles={['admin', 'super_admin', 'manager']}><ManagerDeliveryPersons /></ProtectedRoute>} />
                   <Route path="/manager/vehicles" element={<ProtectedRoute allowedRoles={['admin', 'super_admin', 'manager']}><ManagerVehicles /></ProtectedRoute>} />
                   
