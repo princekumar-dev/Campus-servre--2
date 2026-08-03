@@ -13,29 +13,24 @@ const TRACKING_FILTERS = {
   requester: [
     { label: 'All', value: 'ALL' }, { label: 'Draft', value: 'DRAFT' },
     { label: 'Admin Review', value: 'SUBMITTED' }, { label: 'Assigned to PM', value: 'ASSIGNED_TO_MANAGER' },
-    { label: 'Quotation', value: 'QUOTATION_IN_PROGRESS' }, { label: 'Work Order', value: 'WORK_ORDER_CREATED' }, { label: 'Closed', value: 'CLOSED' },
+    { label: 'Order Created', value: 'PURCHASE_ORDER_CREATED' }, { label: 'Closed', value: 'CLOSED' },
   ],
   admin: [
     { label: 'All', value: 'ALL' }, { label: 'Needs Triage', value: 'SUBMITTED' },
-    { label: 'Assigned to PM', value: 'ASSIGNED_TO_MANAGER' }, { label: 'Quotation Review', value: 'QUOTATION_SUBMITTED' },
+    { label: 'Assigned to PM', value: 'ASSIGNED_TO_MANAGER' }, { label: 'Order Created', value: 'PURCHASE_ORDER_CREATED' },
     { label: 'Closed', value: 'CLOSED' },
   ],
   manager: [
-    { label: 'All', value: 'ALL' }, { label: 'Needs Diagnosis', value: 'ASSIGNED_TO_MANAGER' },
-    { label: 'Quotation Drafting', value: 'QUOTATION_IN_PROGRESS' }, { label: 'Quotation Revision', value: 'QUOTATION_REVISION_REQUIRED' },
-    { label: 'Work Order', value: 'WORK_ORDER_CREATED' }, { label: 'Closed', value: 'CLOSED' },
+    { label: 'All', value: 'ALL' }, { label: 'Ready for PO', value: 'ASSIGNED_TO_MANAGER' },
+    { label: 'Order Created', value: 'PURCHASE_ORDER_CREATED' }, { label: 'Closed', value: 'CLOSED' },
   ],
 }
 
 const STATUS_PRESENTATION = {
   DRAFT: { label: 'Draft', helper: 'Not submitted yet', color: 'bg-slate-100 text-slate-700 border-slate-200' },
   SUBMITTED: { label: 'Admin Review', helper: 'Waiting for classification', color: 'bg-amber-50 text-amber-700 border-amber-200' },
-  ASSIGNED_TO_MANAGER: { label: 'Assigned to PM', helper: 'Ready for diagnosis and quotation', color: 'bg-blue-50 text-blue-700 border-blue-200' },
-  QUOTATION_IN_PROGRESS: { label: 'Quotation In Progress', helper: 'Manager is drafting the quotation', color: 'bg-amber-50 text-amber-700 border-amber-200' },
-  QUOTATION_REVISION_REQUIRED: { label: 'Quotation Revision', helper: 'Quotation needs manager updates', color: 'bg-rose-50 text-rose-700 border-rose-200' },
-  QUOTATION_SUBMITTED: { label: 'Quotation Submitted', helper: 'Waiting for admin review', color: 'bg-blue-50 text-blue-700 border-blue-200' },
-  QUOTATION_APPROVED: { label: 'Quotation Approved', helper: 'Ready for work order creation', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  WORK_ORDER_CREATED: { label: 'Work Order Created', helper: 'Work order has been generated', color: 'bg-violet-50 text-violet-700 border-violet-200' },
+  ASSIGNED_TO_MANAGER: { label: 'Assigned to PM', helper: 'Ready for order creation', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+  PURCHASE_ORDER_CREATED: { label: 'Order Created', helper: 'Purchase order generated', color: 'bg-violet-50 text-violet-700 border-violet-200' },
   CLOSED: { label: 'Closed', helper: 'Workflow completed', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
   REJECTED: { label: 'Rejected', helper: 'Request was not approved', color: 'bg-rose-50 text-rose-700 border-rose-200' },
   CANCELLED: { label: 'Cancelled', helper: 'Request was cancelled', color: 'bg-slate-100 text-slate-600 border-slate-200' },
@@ -479,7 +474,7 @@ function Requests() {
                             </button>
                           )}
                           <Link
-                            to={`/requests/${req._id}?tab=${encodeURIComponent(getWorkflowGuidance(req.status, auth?.role).tab || 'Overview')}`}
+                            to={`/requests/${req._id}`}
                             className="inline-flex items-center gap-1 bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs py-1.5 px-3 rounded-lg shadow-sm transition-all group"
                           >
                             {getWorkflowGuidance(req.status, auth?.role).isMyTurn ? 'Take action' : 'View'} <ArrowRight size={10} className="group-hover:translate-x-0.5 transition-transform" />

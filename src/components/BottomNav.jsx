@@ -141,7 +141,6 @@ function BottomNav() {
       <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-md border-t border-violet-900/30 px-1 py-1.5 flex items-center justify-around safe-area-inset-bottom">
         <NavItem to="/dashboard" icon={LayoutDashboard} label="Home" isActive={location.pathname === '/dashboard'} />
         <NavItem to="/requests" icon={ClipboardList} label="Assigned" isActive={isActive('/requests')} />
-        <NavItem to="/manager/quotations" icon={FileText} label="Quotes" isActive={isActive('/manager/quotations')} />
         <NavItem to="/vendors" icon={Building2} label="Vendors" isActive={isActive('/vendors')} />
         <NavItem to="/purchase-orders" icon={ShoppingCart} label="POs" isActive={isActive('/purchase-orders')} />
       </div>

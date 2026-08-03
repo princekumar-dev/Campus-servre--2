@@ -5,11 +5,12 @@ const guidance = {
   CLARIFICATION_REQUIRED: { tab: 'Overview', owner: 'requester', title: 'Clarification requested', description: 'Add the missing information and resubmit the request.' },
   REOPENED: { tab: 'Overview', owner: 'super_admin', title: 'Review the reopened request', description: 'Confirm the new information and move the request forward.' },
   APPROVED: { tab: 'Overview', owner: 'super_admin', title: 'Assign an operations manager', description: 'Choose the manager who will inspect and scope the work.' },
-  ASSIGNED_TO_MANAGER: { tab: 'Diagnosis', owner: 'manager', title: 'Inspect and scope the request', description: 'Review the admin classification, complete the diagnosis, and move the request into quotation preparation.' },
+  ASSIGNED_TO_MANAGER: { tab: 'Overview', owner: 'manager', title: 'Generate the purchase order', description: 'Review the admin classification, select a vendor, confirm items and pricing, then generate the PO.' },
+  PURCHASE_ORDER_CREATED: { tab: 'Overview', owner: null, title: 'Purchase order generated', description: 'The assigned manager generated the purchase order for this request.' },
   UNDER_INSPECTION: { tab: 'Diagnosis', owner: 'manager', title: 'Finish the inspection', description: 'Complete the diagnosis so a quotation can be prepared.' },
   QUOTATION_IN_PROGRESS: { tab: 'Quotation', owner: 'manager', title: 'Prepare the quotation', description: 'Add scoped items and terms, then submit the quotation for approval.' },
   QUOTATION_REVISION_REQUIRED: { tab: 'Quotation', owner: 'manager', title: 'Revise the quotation', description: 'Address the review comments and resubmit the updated quotation.' },
-  QUOTATION_SUBMITTED: { tab: 'Quotation', owner: 'admin', title: 'Review the quotation', description: 'Approve it, request a revision, or reject it with a reason.' },
+  QUOTATION_SUBMITTED: { tab: 'Quotation', owner: 'super_admin', title: 'Review the quotation', description: 'Approve it, request a revision, or reject it with a reason.' },
   QUOTATION_APPROVED: { tab: 'Work Order', owner: 'manager', title: 'Create the work order', description: 'Confirm the scope and assign a technician or external vendor.' },
   WORK_ORDER_CREATED: { tab: 'Work Order', owner: 'manager', title: 'Assign the work', description: 'Select the person responsible and release the work order.' },
   TECHNICIAN_ASSIGNED: { tab: 'Work Order', owner: 'technician', title: 'Accept the work order', description: 'Review the scope and acknowledge the assignment before starting.' },
@@ -43,10 +44,7 @@ export const WORKFLOW_PHASES = [
   { key: 'request', label: 'Intent Request', short: 'Request', statuses: ['DRAFT'] },
   { key: 'review', label: 'Admin Review', short: 'Review', statuses: ['SUBMITTED'] },
   { key: 'assignment', label: 'PM Assignment', short: 'Assigned', statuses: ['ASSIGNED_TO_MANAGER'] },
-  { key: 'quotation', label: 'Quotation', short: 'Quote', statuses: ['QUOTATION_IN_PROGRESS', 'QUOTATION_REVISION_REQUIRED', 'QUOTATION_SUBMITTED', 'QUOTATION_APPROVED', 'QUOTATION_REJECTED'] },
-  { key: 'order', label: 'Work Order', short: 'Work', statuses: ['WORK_ORDER_CREATED', 'TECHNICIAN_ASSIGNED', 'WORK_ACCEPTED', 'IN_PROGRESS', 'PAUSED', 'WORK_DECLINED', 'ADDITIONAL_COST_PENDING', 'TECHNICIAN_COMPLETED'] },
-  { key: 'invoice', label: 'Invoice', short: 'Invoice', statuses: ['SERVICE_VERIFIED', 'INVOICE_IN_PROGRESS', 'INVOICE_REVISION_REQUIRED', 'INVOICE_SUBMITTED', 'INVOICE_REJECTED'] },
-  { key: 'payment', label: 'Payment', short: 'Pay', statuses: ['PAYMENT_PENDING', 'PARTIALLY_PAID'] },
+  { key: 'order', label: 'Order Created', short: 'Order', statuses: ['PURCHASE_ORDER_CREATED'] },
   { key: 'complete', label: 'Completed', short: 'Complete', statuses: ['CLOSED'] },
 ]
 
@@ -54,8 +52,8 @@ export const ROLE_ACTION_STATUSES = {
   requester: [],
   admin: ['SUBMITTED'],
   // Super admins can perform admin triage and must see the same pending list.
-  super_admin: ['SUBMITTED', 'QUOTATION_SUBMITTED', 'ADDITIONAL_COST_PENDING', 'INVOICE_SUBMITTED'],
-  manager: ['ASSIGNED_TO_MANAGER', 'QUOTATION_IN_PROGRESS', 'QUOTATION_REVISION_REQUIRED', 'QUOTATION_APPROVED', 'WORK_ORDER_CREATED', 'WORK_DECLINED', 'SERVICE_VERIFIED', 'INVOICE_IN_PROGRESS', 'INVOICE_REVISION_REQUIRED', 'INVOICE_REJECTED'],
+  super_admin: ['SUBMITTED'],
+  manager: ['ASSIGNED_TO_MANAGER'],
   technician: [],
   accounts: [],
 }
@@ -69,7 +67,7 @@ export function getWorkflowPhase(status) {
 }
 
 export function getWorkflowGuidance(status, role) {
-  const activeStatuses = new Set(Object.keys(guidance))
+  const activeStatuses = new Set(['DRAFT', 'SUBMITTED', 'ASSIGNED_TO_MANAGER', 'PURCHASE_ORDER_CREATED', 'CLOSED', 'REJECTED', 'CANCELLED'])
   const item = activeStatuses.has(status)
     ? guidance[status]
     : { tab: 'History', owner: null, title: 'Archived workflow record', description: 'This request belongs to the previous workflow and is available for reference only.' }

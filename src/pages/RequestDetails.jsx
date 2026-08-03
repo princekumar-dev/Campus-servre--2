@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { useParams, useNavigate, useLocation } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import { useAlert } from '../components/AlertContext'
 import apiClient from '../utils/apiClient'
 import { getAuthOrNull } from '../utils/auth'
@@ -17,10 +17,7 @@ const WORKFLOW_STEPS = [
   { key: 'DRAFT', label: 'Request draft', short: 'Draft' },
   { key: 'SUBMITTED', label: 'Admin review', short: 'Review' },
   { key: 'ASSIGNED_TO_MANAGER', label: 'PM assigned', short: 'Assigned' },
-  { key: 'QUOTATION_IN_PROGRESS', label: 'Quotation', short: 'Quote' },
-  { key: 'WORK_ORDER_CREATED', label: 'Work order', short: 'Work' },
-  { key: 'INVOICE_IN_PROGRESS', label: 'Invoice', short: 'Invoice' },
-  { key: 'PAYMENT_PENDING', label: 'Payment', short: 'Pay' },
+  { key: 'PURCHASE_ORDER_CREATED', label: 'Order created', short: 'Order' },
   { key: 'CLOSED', label: 'Completed', short: 'Complete' },
 ]
 
@@ -28,12 +25,7 @@ const STATUS_META = {
   DRAFT: { label: 'Draft', color: 'border-slate-200 bg-slate-100 text-slate-700' },
   SUBMITTED: { label: 'Admin Review', color: 'border-amber-200 bg-amber-50 text-amber-700' },
   ASSIGNED_TO_MANAGER: { label: 'Assigned to PM', color: 'border-blue-200 bg-blue-50 text-blue-700' },
-  QUOTATION_IN_PROGRESS: { label: 'Quotation In Progress', color: 'border-amber-200 bg-amber-50 text-amber-700' },
-  QUOTATION_SUBMITTED: { label: 'Quotation Submitted', color: 'border-blue-200 bg-blue-50 text-blue-700' },
-  QUOTATION_APPROVED: { label: 'Quotation Approved', color: 'border-emerald-200 bg-emerald-50 text-emerald-700' },
-  WORK_ORDER_CREATED: { label: 'Work Order Created', color: 'border-violet-200 bg-violet-50 text-violet-700' },
-  INVOICE_IN_PROGRESS: { label: 'Invoice In Progress', color: 'border-amber-200 bg-amber-50 text-amber-700' },
-  PAYMENT_PENDING: { label: 'Payment Pending', color: 'border-violet-200 bg-violet-50 text-violet-700' },
+  PURCHASE_ORDER_CREATED: { label: 'Order Created', color: 'border-violet-200 bg-violet-50 text-violet-700' },
   CLOSED: { label: 'Completed', color: 'border-emerald-200 bg-emerald-50 text-emerald-700' },
   REJECTED: { label: 'Rejected', color: 'border-rose-200 bg-rose-50 text-rose-700' },
   CANCELLED: { label: 'Cancelled', color: 'border-slate-200 bg-slate-100 text-slate-600' },
@@ -195,7 +187,6 @@ function ActionButton({ onClick, loading, variant = 'primary', disabled, childre
 function RequestDetails() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const location = useLocation()
   const { showSuccess, showError } = useAlert()
   const auth = getAuthOrNull()
 
@@ -401,30 +392,7 @@ function RequestDetails() {
   }
 
   const nextAction = getWorkflowGuidance(request?.status, auth?.role)
-  const visibleTabs = (() => {
-    const tabs = ['Overview']
-    const quotationStatuses = ['QUOTATION_IN_PROGRESS', 'QUOTATION_REVISION_REQUIRED', 'QUOTATION_SUBMITTED', 'QUOTATION_APPROVED', 'QUOTATION_REJECTED']
-    const workOrderStatuses = ['WORK_ORDER_CREATED', 'TECHNICIAN_ASSIGNED', 'WORK_ACCEPTED', 'IN_PROGRESS', 'PAUSED', 'WORK_DECLINED', 'ADDITIONAL_COST_PENDING', 'TECHNICIAN_COMPLETED']
-    const invoiceStatuses = ['SERVICE_VERIFIED', 'INVOICE_IN_PROGRESS', 'INVOICE_SUBMITTED', 'INVOICE_REVISION_REQUIRED', 'INVOICE_REJECTED']
-    const paymentStatuses = ['PAYMENT_PENDING', 'PARTIALLY_PAID', 'CLOSED']
-
-    if (request?.inspection || request?.status === 'ASSIGNED_TO_MANAGER') tabs.push('Diagnosis')
-    if (request?.quotation || quotationStatuses.includes(request?.status)) tabs.push('Quotation')
-    if (request?.workOrder || workOrderStatuses.includes(request?.status)) tabs.push('Work Order')
-    if (request?.invoice || invoiceStatuses.includes(request?.status)) tabs.push('Invoice')
-    if ((request?.payments?.length || 0) > 0 || paymentStatuses.includes(request?.status) || request?.invoice?.status === 'APPROVED') tabs.push('Payments')
-    tabs.push('History')
-    return tabs
-  })()
-  const canEditQuotation = auth?.role === 'manager' && ['QUOTATION_IN_PROGRESS', 'QUOTATION_REVISION_REQUIRED'].includes(request?.status)
-  const hasQuotationItems = Array.isArray(request?.quotation?.items) && request.quotation.items.length > 0
-  const canSubmitQuotation = canEditQuotation && hasQuotationItems
-  const quotationNumberLabel = request?.quotation?.quotationNumber || 'Draft quotation'
-
-  useEffect(() => {
-    const tab = new URLSearchParams(location.search).get('tab')
-    if (tab && visibleTabs.includes(tab) && tab !== activeTab) setActiveTab(tab)
-  }, [location.search, visibleTabs, activeTab])
+  const visibleTabs = TABS
 
   const isRequestOwner = request && String(request.requesterId) === String(auth?.id)
   const canManageRequest = isRequestOwner
@@ -684,19 +652,19 @@ function RequestDetails() {
                   <div className="flex items-start gap-3">
                     <div className="rounded-xl bg-violet-600 p-2.5 text-white"><FileCheck size={18} /></div>
                     <div>
-                      <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-violet-500">Manager action</p>
-                      <h3 className="mt-1 text-base font-extrabold text-slate-900">Inspect and prepare the quotation</h3>
-                      <p className="mt-1 text-xs leading-relaxed text-slate-600">Review the request, complete the diagnosis, and then build the quotation before any work order is created.</p>
+                      <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-violet-500">Purchase manager action</p>
+                      <h3 className="mt-1 text-base font-extrabold text-slate-900">Create the fulfilment order</h3>
+                      <p className="mt-1 text-xs leading-relaxed text-slate-600">Use the confirmed requirement below to prepare the vendor order and official PDF.</p>
                     </div>
                   </div>
                   <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                    <div className="rounded-xl border border-violet-100 bg-white p-3"><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Requirement type</p><p className="mt-1 text-xs font-extrabold text-violet-700">{request.adminAssessment?.requirementType?.replace(/_/g, ' ') || 'Service requirement'}</p></div>
+                    <div className="rounded-xl border border-violet-100 bg-white p-3"><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Order purpose</p><p className="mt-1 text-xs font-extrabold text-violet-700">{request.adminAssessment?.requirementType?.replace(/_/g, ' ') || 'Service requirement'}</p></div>
                     <div className="rounded-xl border border-violet-100 bg-white p-3"><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Item / service</p><p className="mt-1 text-xs font-extrabold text-slate-800">{request.requestedItem || request.title}</p></div>
                     <div className="rounded-xl border border-violet-100 bg-white p-3"><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Quantity</p><p className="mt-1 text-xs font-extrabold text-slate-800">{request.requestedQuantity || 1} {request.requestedUnit || 'pcs'}</p></div>
                   </div>
                   {request.adminAssessment?.note && <p className="mt-3 rounded-lg bg-white p-3 text-xs text-slate-600"><strong>Admin note:</strong> {request.adminAssessment.note}</p>}
-                  <button type="button" onClick={() => setActiveTab('Diagnosis')} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-violet-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-violet-700">
-                    <FileCheck size={16} /> Start Diagnosis <ChevronRight size={15} />
+                  <button type="button" onClick={() => navigate(`/purchase-orders?requestId=${id}`)} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-violet-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-violet-700">
+                    <FileCheck size={16} /> Create Order & PDF <ChevronRight size={15} />
                   </button>
                 </div>
               )}
@@ -881,7 +849,7 @@ function RequestDetails() {
         {/* QUOTATION */}
         {activeTab === 'Quotation' && (
           <div className="space-y-6">
-            {['admin', 'super_admin'].includes(auth?.role) && request.status === 'QUOTATION_SUBMITTED' && (
+            {auth?.role === 'super_admin' && request.status === 'QUOTATION_SUBMITTED' && (
               <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4 text-left">
                 <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Budget Approval</h3>
                 <textarea rows={2} placeholder="Approval notes..." value={adminComment} onChange={e => setAdminComment(e.target.value)} className="w-full bg-slate-100 border-none rounded-lg p-2.5 text-sm focus:outline-none resize-none" />
@@ -897,24 +865,10 @@ function RequestDetails() {
               <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-5 text-left">
                 <div className="flex justify-between items-center pb-3 border-b border-slate-100">
                   <div>
-                    <span className="text-xs text-slate-400 font-mono">{quotationNumberLabel}</span>
+                    <span className="text-xs text-slate-400 font-mono">{request.quotation.quotationNumber}</span>
                     <h3 className="text-base font-bold text-slate-800">v{request.quotation.version}</h3>
                   </div>
                   <ActionButton variant="ghost" onClick={() => openPdf('quotation')}><Download size={14} /> PDF</ActionButton>
-                </div>
-                <div className="grid grid-cols-1 gap-3 rounded-xl border border-slate-100 bg-slate-50 p-4 text-xs text-slate-600 sm:grid-cols-3">
-                  <div>
-                    <div className="font-bold uppercase tracking-wider text-slate-400">Status</div>
-                    <div className="mt-1 font-semibold text-slate-800">{request.quotation.status?.replace(/_/g, ' ') || 'Draft'}</div>
-                  </div>
-                  <div>
-                    <div className="font-bold uppercase tracking-wider text-slate-400">Valid Until</div>
-                    <div className="mt-1 font-semibold text-slate-800">{request.quotation.validUntil ? new Date(request.quotation.validUntil).toLocaleDateString('en-IN') : 'Not set'}</div>
-                  </div>
-                  <div>
-                    <div className="font-bold uppercase tracking-wider text-slate-400">Terms</div>
-                    <div className="mt-1 font-semibold text-slate-800">{request.quotation.terms || 'Standard terms apply'}</div>
-                  </div>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-sm">
@@ -924,7 +878,7 @@ function RequestDetails() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
-                      {hasQuotationItems ? request.quotation.items.map((item, idx) => (
+                      {request.quotation.items.map((item, idx) => (
                         <tr key={idx} className="hover:bg-slate-50/50">
                           <td className="py-2.5 capitalize text-xs">{item.itemType.toLowerCase()}</td>
                           <td className="py-2.5 font-semibold text-slate-800">{item.description}</td>
@@ -933,13 +887,7 @@ function RequestDetails() {
                           <td className="py-2.5 text-right text-xs">{item.taxRate}%</td>
                           <td className="py-2.5 text-right font-bold text-slate-800 text-xs">₹{item.lineTotal.toFixed(2)}</td>
                         </tr>
-                      )) : (
-                        <tr>
-                          <td colSpan={6} className="py-6 text-center text-xs text-slate-400">
-                            No quotation line items added yet.
-                          </td>
-                        </tr>
-                      )}
+                      ))}
                     </tbody>
                   </table>
                 </div>
@@ -950,22 +898,17 @@ function RequestDetails() {
                     <div className="text-violet-700 font-bold">Total: ₹{request.quotation.grandTotal.toFixed(2)}</div>
                   </div>
                 </div>
-                {canEditQuotation && (
-                  <ActionButton disabled={!canSubmitQuotation} onClick={() => handleWorkflowAction(`/api/quotations?action=submit&id=${id}`, {}, 'Submit quotation for approval?')} loading={actionLoading}>
+                {auth?.role === 'manager' && request.status === 'QUOTATION_IN_PROGRESS' && (
+                  <ActionButton onClick={() => handleWorkflowAction(`/api/quotations?action=submit&id=${id}`, {}, 'Submit quotation for approval?')} loading={actionLoading}>
                     Submit Quotation
                   </ActionButton>
                 )}
               </div>
             ) : null}
 
-            {canEditQuotation && (
+            {auth?.role === 'manager' && (['QUOTATION_IN_PROGRESS', 'QUOTATION_REVISION_REQUIRED'].includes(request.status) || !request.quotation) && (
               <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-6 text-left">
                 <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Build Estimate</h3>
-                {!hasQuotationItems && (
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-700">
-                    Add at least one line item, save the draft, then submit the quotation for approval.
-                  </div>
-                )}
                 <div className="space-y-4">
                   {quoItems.map((item, idx) => (
                     <div key={idx} className="grid grid-cols-1 sm:grid-cols-6 gap-3 items-end p-4 bg-slate-50 rounded-lg border border-slate-100">
@@ -993,16 +936,6 @@ function RequestDetails() {
                   <button type="button" onClick={addQuoItem} className="flex items-center gap-1 text-xs text-violet-600 hover:text-violet-700 font-bold">
                     <Plus size={14} /> Add Line Item
                   </button>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Quotation Terms</label>
-                    <textarea
-                      rows={3}
-                      placeholder="Add terms, notes, or the suggested best quotation details..."
-                      value={quoTerms}
-                      onChange={e => setQuoTerms(e.target.value)}
-                      className="w-full bg-white border border-slate-200 rounded p-2 text-xs focus:outline-none"
-                    />
-                  </div>
                   <div className="pt-4 border-t border-slate-200">
                     <ActionButton onClick={() => handleWorkflowAction(`/api/quotations?requestId=${id}`, { items: quoItems, terms: quoTerms })} loading={actionLoading}>
                       Save Draft

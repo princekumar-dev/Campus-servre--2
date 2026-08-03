@@ -24,10 +24,10 @@ export default async function handler(req, res) {
     if (req.method === 'GET' && !action && !id && !requestId) {
       const query = {}
 
-      // The quotations page is manager-only and should show only that
-      // manager's assigned request quotations.
+      // Managers may only see quotations belonging to requests assigned to them.
+      // Administrative oversight roles can see the complete quotation register.
       if (actorRole === 'manager') query.assignedManagerId = actorId
-      else {
+      else if (!['admin', 'super_admin'].includes(actorRole)) {
         return res.status(403).json({ success: false, error: 'You do not have permission to view quotations' })
       }
 
@@ -88,10 +88,7 @@ export default async function handler(req, res) {
     if (req.method === 'POST' && !action && requestId) {
       const request = await ServiceRequest.findById(requestId)
       if (!request) return res.status(404).json({ success: false, error: 'Request not found' })
-      const isAssignedManager = actorRole === 'manager' && String(request.assignedManagerId || '') === String(actorId)
-      if (!isAssignedManager) {
-        return res.status(403).json({ success: false, error: 'Only the assigned manager can create or revise this quotation' })
-      }
+      if (actorRole !== 'super_admin') return res.status(403).json({ success: false, error: 'Managers generate purchase orders directly for assigned requests' })
       if (!['QUOTATION_IN_PROGRESS', 'QUOTATION_REVISION_REQUIRED'].includes(request.status)) return res.status(409).json({ success: false, error: 'A quotation can only be drafted after inspection or a revision request' })
 
       const { items, terms, validUntil } = req.body
@@ -174,21 +171,17 @@ export default async function handler(req, res) {
       const request = await ServiceRequest.findById(id)
       if (!request) return res.status(404).json({ success: false, error: 'Request not found' })
       if (!request.quotation) return res.status(400).json({ success: false, error: 'No quotation found for this request' })
-      const isAssignedManager = actorRole === 'manager' && String(request.assignedManagerId || '') === String(actorId)
 
       // Role authorization for quotation actions
       const quotationRoles = {
-        'approve': ['admin', 'super_admin'],
-        'reject': ['admin', 'super_admin'],
-        'revise': ['admin', 'super_admin'],
-        'submit': ['manager']
+        'approve': ['super_admin'],
+        'reject': ['super_admin'],
+        'revise': ['super_admin'],
+        'submit': ['super_admin']
       }
       if (quotationRoles[action]) {
         if (!quotationRoles[action].includes(actorRole)) {
           return res.status(403).json({ success: false, error: `Action '${action}' requires one of these roles: ${quotationRoles[action].join(', ')}` })
-        }
-        if (action === 'submit' && !isAssignedManager) {
-          return res.status(403).json({ success: false, error: 'Only the assigned manager can submit this quotation' })
         }
       }
 
