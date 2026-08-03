@@ -33,8 +33,11 @@ export default async function handler(req, res) {
       if (poId) filter.poId = poId
       if (deliveryId) filter.deliveryScheduleId = deliveryId
       if (req.query.grnType) filter.grnType = req.query.grnType
-      const grns = await GoodsReceipt.find(filter).select('-receiptEvidence.url').sort({ createdAt: -1 }).lean()
-      grns.forEach(grn => { grn.hasReceiptEvidence = Boolean(grn.receiptEvidence?.name) })
+      const grns = await GoodsReceipt.find(filter).select('-receiptEvidence.url -damageEvidence.url').sort({ createdAt: -1 }).lean()
+      grns.forEach(grn => {
+        grn.hasReceiptEvidence = Boolean(grn.receiptEvidence?.name)
+        grn.hasDamageEvidence = Boolean(grn.damageEvidence?.name)
+      })
       const poIds = [...new Set(grns.map(grn => String(grn.poId || '')).filter(Boolean))]
       const purchaseOrders = poIds.length
         ? await PurchaseOrder.find({ _id: { $in: poIds } })
@@ -51,7 +54,7 @@ export default async function handler(req, res) {
         return res.status(403).json({ success: false, error: 'You are not authorized to record a GRN' })
       }
 
-      const { poId: bodyPoId, deliveryScheduleId, items, remarks, qrToken, receiptEvidence } = req.body
+      const { poId: bodyPoId, deliveryScheduleId, items, remarks, qrToken, receiptEvidence, damageEvidence } = req.body
       if ((hasQrAccess || actorRole === 'gate') && !requireGateLocation(req, res).allowed) return
       if (!bodyPoId || !items || !items.length) {
         return res.status(400).json({ success: false, error: 'poId and items are required' })
@@ -59,24 +62,36 @@ export default async function handler(req, res) {
       if ((hasQrAccess || actorRole === 'gate') && req.poQrAccess?.poId !== String(bodyPoId)) {
         return res.status(403).json({ success: false, error: 'A valid PO QR code is required for gate receipt entry' })
       }
-      let validatedReceiptEvidence
-      if (receiptEvidence) {
-        const { name, url, mimeType, size } = receiptEvidence
+      const validatePhotoEvidence = (evidence, label) => {
+        if (!evidence) return undefined
+        const { name, url, mimeType, size } = evidence
         const allowedTypes = ['image/jpeg', 'image/png']
         const parsedSize = Number(size || 0)
         if (!name || !url || !allowedTypes.includes(mimeType) || !String(url).startsWith(`data:${mimeType};base64,`)) {
-          return res.status(400).json({ success: false, error: 'Received-goods proof must be a valid JPG or PNG photo' })
+          const error = new Error(`${label} must be a valid JPG or PNG photo`)
+          error.statusCode = 400
+          throw error
         }
         if (!Number.isFinite(parsedSize) || parsedSize <= 0 || parsedSize > 4 * 1024 * 1024 || String(url).length > 5.7 * 1024 * 1024) {
-          return res.status(413).json({ success: false, error: 'Received-goods proof photo must be 4 MB or smaller' })
+          const error = new Error(`${label} must be 4 MB or smaller`)
+          error.statusCode = 413
+          throw error
         }
-        validatedReceiptEvidence = {
+        return {
           name: String(name).slice(0, 160),
           url,
           mimeType,
           size: parsedSize,
           uploadedAt: new Date()
         }
+      }
+      let validatedReceiptEvidence
+      let validatedDamageEvidence
+      try {
+        validatedReceiptEvidence = validatePhotoEvidence(receiptEvidence, 'Received-goods proof')
+        validatedDamageEvidence = validatePhotoEvidence(damageEvidence, 'Damage proof')
+      } catch (error) {
+        return res.status(error.statusCode || 400).json({ success: false, error: error.message })
       }
 
       const receiptActorId = hasQrAccess ? `po-qr:${bodyPoId}` : actorId
@@ -183,6 +198,9 @@ export default async function handler(req, res) {
       if (!processedItems.some(item => item.quantityDeliveredNow > 0)) {
         return res.status(400).json({ success: false, error: 'Enter a delivered quantity for at least one item' })
       }
+      if (processedItems.some(item => Number(item.quantityDamaged || 0) > 0) && !validatedDamageEvidence) {
+        return res.status(400).json({ success: false, error: 'Upload a damage proof photo when damaged quantity is recorded' })
+      }
 
       // Determine GRN type
       const allFulfilled = po.items.every(pi => (pi.quantityRemaining || 0) === 0)
@@ -219,7 +237,8 @@ export default async function handler(req, res) {
         remarks, items: processedItems,
         subtotal, discountTotal, taxTotal, deliveryChargeAllocated, grandTotal,
         cumulativeAcceptedValue, poGrandTotal: roundMoney(po.grandTotal),
-        receiptEvidence: validatedReceiptEvidence
+        receiptEvidence: validatedReceiptEvidence,
+        damageEvidence: validatedDamageEvidence
       })
       await grn.save()
 

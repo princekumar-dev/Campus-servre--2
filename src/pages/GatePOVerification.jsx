@@ -15,6 +15,7 @@ export default function GatePOVerification() {
   const [items, setItems] = useState([])
   const [remarks, setRemarks] = useState('')
   const [receiptEvidence, setReceiptEvidence] = useState(null)
+  const [damageEvidence, setDamageEvidence] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [createdGrn, setCreatedGrn] = useState(null)
@@ -108,6 +109,7 @@ export default function GatePOVerification() {
 
   const createGrn = async () => {
     if (validationError) return showError('Check Quantities', validationError)
+    if (items.some(item => Number(item.quantityDamaged || 0) > 0) && !damageEvidence) return showError('Damage Proof Required', 'Upload a clear photo of the damaged goods before creating the GRN.')
     setSaving(true)
     try {
       const result = await apiClient.post('/api/grn', {
@@ -116,6 +118,7 @@ export default function GatePOVerification() {
         ...gateLocation,
         items,
         receiptEvidence: receiptEvidence || undefined,
+        damageEvidence: damageEvidence || undefined,
         remarks: remarks || 'Manually verified at gate from purchase-order QR'
       }, { timeout: 90000, redirectOnUnauthorized: false })
       if (!result?.success) throw new Error(result?.error || 'Unable to create GRN')
@@ -151,6 +154,18 @@ export default function GatePOVerification() {
       mimeType: file.type,
       size: file.size
     })
+    reader.readAsDataURL(file)
+  }
+
+  const selectDamagePhoto = event => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    if (!['image/jpeg', 'image/png'].includes(file.type)) return showError('Invalid Photo', 'Use a JPG or PNG damage photo')
+    if (file.size > 4 * 1024 * 1024) return showError('Photo Too Large', 'The damage proof must be 4 MB or smaller')
+    const reader = new FileReader()
+    reader.onerror = () => showError('Photo Error', 'The damage proof could not be read')
+    reader.onload = () => setDamageEvidence({ name: file.name, url: String(reader.result), mimeType: file.type, size: file.size })
     reader.readAsDataURL(file)
   }
 
@@ -335,6 +350,20 @@ export default function GatePOVerification() {
           )}
           <p className="mt-2 text-xs text-slate-400">JPG or PNG, maximum 4 MB. This attachment is optional.</p>
         </div>
+        {items.some(item => Number(item.quantityDamaged || 0) > 0) && (
+          <div className="mb-5 rounded-xl border border-rose-200 bg-rose-50/50 p-4">
+            <div className="flex items-center gap-2"><Camera size={17} className="text-rose-600" /><label className="text-xs font-bold uppercase tracking-wider text-rose-700">Damage proof photo *</label></div>
+            {damageEvidence ? (
+              <div className="mt-3 flex items-center gap-3 rounded-xl border border-rose-200 bg-white p-3">
+                <img src={damageEvidence.url} alt="Damage proof preview" className="h-20 w-24 rounded-lg object-contain" />
+                <p className="min-w-0 flex-1 truncate text-sm font-bold text-slate-800">{damageEvidence.name}</p>
+                <button type="button" onClick={() => setDamageEvidence(null)} aria-label="Remove damage proof" className="rounded-full p-1.5 text-slate-400 hover:text-rose-600"><XCircle size={18} /></button>
+              </div>
+            ) : (
+              <label className="mt-3 flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-rose-300 bg-white px-4 py-5 text-sm font-bold text-rose-700"><Camera size={18} /> Add Damage Photo<input type="file" accept="image/jpeg,image/png" onChange={selectDamagePhoto} className="sr-only" /></label>
+            )}
+          </div>
+        )}
         <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Gate verification remarks</label>
         <textarea value={remarks} onChange={event => setRemarks(event.target.value)} rows={3} placeholder="Condition, challan details, shortages, or other verification notes..."
           className="mt-2 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm outline-none focus:border-violet-500" />

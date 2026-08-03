@@ -527,6 +527,13 @@ const GoodsReceiptSchema = new mongoose.Schema({
     size: { type: Number },
     uploadedAt: { type: Date }
   },
+  damageEvidence: {
+    name: { type: String },
+    url: { type: String },
+    mimeType: { type: String },
+    size: { type: Number },
+    uploadedAt: { type: Date }
+  },
   serviceReceipt: {
     summary: { type: String },
     technicianName: { type: String },

@@ -524,33 +524,6 @@ export default async function handler(req, res) {
         doc.strokeColor(PO.black).lineWidth(0.7).moveTo(signatureX, signatureY).lineTo(signatureX + signatureWidth, signatureY).stroke()
         doc.fillColor(PO.black).font('Times-Bold').fontSize(8.5).text('Secretary Signature', signatureX, signatureY + 8, { width: signatureWidth, align: 'center' })
         doc.fillColor(PO.muted).font('Helvetica').fontSize(6.8).text('Date: __________________', signatureX, signatureY + 21, { width: signatureWidth, align: 'center' })
-      } else {
-        const stampY = Math.min(doc.y + 12, 670)
-        const stamps = [
-          { title: 'VERIFIED BY ADMIN', name: po.signedPo.verifiedBy || po.approvedBy || 'MSEC Admin', at: po.signedPo.verifiedAt || po.approvedAt, color: '#2563eb' },
-          { title: 'VERIFIED BY SECRETARY', name: 'MSEC Secretary', at: po.signedPo.verifiedAt || po.approvedAt, color: '#7c3aed' }
-        ]
-        if (po.status === 'CLOSED') {
-          stamps.push({ title: 'ORDER RECEIVED', name: finalGrn?.receivedByName || 'Gate / Stores', at: finalGrn?.receivedAt || finalGrn?.createdAt, color: '#059669' })
-        }
-        const stampSize = 68
-        const gap = stamps.length === 3 ? 72 : 105
-        const totalWidth = stamps.length * stampSize + (stamps.length - 1) * gap
-        const startX = left + (width - totalWidth) / 2
-        stamps.forEach((stamp, index) => {
-          const x = startX + index * (stampSize + gap)
-          const centerX = x + stampSize / 2
-          const centerY = stampY + stampSize / 2
-          doc.save().opacity(0.82)
-          doc.circle(centerX, centerY, stampSize / 2).lineWidth(1.5).strokeColor(stamp.color).stroke()
-          doc.circle(centerX, centerY, stampSize / 2 - 4).lineWidth(0.6).strokeColor(stamp.color).stroke()
-          doc.moveTo(x + 10, centerY - 7).lineTo(x + stampSize - 10, centerY - 7).lineWidth(0.5).strokeColor(stamp.color).stroke()
-          doc.moveTo(x + 10, centerY + 9).lineTo(x + stampSize - 10, centerY + 9).stroke()
-          doc.fillColor(stamp.color).font('Times-Bold').fontSize(7.2).text(stamp.title === 'ORDER RECEIVED' ? 'RECEIVED' : 'VERIFIED', x + 6, stampY + 11, { width: stampSize - 12, align: 'center' })
-          doc.font('Helvetica-Bold').fontSize(5.6).text(stamp.title === 'ORDER RECEIVED' ? 'GATE' : stamp.title.replace('VERIFIED BY ', ''), x + 8, centerY - 2, { width: stampSize - 16, align: 'center' })
-          doc.font('Helvetica').fontSize(4.5).text(stamp.at ? new Date(stamp.at).toLocaleDateString('en-IN') : 'VERIFIED', x + 8, centerY + 15, { width: stampSize - 16, align: 'center' })
-          doc.restore()
-        })
       }
 
       attachedImages.forEach(({ evidence, image }, index) => {

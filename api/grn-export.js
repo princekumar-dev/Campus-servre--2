@@ -5,7 +5,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import sharp from 'sharp'
 import { connectToDatabase } from '../lib/mongo.js'
-import { GoodsReceipt, PurchaseOrder } from '../models.js'
+import { GoodsReceipt, PurchaseOrder, ServiceRequest } from '../models.js'
 
 const money = value => `INR ${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
 const roundMoney = value => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100
@@ -88,14 +88,22 @@ function itemsTable(doc, items = []) {
   doc.y = y
 }
 
-async function grnPdf(po, grn) {
-  let receiptEvidenceBuffer = null
-  if (grn.receiptEvidence?.url && /^data:image\/(jpeg|png);base64,/.test(grn.receiptEvidence.url)) {
-    try {
-      receiptEvidenceBuffer = Buffer.from(grn.receiptEvidence.url.split(',')[1], 'base64')
-    } catch {
-      receiptEvidenceBuffer = null
-    }
+async function storedImage(url) {
+  if (!/^data:image\/(jpeg|png|webp);base64,/.test(String(url || ''))) return null
+  try {
+    return await sharp(Buffer.from(url.split(',')[1], 'base64')).rotate().jpeg({ quality: 86 }).toBuffer()
+  } catch {
+    return null
+  }
+}
+
+async function grnPdf(po, grn, request = null) {
+  const receiptEvidenceBuffer = await storedImage(grn.receiptEvidence?.url)
+  const damageEvidenceBuffer = await storedImage(grn.damageEvidence?.url)
+  const indentEvidence = []
+  for (const evidence of (request?.evidence || [])) {
+    const buffer = await storedImage(evidence.url)
+    if (buffer) indentEvidence.push({ evidence, buffer })
   }
   const serviceBills = []
   if (grn.source === 'SERVICE_PO') {
@@ -293,7 +301,7 @@ async function grnPdf(po, grn) {
     label('GRN Value', 54, 274); value(money(receiptTotal), 124, 274, 155)
     label('Delivery To', 317, 234); value(po?.deliveryLocation, 387, 234, 154)
     label('Received By', 317, 254); value(grn.receivedByName, 387, 254, 154)
-    label('Source', 317, 274); value(grn.source === 'SERVICE_PO' ? 'Approved service PO' : grn.source === 'PO_QR' ? 'Gate PO QR verified' : 'Manual receipt', 387, 274, 154)
+    label('Source', 317, 274); value(`${grn.source === 'SERVICE_PO' ? 'Approved service PO' : grn.source === 'PO_QR' ? 'Gate PO QR verified' : 'Manual receipt'}${request?.requestNumber ? ` · ${request.requestNumber}` : ''}`, 387, 274, 154)
 
     sectionTitle('Receipt quantity summary', 304)
     const summary = [
@@ -354,30 +362,6 @@ async function grnPdf(po, grn) {
     doc.fillColor(ink).font('Helvetica').fontSize(7)
       .text(grn.remarks || (grn.source === 'SERVICE_PO' ? 'Service work, supporting bills, and actual costs were reviewed and accepted.' : 'Goods received and inspected without additional remarks.'), left + 10, remarksY + 31, { width: width - 20, height: 28, ellipsis: true })
     doc.fontSize(6.5).text('Certified that the above goods were physically received, inspected and recorded against the referenced purchase order.', left, remarksY + 78, { width })
-
-    const stampY = Math.min(674, remarksY + 106)
-    const stampSize = 62
-    const stampGap = 65
-    const stamps = [
-      { title: 'MANAGER VERIFIED', name: po?.signedPo?.uploadedBy || po?.createdBy || 'Purchase Manager', at: po?.signedPo?.uploadedAt || po?.createdAt, color: '#b45309' },
-      { title: 'ADMIN VERIFIED', name: po?.signedPo?.verifiedBy || po?.approvedBy || 'MSEC Admin', at: po?.signedPo?.verifiedAt || po?.approvedAt, color: '#2563eb' },
-      { title: 'SECRETARY VERIFIED', name: 'MSEC Secretary', at: po?.signedPo?.verifiedAt || po?.approvedAt, color: '#7c3aed' },
-      { title: 'GATE RECEIVED', name: grn.receivedByName || 'Gate / Stores', at: grn.receivedAt || grn.createdAt, color: '#059669' }
-    ]
-    stamps.forEach((stamp, index) => {
-      const x = left + 2 + index * (stampSize + stampGap)
-      const centerX = x + stampSize / 2
-      const centerY = stampY + stampSize / 2
-      doc.save().opacity(0.82)
-      doc.circle(centerX, centerY, stampSize / 2).lineWidth(1.4).strokeColor(stamp.color).stroke()
-      doc.circle(centerX, centerY, stampSize / 2 - 3.5).lineWidth(0.55).strokeColor(stamp.color).stroke()
-      doc.moveTo(x + 9, centerY - 6).lineTo(x + stampSize - 9, centerY - 6).lineWidth(0.45).strokeColor(stamp.color).stroke()
-      doc.moveTo(x + 9, centerY + 8).lineTo(x + stampSize - 9, centerY + 8).stroke()
-      doc.fillColor(stamp.color).font('Times-Bold').fontSize(6.5).text(stamp.title === 'GATE RECEIVED' ? 'RECEIVED' : 'VERIFIED', x + 6, stampY + 10, { width: stampSize - 12, align: 'center' })
-      doc.font('Helvetica-Bold').fontSize(5.1).text(stamp.title.replace(' VERIFIED', '').replace(' RECEIVED', ''), x + 7, centerY - 2, { width: stampSize - 14, align: 'center' })
-      doc.font('Helvetica').fontSize(4.2).text(stamp.at ? new Date(stamp.at).toLocaleDateString('en-IN') : 'VERIFIED', x + 7, centerY + 13, { width: stampSize - 14, align: 'center' })
-      doc.restore()
-    })
 
     doc.moveTo(left, 774).lineTo(left + width, 774).lineWidth(0.4).strokeColor('#d6d3d1').stroke()
     doc.fillColor('#4b5563').font('Helvetica').fontSize(5.5)
@@ -464,6 +448,26 @@ async function grnPdf(po, grn) {
       doc.fillColor('#4b5563').font('Helvetica').fontSize(5.5)
         .text(`Gate receipt evidence · ${grn.receiptEvidence.name || 'Received goods photo'}`, left, 781, { width, lineBreak: false })
     }
+    if (damageEvidenceBuffer) {
+      doc.addPage()
+      if (fs.existsSync(crestPath)) doc.image(crestPath, 48, 42, { fit: [58, 58] })
+      doc.fillColor(ink).font('Helvetica-Bold').fontSize(10).text('MEENAKSHI SUNDARARAJAN ENGINEERING COLLEGE', 105, 48, { width: 385, align: 'center' })
+      doc.font('Times-Bold').fontSize(14).fillColor('#991b1b').text('DAMAGED GOODS PHOTO PROOF', 105, 82, { width: 385, align: 'center' })
+      doc.fillColor(ink).moveTo(left, 112).lineTo(left + width, 112).lineWidth(1).stroke()
+      doc.rect(left, 145, width, 590).lineWidth(0.7).strokeColor('#fecaca').stroke()
+      doc.image(damageEvidenceBuffer, left + 10, 155, { fit: [width - 20, 570], align: 'center', valign: 'center' })
+      doc.fillColor('#4b5563').font('Helvetica').fontSize(5.5).text(`Damage evidence · ${grn.damageEvidence.name || 'Damage photo'} · ${grn.grnNumber}`, left, 781, { width, lineBreak: false })
+    }
+    indentEvidence.forEach(({ evidence, buffer }, index) => {
+      doc.addPage()
+      if (fs.existsSync(crestPath)) doc.image(crestPath, 48, 42, { fit: [58, 58] })
+      doc.fillColor(ink).font('Helvetica-Bold').fontSize(10).text('MEENAKSHI SUNDARARAJAN ENGINEERING COLLEGE', 105, 48, { width: 385, align: 'center' })
+      doc.font('Times-Bold').fontSize(14).text(`INDENT PHOTO EVIDENCE ${index + 1}`, 105, 82, { width: 385, align: 'center' })
+      doc.fillColor('#4b5563').font('Helvetica-Bold').fontSize(7).text(`${request.requestNumber} · ${request.title} · ${evidence.name || 'Uploaded evidence'}`, left, 122, { width })
+      doc.rect(left, 145, width, 590).lineWidth(0.7).strokeColor('#d6d3d1').stroke()
+      doc.image(buffer, left + 10, 155, { fit: [width - 20, 570], align: 'center', valign: 'center' })
+      doc.fillColor('#4b5563').font('Helvetica').fontSize(5.5).text(`Original indent evidence · ${(evidence.kind || 'PHOTO').replace(/_/g, ' ')} · ${grn.grnNumber}`, left, 781, { width, lineBreak: false })
+    })
   })
 }
 
@@ -514,7 +518,8 @@ export default async function handler(req, res) {
       const grn = await GoodsReceipt.findById(grnId).lean()
       if (!grn) return res.status(404).json({ success: false, error: 'GRN not found' })
       const po = await PurchaseOrder.findById(grn.poId).lean()
-      const pdf = await grnPdf(po, grn)
+      const request = po?.requestId ? await ServiceRequest.findById(po.requestId).lean() : null
+      const pdf = await grnPdf(po, grn, request)
       res.setHeader('Content-Type', 'application/pdf')
       res.setHeader('Content-Disposition', `attachment; filename="${safeName(grn.grnNumber)}.pdf"`)
       return res.end(pdf)
@@ -523,10 +528,11 @@ export default async function handler(req, res) {
       const po = await PurchaseOrder.findById(poId).lean()
       if (!po) return res.status(404).json({ success: false, error: 'Purchase order not found' })
       const grns = await GoodsReceipt.find({ poId }).sort({ createdAt: 1 }).lean()
+      const request = po.requestId ? await ServiceRequest.findById(po.requestId).lean() : null
       const zip = new JSZip()
       zip.file(`${safeName(po.poNumber)}-complete-report.pdf`, await poPdf(po, grns))
       const folder = zip.folder('GRNs')
-      for (const grn of grns) folder.file(`${safeName(grn.grnNumber)}.pdf`, await grnPdf(po, grn))
+      for (const grn of grns) folder.file(`${safeName(grn.grnNumber)}.pdf`, await grnPdf(po, grn, request))
       zip.file('README.txt', `${po.poNumber}\nStatus: ${po.status}\nVendor: ${po.vendorName}\nGRNs included: ${grns.length}\nGenerated: ${new Date().toISOString()}\n`)
       const archive = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' })
       res.setHeader('Content-Type', 'application/zip')
