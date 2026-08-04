@@ -170,6 +170,8 @@ function Requests() {
 
   const canManageRequest = (request) => String(request.requesterId) === String(auth?.id)
 
+  const canDeleteRequest = (request) => canManageRequest(request) && request.status === 'DRAFT'
+
   const canEditRequest = (request) => {
     if (!canManageRequest(request)) return false
     if (['DRAFT', 'CLARIFICATION_REQUIRED'].includes(request.status)) return true
@@ -468,7 +470,7 @@ function Requests() {
                               <Pencil size={13} />
                             </Link>
                           )}
-                          {canManageRequest(req) && (
+                          {canDeleteRequest(req) && (
                             <button type="button" onClick={() => setDeleteTarget(req)} title="Delete request" className="rounded-lg border border-rose-200 bg-rose-50 p-2 text-rose-700 hover:bg-rose-100">
                               <Trash2 size={13} />
                             </button>

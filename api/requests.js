@@ -453,7 +453,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, data: request })
     }
 
-    // Only the original requester may permanently delete their own request.
+    // Only draft requests may be permanently deleted.
     if (req.method === 'DELETE') {
       const { id } = req.query
       if (!id) return res.status(400).json({ success: false, error: 'Request ID is required' })
@@ -463,6 +463,10 @@ export default async function handler(req, res) {
 
       if (String(request.requesterId) !== String(userId)) {
         return res.status(403).json({ success: false, error: 'Only the original requester can delete this request' })
+      }
+
+      if (request.status !== 'DRAFT') {
+        return res.status(409).json({ success: false, error: 'Submitted requests cannot be deleted. Edit the request instead.' })
       }
 
       await ServiceRequest.deleteOne({ _id: request._id })

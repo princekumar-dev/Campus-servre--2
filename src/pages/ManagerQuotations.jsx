@@ -5,7 +5,7 @@ import ModalShell from '../components/ModalShell'
 import PageHeader from '../components/ui/PageHeader'
 import { EmptyState, ErrorState, LoadingState } from '../components/EmptyStates'
 import apiClient from '../utils/apiClient'
-import { FileText, ArrowLeft, Plus, Trash2, Download, CheckCircle2 } from 'lucide-react'
+import { FileText, ArrowLeft, Plus, Trash2, CheckCircle2 } from 'lucide-react'
 
 const statusColors = {
   DRAFT: 'bg-slate-100 text-slate-600',
@@ -44,11 +44,6 @@ export default function ManagerQuotations() {
   const [eligibleRequests, setEligibleRequests] = useState([])
   const [requestsLoading, setRequestsLoading] = useState(false)
   const { showSuccess, showError } = useAlert()
-
-  const downloadQuotation = quotation => {
-    const origin = import.meta.env.VITE_API_URL || ''
-    window.open(`${origin}/api/generate-pdf?type=vendor-quotation&id=${quotation._id}`, '_blank', 'noopener,noreferrer')
-  }
 
   const fetchQuotations = useCallback(async () => {
     setIsLoading(true)
@@ -120,7 +115,7 @@ export default function ManagerQuotations() {
       const res = await apiClient.post(`/api/quotations?id=${quotation._id}&action=select`, {})
       if (!res.success) throw new Error(res.error || 'Could not select quotation')
       showSuccess('Quotation selected', `${quotation.vendorName} was selected for ${quotation.requestNumber}.`)
-      navigate(`/purchase-orders?requestId=${quotation.requestId}&quotationId=${quotation._id}`)
+      await fetchQuotations()
     } catch (err) { showError('Unable to select quotation', err.message) }
     finally { setFormLoading(false) }
   }
@@ -262,14 +257,14 @@ export default function ManagerQuotations() {
                       {isClosed ? 'Procurement completed' : hasPO ? 'Purchase order generated' : selectedQuotation ? `${selectedQuotation.vendorName} selected` : 'Compare the vendor quotes and choose one for the PO'}
                     </p>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                  <div className="flex flex-wrap items-center gap-2 max-sm:flex-col max-sm:items-stretch sm:justify-end">
                     {!isClosed && !hasPO && (
-                      <button type="button" onClick={() => navigate(`/quotations?requestId=${group.requestId}&mode=create`)} className="rounded-lg border border-violet-200 bg-white px-3 py-2 text-xs font-bold text-violet-700 hover:bg-violet-50"><Plus size={13} className="mr-1 inline" /> Add vendor quote</button>
+                      <button type="button" onClick={() => navigate(`/quotations?requestId=${group.requestId}&mode=create`)} className="rounded-lg border border-violet-200 bg-white px-3 py-2 text-xs font-bold text-violet-700 hover:bg-violet-50 max-sm:w-full"><Plus size={13} className="mr-1 inline" /> Add vendor quote</button>
                     )}
                     {selectedQuotation && !isClosed && !hasPO && (
-                      <button type="button" onClick={() => navigate(`/purchase-orders?requestId=${group.requestId}&quotationId=${selectedQuotation._id}`)} className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700">Generate PO</button>
+                      <button type="button" onClick={() => navigate(`/purchase-orders?requestId=${group.requestId}&quotationId=${selectedQuotation._id}`)} className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700 max-sm:w-full">Generate PO</button>
                     )}
-                    {(isClosed || hasPO) && <span className="rounded-lg bg-slate-200 px-3 py-2 text-xs font-bold text-slate-600">{isClosed ? 'Procurement closed' : 'PO generated'}</span>}
+                    {(isClosed || hasPO) && <span className="rounded-lg bg-slate-200 px-3 py-2 text-xs font-bold text-slate-600 max-sm:w-full max-sm:text-center">{isClosed ? 'Procurement closed' : 'PO generated'}</span>}
                   </div>
                 </div>
                 <div className="divide-y divide-slate-100">
@@ -286,14 +281,13 @@ export default function ManagerQuotations() {
                           <p className="mt-1 text-xs text-slate-500">{q.vendorCode || 'Vendor code unavailable'}</p>
                         </div>
                       </div>
-                      <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                        <div className="mr-2 text-left sm:text-right">
+                      <div className="flex flex-wrap items-center gap-2 max-sm:flex-col max-sm:items-stretch sm:justify-end">
+                        <div className="mr-2 text-left sm:text-right max-sm:mr-0 max-sm:w-full max-sm:text-left">
                           <p className="text-base font-black text-slate-800">{formatCurrency(q.grandTotal)}</p>
                           <span className={`text-[10px] font-bold uppercase ${statusColors[q.status]?.split(' ').filter(token => token.startsWith('text-')).join(' ') || 'text-slate-500'}`}>{q.status?.replace(/_/g, ' ')}</span>
                         </div>
-                        <button type="button" onClick={() => downloadQuotation(q)} aria-label={`Download ${q.quotationNumber || 'quotation'} PDF`} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"><Download size={13} /> PDF</button>
                         {!q.selected && !isClosed && !hasPO && (
-                          <button type="button" disabled={formLoading} onClick={() => selectQuotation(q)} className="rounded-lg bg-violet-600 px-4 py-2 text-xs font-bold text-white hover:bg-violet-700 disabled:opacity-50">Select quote</button>
+                          <button type="button" disabled={formLoading} onClick={() => selectQuotation(q)} className="rounded-lg bg-violet-600 px-4 py-2 text-xs font-bold text-white hover:bg-violet-700 disabled:opacity-50 max-sm:w-full max-sm:justify-center">Select quote</button>
                         )}
                       </div>
                     </article>

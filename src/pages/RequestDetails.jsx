@@ -412,6 +412,7 @@ function RequestDetails() {
 
   const isRequestOwner = request && String(request.requesterId) === String(auth?.id)
   const canManageRequest = isRequestOwner
+  const canDeleteRequest = canManageRequest && request?.status === 'DRAFT'
   const submittedAt = request?.submittedAt || request?.createdAt
   const canEditRequest = canManageRequest && (
     ['DRAFT', 'CLARIFICATION_REQUIRED'].includes(request?.status) ||
@@ -468,7 +469,7 @@ function RequestDetails() {
               <Pencil size={13} /> Edit
             </button>
           )}
-          {canManageRequest && (
+          {canDeleteRequest && (
             <button type="button" onClick={deleteRequest} className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700 hover:bg-rose-100">
               <Trash2 size={13} /> Delete
             </button>
