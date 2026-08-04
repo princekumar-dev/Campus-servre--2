@@ -1,6 +1,7 @@
 import { connectToDatabase } from '../lib/mongo.js'
 import { GateEntry, DeliverySchedule, GoodsReceipt, PurchaseOrder, User } from '../models.js'
 import crypto from 'crypto'
+import { isValidObjectId } from 'mongoose'
 import { createPoQrToken, verifyIssuedPoQrToken } from '../lib/poQrToken.js'
 import { addProductIds } from '../lib/productId.js'
 import { canReceivePo, getPoReceivingBlockReason, isSignedPoVerified } from '../lib/poReceiving.js'
@@ -16,7 +17,7 @@ export default async function handler(req, res) {
   }
 
   const actorId = req.user ? req.user.id : (req.headers['x-user-id'] || 'system')
-  const actor = req.user || await User.findById(actorId).lean()
+  const actor = req.user || (isValidObjectId(actorId) ? await User.findById(actorId).lean() : null)
   const actorName = actor ? actor.name : 'Unknown'
   const actorRole = req.user?.role || req.headers['x-user-role'] || ''
 

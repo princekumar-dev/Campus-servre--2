@@ -18,6 +18,7 @@
     "dev:warm": "concurrently \"npm run server:dev\" \"npm run dev\" \"npm run warm-tunnel\"",
     "seed-users": "node seed-users.js",
     "ensure-super-admin": "node scripts/ensure-super-admin.js",
+    "ensure-gate-service-users": "node scripts/ensure-gate-service-users.js",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest run",

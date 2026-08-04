@@ -1,6 +1,7 @@
 import { connectToDatabase } from '../lib/mongo.js'
 import { requireGateLocation } from '../lib/gateGeofence.js'
 import { GoodsReceipt, PurchaseOrder, DeliverySchedule, User, ServiceRequest } from '../models.js'
+import { isValidObjectId } from 'mongoose'
 import { storeNotification } from '../lib/notificationService.js'
 import { getProductId } from '../lib/productId.js'
 import { canReceivePo, getPoReceivingBlockReason } from '../lib/poReceiving.js'
@@ -16,7 +17,7 @@ export default async function handler(req, res) {
 
   const actorId = req.user ? req.user.id : (req.headers['x-user-id'] || 'system')
   const actorRole = req.user ? req.user.role : (req.headers['x-user-role'] || '')
-  const actor = req.user || await User.findById(actorId).lean()
+  const actor = req.user || (isValidObjectId(actorId) ? await User.findById(actorId).lean() : null)
   const actorName = actor ? actor.name : 'Unknown'
 
   try {
