@@ -22,6 +22,11 @@ const PDF = {
 
 const money = value => `Rs. ${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const dateText = value => value ? new Date(value).toLocaleDateString('en-IN') : 'Not specified'
+const dateTimeText = value => value ? new Date(value).toLocaleString('en-IN', {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+  timeZone: 'Asia/Kolkata'
+}) : 'Not specified'
 
 function getPublicBaseUrl(req) {
   const configured = process.env.FRONTEND_URL || process.env.PUBLIC_BASE_URL
@@ -425,7 +430,7 @@ export default async function handler(req, res) {
       doc.rect(left, summaryY, width, 58).fillAndStroke(PO.soft, PO.line)
       doc.strokeColor(PO.line).moveTo(297.5, summaryY + 8).lineTo(297.5, summaryY + 50).stroke()
       field('PO Number', po.poNumber, left + 12, summaryY + 11, 230)
-      field('Issue Date', dateText(po.createdAt), 310, summaryY + 11, 230)
+      field('Created At', dateTimeText(po.createdAt), 310, summaryY + 11, 230)
       field('Request Reference', linkedRequest?.requestNumber || 'Direct purchase', left + 12, summaryY + 35, 230)
       field(isServicePo ? 'Expected Service' : 'Expected Delivery', dateText(po.expectedDeliveryDate), 310, summaryY + 35, 230)
       doc.y = summaryY + 70
@@ -524,6 +529,37 @@ export default async function handler(req, res) {
       doc.rect(totalX + 6, grandTotalY, 201, 25).fillAndStroke(PO.accentSoft, PO.accent)
       doc.fillColor(PO.accent).font('Helvetica-Bold').fontSize(9.5).text(isServicePo ? 'APPROVED COST' : 'GRAND TOTAL', totalX + 16, grandTotalY + 7)
       doc.fontSize(10).text(money(po.grandTotal), totalX + 108, grandTotalY + 7, { width: 88, align: 'right' })
+
+      const isVerified = po.signedPo?.status === 'VERIFIED'
+      if (!isVerified) {
+        // Use the otherwise-empty area beside the totals for the institutional
+        // approvals. A compact 2 x 2 grid guarantees all signatures stay on the
+        // front page even when the commercial terms reach the page footer.
+        const approvalX = left
+        const approvalY = totalsY
+        const approvalWidth = totalX - left - 14
+        const approvalHeight = 107
+        const approvalGap = 12
+        const approvalColumnWidth = (approvalWidth - approvalGap) / 2
+        const approvalLabels = ['PM', 'Finance Manager', 'COO', 'Secretary']
+
+        doc.rect(approvalX, approvalY, approvalWidth, approvalHeight).fillAndStroke(PO.white, PO.line)
+        doc.fillColor(PO.muted).font('Helvetica-Bold').fontSize(7.2)
+          .text('APPROVAL SIGNATURES', approvalX + 9, approvalY + 8, { width: approvalWidth - 18, characterSpacing: 0.6 })
+
+        approvalLabels.forEach((label, index) => {
+          const column = index % 2
+          const row = Math.floor(index / 2)
+          const signatureX = approvalX + 9 + (column * (approvalColumnWidth + approvalGap))
+          const signatureLineY = approvalY + 42 + (row * 43)
+          doc.strokeColor(PO.black).lineWidth(0.7)
+            .moveTo(signatureX, signatureLineY)
+            .lineTo(signatureX + approvalColumnWidth - 18, signatureLineY)
+            .stroke()
+          doc.fillColor(PO.black).font('Times-Bold').fontSize(8.2)
+            .text(label, signatureX, signatureLineY + 6, { width: approvalColumnWidth - 18, align: 'center' })
+        })
+      }
       doc.y = totalsY + 119
 
       sectionTitle('Commercial terms')
@@ -536,15 +572,6 @@ export default async function handler(req, res) {
         ? 'Complete the approved repair/service, record every actual cost, and upload its scanned bill through the Service Login QR. Campus approval generates the final service GRN.'
         : 'Supply must conform to the specifications and quantities stated in this purchase order.'), left + 75, termsY + 35, { width: width - 87, height: 18, ellipsis: true })
       doc.y = termsY + 77
-      const isVerified = po.signedPo?.status === 'VERIFIED'
-      if (!isVerified) {
-        const signatureY = Math.min(doc.y + 38, 726)
-        const signatureWidth = 170
-        const signatureX = right - signatureWidth - 36
-        doc.strokeColor(PO.black).lineWidth(0.7).moveTo(signatureX, signatureY).lineTo(signatureX + signatureWidth, signatureY).stroke()
-        doc.fillColor(PO.black).font('Times-Bold').fontSize(8.5).text('Secretary Signature', signatureX, signatureY + 8, { width: signatureWidth, align: 'center' })
-        doc.fillColor(PO.muted).font('Helvetica').fontSize(6.8).text('Date: __________________', signatureX, signatureY + 21, { width: signatureWidth, align: 'center' })
-      }
 
       attachedImages.forEach(({ evidence, image }, index) => {
         doc.addPage(); drawHeader(`ATTACHED EVIDENCE ${index + 1}`)

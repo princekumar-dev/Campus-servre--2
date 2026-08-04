@@ -10,6 +10,11 @@ import { GoodsReceipt, PurchaseOrder, ServiceRequest } from '../models.js'
 const money = value => `INR ${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
 const roundMoney = value => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100
 const date = value => value ? new Date(value).toLocaleDateString('en-IN') : '—'
+const dateTime = value => value ? new Date(value).toLocaleString('en-IN', {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+  timeZone: 'Asia/Kolkata'
+}) : '—'
 const safeName = value => String(value || 'report').replace(/[^a-z0-9._-]+/gi, '-')
 const statusLabel = value => String(value || 'UNKNOWN').replace(/_/g, ' ').toUpperCase()
 const moduleDir = path.dirname(fileURLToPath(import.meta.url))
@@ -165,7 +170,7 @@ async function grnPdf(po, grn, request = null) {
       doc.rect(left, 142, width, 74).fillAndStroke(pale, '#ddd6fe')
       field('Certificate', grn.grnNumber, left + 12, 154, 235)
       field('Service PO', po?.poNumber || grn.poNumber, 305, 154, 235)
-      field('Completed', date(po?.serviceExecution?.completedAt || grn.receivedAt || grn.createdAt), left + 12, 176, 235)
+      field('GRN Created', dateTime(grn.createdAt || grn.receivedAt), left + 12, 176, 235)
       field('Status', 'SERVICE VERIFIED & CLOSED', 305, 176, 235)
       field('Location', po?.deliveryLocation || po?.deliveryAddress, left + 12, 198, 235)
       field('Technician', po?.serviceExecution?.technicianName || grn.serviceReceipt?.technicianName, 305, 198, 235)
@@ -287,7 +292,7 @@ async function grnPdf(po, grn, request = null) {
     doc.rect(left, 132, width, 55).fillAndStroke(pale, '#d6d3d1')
     doc.moveTo(296, 132).lineTo(296, 187).lineWidth(0.5).strokeColor('#d6d3d1').stroke()
     label('GRN Number', 54, 140); value(grn.grnNumber, 130, 140, 150)
-    label('GRN Date', 54, 156); value(date(grn.receivedAt || grn.createdAt), 130, 156, 150)
+    label('GRN Created', 54, 156); value(dateTime(grn.createdAt || grn.receivedAt), 130, 156, 150)
     label('GRN Status', 54, 172); value(statusLabel(grnStatus), 130, 172, 150)
     label('PO Number', 308, 140); value(po?.poNumber || grn.poNumber, 378, 140, 160)
     label('PO Status', 308, 156); value(statusLabel(poStatus), 378, 156, 160)
@@ -477,7 +482,7 @@ async function poPdf(po, grns) {
     section(doc, 'Purchase order')
     row(doc, 'Vendor', po.vendorName)
     row(doc, 'Status', po.status)
-    row(doc, 'Created', date(po.createdAt))
+    row(doc, 'Created At', dateTime(po.createdAt))
     row(doc, 'Expected delivery', date(po.expectedDeliveryDate))
     row(doc, 'Delivery location', po.deliveryLocation)
     row(doc, 'Grand total', money(po.grandTotal))
@@ -488,7 +493,7 @@ async function poPdf(po, grns) {
       const y = doc.y + 9
       doc.fillColor('#5b21b6').font('Helvetica-Bold').fontSize(9).text(grn.grnNumber, 52, y)
       doc.fillColor('#475569').font('Helvetica').fontSize(8)
-        .text(`${grn.grnType} · ${grn.status} · ${date(grn.receivedAt || grn.createdAt)} · ${grn.items?.length || 0} items · ${money(grn.grandTotal)}`, 52, y + 16)
+        .text(`${grn.grnType} · ${grn.status} · ${dateTime(grn.createdAt || grn.receivedAt)} · ${grn.items?.length || 0} items · ${money(grn.grandTotal)}`, 52, y + 16)
       doc.y = y + 42
     })
     section(doc, 'PO items')
