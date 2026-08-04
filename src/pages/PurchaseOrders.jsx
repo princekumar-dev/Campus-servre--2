@@ -123,10 +123,18 @@ function CreatePOModal({ onClose, onSaved, sourceRequest, selectedQuotation }) {
           {/* Vendor */}
           <div>
             <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Vendor *</label>
-            <select value={form.vendorId} onChange={e => setForm(p => ({ ...p, vendorId: e.target.value }))} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:outline-none focus:border-violet-500 transition-all">
+            <select
+              value={form.vendorId}
+              onChange={e => setForm(p => ({ ...p, vendorId: e.target.value }))}
+              disabled={Boolean(selectedQuotation)}
+              className={`w-full rounded-xl border p-3 text-sm transition-all focus:outline-none focus:border-violet-500 ${selectedQuotation ? 'cursor-not-allowed border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-slate-50'}`}
+            >
               <option value="">Select active vendor...</option>
               {vendors.map(v => <option key={v._id} value={v._id}>{v.legalName} ({v.vendorCode})</option>)}
             </select>
+            {selectedQuotation && (
+              <p className="mt-2 text-xs font-medium text-emerald-700">Vendor is locked to the selected quotation.</p>
+            )}
           </div>
 
           {/* Line Items */}
