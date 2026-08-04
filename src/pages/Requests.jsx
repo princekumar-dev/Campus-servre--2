@@ -81,7 +81,7 @@ function Requests() {
     const fetchRequests = async () => {
       setIsLoading(true)
       try {
-        const res = await apiClient.get('/api/requests', { cache: false })
+        const res = await apiClient.get('/api/requests', { ttl: 30 * 1000 })
         if (res.success) {
           setRequests(res.data)
           const counts = {}

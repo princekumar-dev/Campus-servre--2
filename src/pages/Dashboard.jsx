@@ -89,8 +89,8 @@ function Dashboard() {
     const fetchDashboardData = async () => {
       try {
         const [statsRes, requestsRes] = await Promise.all([
-          apiClient.get('/api/reports', { cache: false }),
-          apiClient.get('/api/requests?summary=dashboard', { cache: false })
+          apiClient.get('/api/reports', { ttl: 30 * 1000 }),
+          apiClient.get('/api/requests?summary=dashboard', { ttl: 30 * 1000 })
         ])
         if (statsRes.success && statsRes.stats && typeof statsRes.stats === 'object') {
           setStats(current => ({ ...current, ...statsRes.stats }))

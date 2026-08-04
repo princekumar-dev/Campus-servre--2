@@ -199,8 +199,13 @@ const ServiceRequestSchema = new mongoose.Schema({
 
 ServiceRequestSchema.index({ status: 1 })
 ServiceRequestSchema.index({ requesterId: 1 })
+ServiceRequestSchema.index({ requesterId: 1, createdAt: -1 })
 ServiceRequestSchema.index({ assignedManagerId: 1 })
+ServiceRequestSchema.index({ assignedManagerId: 1, createdAt: -1 })
+ServiceRequestSchema.index({ createdAt: -1 })
 ServiceRequestSchema.index({ 'workOrder.technicianId': 1 })
+ServiceRequestSchema.index({ 'workOrder.technicianId': 1, createdAt: -1 })
+ServiceRequestSchema.index({ status: 1, createdAt: -1 })
 ServiceRequestSchema.index({ currentOwnerRole: 1, slaDueAt: 1 })
 
 // Notification Schema
@@ -232,6 +237,7 @@ const VendorSchema = new mongoose.Schema({
   createdBy: { type: String }
 })
 VendorSchema.index({ status: 1 })
+VendorSchema.index({ email: 1 })
 
 // ─── Vendor Quotation Schema ─────────────────────────────────────────────────
 // Kept as separate records so one indent/request can compare multiple vendors.
@@ -268,6 +274,8 @@ const VendorQuotationSchema = new mongoose.Schema({
   }]
 }, { timestamps: true })
 VendorQuotationSchema.index({ requestId: 1, vendorId: 1, createdAt: -1 })
+VendorQuotationSchema.index({ assignedManagerId: 1, createdAt: -1 })
+VendorQuotationSchema.index({ createdAt: -1 })
 
 // ─── Purchase Order Schema ────────────────────────────────────────────────────
 const PurchaseOrderSchema = new mongoose.Schema({
@@ -387,6 +395,9 @@ const PurchaseOrderSchema = new mongoose.Schema({
 PurchaseOrderSchema.index({ status: 1 })
 PurchaseOrderSchema.index({ vendorId: 1 })
 PurchaseOrderSchema.index({ requestId: 1 })
+PurchaseOrderSchema.index({ status: 1, createdAt: -1 })
+PurchaseOrderSchema.index({ vendorId: 1, createdAt: -1 })
+PurchaseOrderSchema.index({ requestId: 1, createdAt: -1 })
 
 // ─── Delivery Person Schema ───────────────────────────────────────────────────
 const DeliveryPersonSchema = new mongoose.Schema({
@@ -458,6 +469,7 @@ const DeliveryScheduleSchema = new mongoose.Schema({
 DeliveryScheduleSchema.index({ poId: 1 })
 DeliveryScheduleSchema.index({ status: 1 })
 DeliveryScheduleSchema.index({ scheduledDate: 1 })
+DeliveryScheduleSchema.index({ status: 1, scheduledDate: -1 })
 
 // ─── Gate Entry Schema ────────────────────────────────────────────────────────
 const GateEntrySchema = new mongoose.Schema({
@@ -478,6 +490,7 @@ const GateEntrySchema = new mongoose.Schema({
 })
 GateEntrySchema.index({ deliveryScheduleId: 1 })
 GateEntrySchema.index({ entryTime: -1 })
+GateEntrySchema.index({ decision: 1, entryTime: -1 })
 
 // ─── Goods Receipt Schema ─────────────────────────────────────────────────────
 const GoodsReceiptSchema = new mongoose.Schema({
@@ -552,6 +565,10 @@ const GoodsReceiptSchema = new mongoose.Schema({
 GoodsReceiptSchema.index({ poId: 1 })
 GoodsReceiptSchema.index({ grnType: 1 })
 GoodsReceiptSchema.index({ status: 1 })
+GoodsReceiptSchema.index({ grnType: 1, source: 1, poId: 1 })
+GoodsReceiptSchema.index({ source: 1, receivedAt: -1 })
+GoodsReceiptSchema.index({ gateVerifiedAt: 1, receivedAt: -1 })
+GoodsReceiptSchema.index({ status: 1, createdAt: -1 })
 
 // ─── Audit Log Schema ─────────────────────────────────────────────────────────
 const AuditLogSchema = new mongoose.Schema({

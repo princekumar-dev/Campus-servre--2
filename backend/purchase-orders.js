@@ -4,6 +4,8 @@ const roundMoney = value => Math.round((Number(value) + Number.EPSILON) * 100) /
 const normalizeUnit = value => ({ pieces: 'pcs', sets: 'set', units: 'unit', boxes: 'box', meters: 'm' }[String(value || '').toLowerCase()] || String(value || 'pcs').toLowerCase())
 const invalidOrder = message => Object.assign(new Error(message), { status: 400 })
 
+let legacyQrReconciliationPromise = null
+
 async function reconcileLegacyQrClosures() {
   const finalQrPoIds = await GoodsReceipt.distinct('poId', { grnType: 'FINAL', source: 'PO_QR' })
   if (!finalQrPoIds.length) return
@@ -41,6 +43,18 @@ async function reconcileLegacyQrClosures() {
     }
   }))
 }
+
+// This is a one-time migration safety net, not work that belongs on every list
+// request. Keep it off the response critical path and share the work between
+// concurrent requests in the same server process.
+function scheduleLegacyQrReconciliation() {
+  if (legacyQrReconciliationPromise) return
+  legacyQrReconciliationPromise = reconcileLegacyQrClosures().catch(error => {
+    console.warn('Legacy QR closure reconciliation failed:', error.message)
+    legacyQrReconciliationPromise = null
+  })
+}
+
 import { connectToDatabase } from '../lib/mongo.js'
 import { addProductIds, generateProductId, getProductId } from '../lib/productId.js'
 import { storeNotification } from '../lib/notificationService.js'
@@ -66,7 +80,7 @@ export default async function handler(req, res) {
 
     // ── GET /api/purchase-orders ──────────────────────────────────────────────
     if (req.method === 'GET') {
-      await reconcileLegacyQrClosures()
+      scheduleLegacyQrReconciliation()
       if (id) {
         const po = await PurchaseOrder.findById(id).lean()
         if (!po) return res.status(404).json({ success: false, error: 'PO not found' })
@@ -95,10 +109,13 @@ export default async function handler(req, res) {
       if (req.query.requestId) filter.requestId = req.query.requestId
       if (userRole === 'vendor') {
         // Vendors see their own POs only
-        const vendorDocs = await Vendor.find({ email: actor?.email }).lean()
-        if (vendorDocs.length > 0) filter.vendorId = vendorDocs[0]._id
+        const vendor = await Vendor.findOne({ email: actor?.email }).select('_id').lean()
+        if (vendor) filter.vendorId = vendor._id
       }
-      const pos = await PurchaseOrder.find(filter).select('-signedPo.url -documentUrl').sort({ createdAt: -1 }).lean()
+      const pos = await PurchaseOrder.find(filter)
+        .select('-signedPo.url -documentUrl -serviceExecution.workEvidence.url -serviceExecution.expenses.bill.url -statusHistory')
+        .sort({ createdAt: -1 })
+        .lean()
       pos.forEach(po => { po.items = addProductIds(po.items) })
       return res.json({ success: true, data: pos, total: pos.length })
     }

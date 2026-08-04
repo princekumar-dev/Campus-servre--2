@@ -52,7 +52,7 @@ export default async function handler(req, res) {
     // ── GET /api/gate?action=history — PO receiving scan history ────────────
     if (req.method === 'GET' && action === 'history') {
       const receipts = await GoodsReceipt.find(gateReceiptFilter)
-        .select('-receiptEvidence.url')
+        .select('poNumber grnNumber grnType status receivedByName grandTotal receivedAt createdAt')
         .sort({ receivedAt: -1, createdAt: -1 })
         .limit(500)
         .lean()

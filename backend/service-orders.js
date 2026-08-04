@@ -42,7 +42,10 @@ export default async function serviceOrdersHandler(req, res) {
       const requestById = new Map(serviceRequests.map(request => [String(request._id), request]))
       const filter = { requestId: { $in: serviceRequests.map(request => request._id) } }
       if (user.role === 'vendor') filter.vendorEmail = user.email
-      const orders = await PurchaseOrder.find(filter).select('-signedPo.url -qrTokenHash').sort({ createdAt: -1 }).lean()
+      const orders = await PurchaseOrder.find(filter)
+        .select('-signedPo.url -qrTokenHash -documentUrl -serviceExecution.workEvidence.url -serviceExecution.expenses.bill.url -statusHistory')
+        .sort({ createdAt: -1 })
+        .lean()
       return res.json({ success: true, data: orders.map(order => ({ ...order, request: requestById.get(String(order.requestId)) })) })
     }
     if (!id) return res.status(400).json({ success: false, error: 'Service PO id is required' })

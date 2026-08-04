@@ -53,8 +53,11 @@ export default async function handler(req, res) {
           .select('requestNumber title priority status updatedAt createdAt slaDueAt')
           .limit(8)
       } else {
-        // List screens do not need large base64 evidence or embedded document payloads.
-        requestsQuery = requestsQuery.select('-evidence.url -invoice.documentUrl')
+        // List screens only render these summary fields. Avoid transferring the
+        // embedded evidence, quotation, invoice, work order, and audit history.
+        requestsQuery = requestsQuery.select(
+          'requestNumber title category location priority status requesterId requesterName assignedManagerId assignedManagerName currentOwnerRole slaDueAt submittedAt createdAt updatedAt'
+        )
       }
       const requests = await requestsQuery.lean()
       const now = Date.now()

@@ -76,17 +76,22 @@ export default async function handler(req, res) {
       }
 
       const quoteQuery = actorRole === 'manager' ? { assignedManagerId: actorId } : {}
-      const storedQuotations = await VendorQuotation.find(quoteQuery).sort({ createdAt: -1 }).lean()
-
-      const requests = await ServiceRequest.find(query)
-        .select('requestNumber title requesterName assignedManagerId assignedManagerName selectedQuotationId status quotation createdAt')
-        .sort({ createdAt: -1 }).lean()
+      const [storedQuotations, requests] = await Promise.all([
+        VendorQuotation.find(quoteQuery).sort({ createdAt: -1 }).lean(),
+        ServiceRequest.find(query)
+          .select('requestNumber title requesterName assignedManagerId assignedManagerName selectedQuotationId status quotation createdAt')
+          .sort({ createdAt: -1 })
+          .lean()
+      ])
 
       // Older POs may predate quotation snapshots. Include them as vendor-price
       // quotations so existing records are visible without data recreation.
       const requestIds = requests.map(request => request._id)
       const purchaseOrders = requestIds.length
-        ? await PurchaseOrder.find({ requestId: { $in: requestIds } }).sort({ createdAt: -1 }).lean()
+        ? await PurchaseOrder.find({ requestId: { $in: requestIds } })
+          .select('poNumber requestId vendorId vendorName vendorEmail subtotal taxTotal discountTotal grandTotal expectedDeliveryDate paymentTerms createdBy items createdAt')
+          .sort({ createdAt: -1 })
+          .lean()
         : []
       const poByRequest = new Map(purchaseOrders.map(po => [String(po.requestId), po]))
 
