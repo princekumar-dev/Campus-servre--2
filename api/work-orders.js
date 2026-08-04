@@ -1,6 +1,7 @@
 import { connectToDatabase } from '../lib/mongo.js'
 import { ServiceRequest, User } from '../models.js'
 import { finalizeRequestWorkflow } from '../lib/workflowEngine.js'
+import { getSystemSettings } from '../lib/systemSettings.js'
 
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end()
@@ -297,6 +298,10 @@ export default async function handler(req, res) {
       else if (action === 'complete') {
         const { summary, warrantyDetails, recommendations } = req.body
         if (!summary) return res.status(400).json({ success: false, error: 'Completion summary is required' })
+        const systemSettings = await getSystemSettings()
+        if (systemSettings.requireCompletionPhotos && !(request.evidence || []).some(item => item.kind === 'WORK_PHOTO')) {
+          return res.status(400).json({ success: false, error: 'Add at least one work photo before completing this work order' })
+        }
 
         request.workOrder.completionReport = {
           summary,

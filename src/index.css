@@ -3779,6 +3779,23 @@ body:not(.auth-page) .layout-content-container textarea {
   }
 }
 
+/* Shared accessibility baseline for application controls and metadata. */
+body:not(.auth-page) button,
+body:not(.auth-page) a[role="button"],
+body:not(.auth-page) input,
+body:not(.auth-page) select {
+  min-height: 44px;
+}
+
+body:not(.auth-page) .text-slate-400 {
+  color: rgb(100 116 139);
+}
+
+body:not(.auth-page) :focus-visible {
+  outline: 2px solid rgb(124 58 237);
+  outline-offset: 2px;
+}
+
 @media (max-width: 420px) {
   body:not(.auth-page) .layout-content-container {
     padding-inline: 0.75rem;

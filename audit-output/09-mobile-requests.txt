@@ -1,0 +1,106 @@
+url=http://localhost:4173/requests
+title=MSEC CampusServe
+body=MSEC CampusServe
+Dashboard
+Assigned Requests
+Vendors
+Quotations
+Purchase Orders
+GRN
+S
+manager@msec.edu.in
+OPERATIONS MANAGER
+Assigned Requests
+
+Create purchase orders only for requests assigned to you.
+
+My action queue
+
+3 requests currently need your role.
+
+Needs my action (3)
+All records
+
+TRACK BY WORKFLOW STAGE
+
+All
+6
+Ready for PO
+2
+Order Created
+1
+Closed
+2
+Filters
+NUMBER	SUBJECT	LOCATION	REQUESTER	PRIORITY	STATUS	UPDATED	ACTION
+REQ-2026-797104	
+vasdgaergserg
+Classroom Equipment	asdgaga	
+Dr. MSEC CSE HOD
+	MEDIUM	
+QUOTATION IN PROGRESS
+
+Legacy workflow record
+
+	about 1 hour ago	
+Take action
+
+REQ-2026-284635	
+door
+Furniture Repair	civil lab	
+Dr. MSEC CIVIL HOD
+	EMERGENCY	
+Assigned to PM
+
+Ready for order creation
+
+Overdue	about 4 hours ago	
+Take action
+
+REQ-2026-773378	
+cpu
+IT Hardware & Network	adb3-lab	
+Dr. MSEC AIDS HOD
+	EMERGENCY	
+Closed
+
+Workflow completed
+
+	about 5 hours ago	
+View
+
+REQ-2026-458029	
+Door
+Classroom Equipment	CBT3	
+MSEC AIDS Staff
+	EMERGENCY	
+Assigned to PM
+
+Ready for order creation
+
+Overdue	about 5 hours ago	
+Take action
+
+REQ-2026-459427	
+Mouse
+Classroom Equipment	AD Lab 5,6	
+Dr. MSEC AIDS HOD
+	HIGH	
+Closed
+
+Workflow completed
+
+	3 days ago	
+View
+
+REQ-2026-706388	
+Mouse not working in lab
+Classroom Equipment	Lab4	
+MSEC AIDS Staff
+	LOW	
+Order Created
+
+Purchase order generated
+
+Overdue	3 days ago	
+View

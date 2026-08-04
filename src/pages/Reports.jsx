@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
-import { useAlert } from '../components/AlertContext'
 import apiClient from '../utils/apiClient'
 import { Landmark, TrendingUp, ShieldCheck, Users } from 'lucide-react'
 import { PageHeader } from '../components/ui'
+import { ErrorState, LoadingState } from '../components/EmptyStates'
 
 function Reports() {
   const [stats, setStats] = useState({
@@ -15,14 +15,15 @@ function Reports() {
   const [departmentData, setDepartmentData] = useState([])
   const [technicianData, setTechnicianData] = useState([])
   const [isLoading, setIsLoading] = useState(true)
-  const { showError } = useAlert()
-
-  useEffect(() => {
-    const fetchReportData = async () => {
+  const [loadError, setLoadError] = useState('')
+  const fetchReportData = async () => {
+      setIsLoading(true)
+      setLoadError('')
       try {
-        const res = await apiClient.get('/api/reports')
-        if (res.success) {
-          setStats(res.stats)
+        const res = await apiClient.get('/api/reports', { cache: false })
+        if (!res.success) throw new Error(res.error || 'Reports could not be loaded.')
+        if (res.stats) {
+          setStats(current => ({ ...current, ...res.stats }))
           if (res.charts) {
             setCategoryData(res.charts.categoryData || [])
             setDepartmentData(res.charts.departmentData || [])
@@ -30,22 +31,23 @@ function Reports() {
           }
         }
       } catch (err) {
-        showError('Load Error', 'Failed to retrieve reports data')
+        setLoadError(err.message || 'Failed to retrieve reports data')
       } finally {
         setIsLoading(false)
       }
-    }
+  }
 
+  useEffect(() => {
     fetchReportData()
-  }, [showError])
+  }, [])
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <div className="premium-spinner"></div>
-      </div>
+      <LoadingState label="Loading financial and operational reports…" />
     )
   }
+
+  if (loadError) return <ErrorState message={loadError} onRetry={fetchReportData} />
 
   const maxCategoryVal = categoryData.length > 0 ? Math.max(...categoryData.map(c => c.value)) : 1
   const maxDeptCost = departmentData.length > 0 ? Math.max(...departmentData.map(d => d.cost)) : 1
@@ -62,7 +64,7 @@ function Reports() {
         <div className="premium-card p-6 flex items-center justify-between">
           <div>
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Total Expenditure</span>
-            <span className="text-2xl font-black text-slate-800 mt-2 block">₹{stats.totalExpenses.toFixed(2)}</span>
+            <span className="text-2xl font-black text-slate-800 mt-2 block">₹{Number(stats.totalExpenses || 0).toFixed(2)}</span>
             <span className="text-xs text-slate-500 mt-1 block">Cleared payments</span>
           </div>
           <div className="p-4 bg-emerald-50 rounded-xl text-emerald-600">
@@ -73,8 +75,8 @@ function Reports() {
         <div className="premium-card p-6 flex items-center justify-between">
           <div>
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Approved Budget</span>
-            <span className="text-2xl font-black text-slate-800 mt-2 block">₹{stats.totalQuotations.toFixed(2)}</span>
-            <span className="text-xs text-slate-500 mt-1 block">Estimated quotation totals</span>
+            <span className="text-2xl font-black text-slate-800 mt-2 block">₹{Number(stats.totalPOValue ?? stats.totalQuotations ?? 0).toFixed(2)}</span>
+            <span className="text-xs text-slate-500 mt-1 block">Committed purchase-order value</span>
           </div>
           <div className="p-4 bg-violet-50 rounded-xl text-violet-600">
             <TrendingUp size={24} />
@@ -100,11 +102,11 @@ function Reports() {
         
         {/* Cost by Department */}
         <div className="premium-card p-6 space-y-4">
-          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider pb-2 border-b border-slate-100">Expenditure by Department</h3>
+          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider pb-2 border-b border-slate-100">Committed PO Value by Department</h3>
           
           <div className="space-y-4">
             {departmentData.length === 0 ? (
-              <div className="text-center py-12 text-slate-400 text-xs">No expenses recorded yet.</div>
+              <div className="text-center py-12 text-slate-500 text-xs">No approved purchase-order value is available yet.</div>
             ) : (
               departmentData.map((d, idx) => {
                 const percent = Math.round((d.cost / maxDeptCost) * 100)
@@ -170,7 +172,7 @@ function Reports() {
               <tbody className="divide-y divide-slate-100">
                 {technicianData.length === 0 ? (
                   <tr>
-                    <td colSpan="4" className="py-6 text-center text-slate-400 text-xs">No technician logs compiled.</td>
+                    <td colSpan="4" className="py-6 text-center text-slate-500 text-xs">No active technician accounts or task assignments are available.</td>
                   </tr>
                 ) : (
                   technicianData.map((t, idx) => {

@@ -1,0 +1,43 @@
+url=http://localhost:4173/gate/dashboard
+title=MSEC CampusServe
+body=MSEC CampusServe
+Dashboard
+Requests
+Vendors
+Quotations
+POs
+Deliveries
+Gate
+GRN
+Reports
+Users
+Audit
+6
+S
+super@msec.edu.in
+GATE SECURITY
+Gate Security Dashboard
+
+Verify purchase orders and monitor goods receiving
+
+2
+READY TO RECEIVE
+0
+RECEIVED TODAY
+0
+PARTIAL TODAY
+0
+POS CLOSED TODAY
+Recent Gate Activity
+View All
+PO-2026-504304
+GRN-2026-363359 · FINAL
+05:30 pm
+Quick Actions
+Scan PO QR / Enter PO Number
+
+Verify and record received goods
+
+Receiving History
+
+View past PO and GRN receipts

@@ -4,6 +4,7 @@ import { useAlert } from '../components/AlertContext'
 import apiClient from '../utils/apiClient'
 import { QrCode, Package, CheckCircle, ClipboardCheck, Clock } from 'lucide-react'
 import { PageHeader, KpiCard, ActionCard, GlassPanel } from '../components/ui'
+import { EmptyState } from '../components/EmptyStates'
 
 export default function GateDashboard() {
   const [stats, setStats] = useState({ readyToReceive: 0, receivedToday: 0, partialToday: 0, closedToday: 0 })
@@ -51,7 +52,7 @@ export default function GateDashboard() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
         <GlassPanel>
           <div className="flex justify-between items-center mb-4">
             <h2 className="section-title">Recent Gate Activity</h2>
@@ -59,7 +60,7 @@ export default function GateDashboard() {
           </div>
           <div className="space-y-2">
             {recentEntries.length === 0 ? (
-              <p className="text-xs text-slate-400 text-center py-6">No entries today</p>
+              <EmptyState icon={ClipboardCheck} title="No gate receipts today" description="Scan a purchase-order QR code when the next delivery arrives." actionLabel="Scan purchase order" onAction={() => { window.location.href = '/gate' }} />
             ) : recentEntries.map((entry, idx) => (
               <div key={entry._id || idx} className="flex items-center justify-between rounded-lg border border-emerald-200/60 bg-emerald-50/80 p-3">
                 <div className="flex items-center space-x-2">

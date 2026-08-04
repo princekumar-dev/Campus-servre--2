@@ -1,164 +1,160 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAlert } from '../components/AlertContext'
 import apiClient from '../utils/apiClient'
 import { getAuthOrNull } from '../utils/auth'
-import { Settings, Save, Shield, Building2, Bell } from 'lucide-react'
+import { Building2, Bell, Save, ShieldCheck, Timer, Paperclip, RotateCcw, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import PageHeader from '../components/ui/PageHeader'
+import { ErrorState, LoadingState } from '../components/EmptyStates'
 
-function AdminSettings() {
+const defaults = {
+  collegeName: 'MSEC', collegeFullName: 'Meenakshi Sundararajan Engineering College',
+  emailDomain: '@msec.edu.in', defaultDepartment: 'MAINTENANCE', timezone: 'Asia/Kolkata', currency: 'INR',
+  allowPublicSignup: true, enforceEmailDomain: true, enableNotifications: true,
+  requireIssuePhoto: false, requireCompletionPhotos: true, maxAttachmentSizeMB: 5,
+  requestEditWindowHours: 24, slaLowHours: 72, slaMediumHours: 48, slaHighHours: 24, slaEmergencyHours: 4
+}
+
+const fieldClass = 'w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100'
+
+function Field({ label, hint, children }) {
+  return <label className="block"><span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600">{label}</span>{children}{hint && <span className="mt-1.5 block text-xs leading-5 text-slate-500">{hint}</span>}</label>
+}
+
+function Section({ icon: Icon, title, description, tone = 'violet', children }) {
+  const tones = { violet: 'bg-violet-100 text-violet-700', blue: 'bg-blue-100 text-blue-700', amber: 'bg-amber-100 text-amber-700', emerald: 'bg-emerald-100 text-emerald-700', slate: 'bg-slate-100 text-slate-700' }
+  return <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div className="flex items-start gap-3 border-b border-slate-100 px-5 py-4 sm:px-6">
+      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${tones[tone]}`}><Icon size={19} /></div>
+      <div><h2 className="font-extrabold text-slate-900">{title}</h2><p className="mt-0.5 text-xs leading-5 text-slate-500">{description}</p></div>
+    </div>
+    <div className="p-5 sm:p-6">{children}</div>
+  </section>
+}
+
+function Toggle({ checked, onChange, label, description, disabled = false }) {
+  return <button type="button" role="switch" aria-checked={checked} disabled={disabled} onClick={() => onChange(!checked)} className="flex w-full items-center justify-between gap-5 rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 text-left transition hover:border-violet-200 hover:bg-violet-50/40 disabled:cursor-not-allowed disabled:opacity-50">
+    <span><span className="block text-sm font-bold text-slate-800">{label}</span><span className="mt-0.5 block text-xs leading-5 text-slate-500">{description}</span></span>
+    <span className="flex shrink-0 items-center gap-2">
+      <span className={`text-xs font-extrabold ${checked ? 'text-violet-700' : 'text-slate-500'}`}>{checked ? 'On' : 'Off'}</span>
+      <span className={`relative inline-flex h-6 w-11 rounded-full transition-colors duration-200 ${checked ? 'bg-violet-600' : 'bg-slate-300'}`}>
+        <span
+          className="absolute left-1 top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-200"
+          style={{ transform: checked ? 'translateX(20px)' : 'translateX(0)' }}
+        />
+      </span>
+    </span>
+  </button>
+}
+
+export default function AdminSettings() {
   const navigate = useNavigate()
   const { showSuccess, showError } = useAlert()
   const auth = getAuthOrNull()
-  const [isLoading, setIsLoading] = useState(true)
+  const [settings, setSettings] = useState(defaults)
+  const [saved, setSaved] = useState(defaults)
+  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const dirty = useMemo(() => JSON.stringify(settings) !== JSON.stringify(saved), [settings, saved])
+  const update = (key, value) => setSettings(current => ({ ...current, [key]: value }))
 
-  const [settings, setSettings] = useState({
-    collegeName: 'MSEC',
-    collegeFullName: 'Meenakshi Sundararajan Engineering College',
-    department: 'MAINTENANCE',
-    emailDomain: '@msec.edu.in',
-    enableNotifications: true,
-    enableEmailAlerts: true,
-    slaWarningHours: 48,
-    slaCriticalHours: 24,
-    maxAttachmentSizeMB: 10,
-    autoAssignManager: false,
-    requireCompletionPhotos: true,
-    enableVendorBidding: false
-  })
+  const loadSettings = async () => {
+    setLoading(true); setError('')
+    try {
+      const response = await apiClient.get('/api/settings')
+      if (!response.success) throw new Error(response.error || 'Unable to load settings')
+      const next = { ...defaults, ...response.settings }
+      setSettings(next); setSaved(next)
+    } catch (err) { setError(err.message || 'Unable to load settings') }
+    finally { setLoading(false) }
+  }
 
   useEffect(() => {
-    if (!auth || (auth.role !== 'admin' && auth.role !== 'super_admin')) {
-      navigate('/dashboard')
-      return
-    }
-    setIsLoading(false)
+    if (!auth || auth.role !== 'super_admin') { navigate('/dashboard'); return }
+    loadSettings()
   }, [])
 
-  const handleSave = async () => {
+  useEffect(() => {
+    const warn = event => { if (!dirty) return; event.preventDefault(); event.returnValue = '' }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [dirty])
+
+  const saveSettings = async () => {
+    if (!settings.collegeName.trim() || !settings.collegeFullName.trim() || !settings.emailDomain.trim() || !settings.defaultDepartment.trim()) {
+      showError('Missing information', 'Complete all required institution fields.'); return
+    }
     setSaving(true)
     try {
-      // Save to localStorage for now (can be extended to API)
-      localStorage.setItem('campusserve_settings', JSON.stringify(settings))
-      showSuccess('Saved', 'Settings saved successfully')
-    } catch (err) {
-      showError('Error', 'Failed to save settings')
-    } finally {
-      setSaving(false)
-    }
+      const response = await apiClient.put('/api/settings', settings)
+      if (!response.success) throw new Error(response.error || 'Unable to save settings')
+      const next = { ...defaults, ...response.settings }
+      setSettings(next); setSaved(next)
+      showSuccess('System settings saved', 'The new policy is now active across CampusServe.')
+    } catch (err) { showError('Settings not saved', err.message || 'Please try again.') }
+    finally { setSaving(false) }
   }
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-violet-500" />
-      </div>
-    )
-  }
+  if (loading) return <LoadingState label="Loading system settings…" />
+  if (error) return <ErrorState message={error} onRetry={loadSettings} />
 
-  return (
-    <div className="space-y-6 max-w-3xl">
-      <div>
-        <h1 className="text-2xl font-black text-slate-800">System Settings</h1>
-        <p className="text-sm text-slate-500 mt-1">Configure CampusServe system parameters</p>
-      </div>
+  return <div className="mx-auto max-w-6xl space-y-6 pb-28">
+    <PageHeader title="System Settings" subtitle="Configure institution-wide policies and workflow defaults" role={auth?.role} />
 
-      {/* Institution Settings */}
-      <div className="bg-white rounded-xl border border-slate-200 p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Building2 size={18} className="text-violet-600" />
-          <h2 className="text-base font-bold text-slate-800">Institution</h2>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-bold text-slate-500 mb-1">Short Name</label>
-            <input type="text" value={settings.collegeName} onChange={e => setSettings({...settings, collegeName: e.target.value})} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-violet-500" />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-slate-500 mb-1">Full Name</label>
-            <input type="text" value={settings.collegeFullName} onChange={e => setSettings({...settings, collegeFullName: e.target.value})} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-violet-500" />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-slate-500 mb-1">Email Domain</label>
-            <input type="text" value={settings.emailDomain} onChange={e => setSettings({...settings, emailDomain: e.target.value})} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-violet-500" />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-slate-500 mb-1">Default Department</label>
-            <input type="text" value={settings.department} onChange={e => setSettings({...settings, department: e.target.value})} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-violet-500" />
-          </div>
-        </div>
-      </div>
+    <div className={`flex items-center gap-3 rounded-2xl border px-4 py-3 ${dirty ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-emerald-200 bg-emerald-50 text-emerald-800'}`}>
+      {dirty ? <AlertTriangle size={18} /> : <CheckCircle2 size={18} />}
+      <p className="text-sm font-semibold">{dirty ? 'You have unsaved changes. Save them to apply the policy across the app.' : 'All settings are saved and active.'}</p>
+    </div>
 
-      {/* SLA Settings */}
-      <div className="bg-white rounded-xl border border-slate-200 p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Shield size={18} className="text-amber-600" />
-          <h2 className="text-base font-bold text-slate-800">SLA Thresholds</h2>
+    <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+      <Section icon={Building2} title="Institution & regional defaults" description="Identity and formatting used throughout the application.">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field label="Short name"><input className={fieldClass} value={settings.collegeName} onChange={e => update('collegeName', e.target.value)} /></Field>
+          <Field label="Full institution name"><input className={fieldClass} value={settings.collegeFullName} onChange={e => update('collegeFullName', e.target.value)} /></Field>
+          <Field label="Official email domain" hint="Include the @ symbol, for example @msec.edu.in."><input className={fieldClass} value={settings.emailDomain} onChange={e => update('emailDomain', e.target.value)} /></Field>
+          <Field label="Default department"><input className={fieldClass} value={settings.defaultDepartment} onChange={e => update('defaultDepartment', e.target.value.toUpperCase())} /></Field>
+          <Field label="Timezone"><select className={fieldClass} value={settings.timezone} onChange={e => update('timezone', e.target.value)}><option value="Asia/Kolkata">Asia/Kolkata (IST)</option><option value="UTC">UTC</option><option value="Asia/Singapore">Asia/Singapore</option></select></Field>
+          <Field label="Currency"><select className={fieldClass} value={settings.currency} onChange={e => update('currency', e.target.value)}><option value="INR">INR — Indian Rupee</option><option value="USD">USD — US Dollar</option><option value="EUR">EUR — Euro</option></select></Field>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-bold text-slate-500 mb-1">Warning After (hours)</label>
-            <input type="number" value={settings.slaWarningHours} onChange={e => setSettings({...settings, slaWarningHours: parseInt(e.target.value) || 0})} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-violet-500" />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-slate-500 mb-1">Critical After (hours)</label>
-            <input type="number" value={settings.slaCriticalHours} onChange={e => setSettings({...settings, slaCriticalHours: parseInt(e.target.value) || 0})} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-violet-500" />
-          </div>
-        </div>
-      </div>
+      </Section>
 
-      {/* Notification Settings */}
-      <div className="bg-white rounded-xl border border-slate-200 p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Bell size={18} className="text-blue-600" />
-          <h2 className="text-base font-bold text-slate-800">Notifications</h2>
-        </div>
+      <Section icon={ShieldCheck} title="Access & registration" description="Control who may create an account and which identities are accepted." tone="emerald">
         <div className="space-y-3">
-          {[
-            { key: 'enableNotifications', label: 'Enable Push Notifications' },
-            { key: 'enableEmailAlerts', label: 'Enable Email Alerts' },
-            { key: 'autoAssignManager', label: 'Auto-Assign Manager on Submission' },
-            { key: 'requireCompletionPhotos', label: 'Require Before/After Photos on Completion' },
-            { key: 'enableVendorBidding', label: 'Enable Vendor Bidding' }
-          ].map(item => (
-            <label key={item.key} className="flex items-center justify-between p-3 rounded-lg bg-slate-50 cursor-pointer">
-              <span className="text-sm font-medium text-slate-700">{item.label}</span>
-              <button
-                type="button"
-                onClick={() => setSettings({...settings, [item.key]: !settings[item.key]})}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${settings[item.key] ? 'bg-violet-600' : 'bg-slate-300'}`}
-              >
-                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings[item.key] ? 'translate-x-6' : 'translate-x-1'}`} />
-              </button>
-            </label>
-          ))}
+          <Toggle checked={settings.allowPublicSignup} onChange={value => update('allowPublicSignup', value)} label="Allow Faculty/Staff self-registration" description="Public sign-up creates requester accounts only. Privileged roles remain super-admin only." />
+          <Toggle checked={settings.enforceEmailDomain} disabled={!settings.allowPublicSignup} onChange={value => update('enforceEmailDomain', value)} label="Require official institution email" description={`Reject public registrations outside ${settings.emailDomain || 'the configured domain'}.`} />
         </div>
-      </div>
+      </Section>
 
-      {/* Attachment Settings */}
-      <div className="bg-white rounded-xl border border-slate-200 p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Settings size={18} className="text-slate-600" />
-          <h2 className="text-base font-bold text-slate-800">Attachments</h2>
+      <Section icon={Timer} title="Workflow & SLA policy" description="Deadlines are recalculated whenever a request changes workflow state." tone="amber">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          {[['slaEmergencyHours', 'Emergency'], ['slaHighHours', 'High'], ['slaMediumHours', 'Medium'], ['slaLowHours', 'Low']].map(([key, label]) => <Field key={key} label={`${label} (hours)`}><input type="number" min="1" max="720" className={fieldClass} value={settings[key]} onChange={e => update(key, Number(e.target.value))} /></Field>)}
         </div>
-        <div>
-          <label className="block text-xs font-bold text-slate-500 mb-1">Max Attachment Size (MB)</label>
-          <input type="number" value={settings.maxAttachmentSizeMB} onChange={e => setSettings({...settings, maxAttachmentSizeMB: parseInt(e.target.value) || 5})} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-violet-500" />
-        </div>
-      </div>
+        <div className="mt-4"><Field label="Submitted request editing" hint="Drafts and clarification requests remain editable regardless of this policy."><select className={fieldClass} value={settings.requestEditWindowHours} onChange={e => update('requestEditWindowHours', Number(e.target.value))}><option value={0}>No editing after submission</option><option value={1}>Allow editing for 1 hour</option><option value={6}>Allow editing for 6 hours</option><option value={12}>Allow editing for 12 hours</option><option value={24}>Allow editing for 24 hours</option><option value={48}>Allow editing for 48 hours</option><option value={72}>Allow editing for 3 days</option><option value={168}>Allow editing for 7 days</option></select></Field></div>
+      </Section>
 
-      <div className="flex justify-end">
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white font-bold text-sm py-2.5 px-6 rounded-xl transition-all"
-        >
-          <Save size={16} />
-          {saving ? 'Saving...' : 'Save Settings'}
-        </button>
+      <Section icon={Bell} title="Notifications" description="Choose which system-generated alerts are created for workflow owners." tone="blue">
+        <div className="space-y-3">
+          <Toggle checked={settings.enableNotifications} onChange={value => update('enableNotifications', value)} label="In-app workflow notifications" description="Create alerts when responsibility moves to another user." />
+        </div>
+      </Section>
+
+      <div className="xl:col-span-2">
+        <Section icon={Paperclip} title="Evidence & attachments" description="Apply consistent evidence rules and payload limits across service requests." tone="slate">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <Toggle checked={settings.requireIssuePhoto} onChange={value => update('requireIssuePhoto', value)} label="Require issue photo" description="A requester must attach a valid image before creating a service request." />
+            <Toggle checked={settings.requireCompletionPhotos} onChange={value => update('requireCompletionPhotos', value)} label="Require completion evidence" description="Marks before/after evidence as institution policy for completed work." />
+            <Field label="Maximum attachment size (MB)" hint="Allowed range: 1–25 MB."><input type="number" min="1" max="25" className={fieldClass} value={settings.maxAttachmentSizeMB} onChange={e => update('maxAttachmentSizeMB', Number(e.target.value))} /></Field>
+          </div>
+        </Section>
       </div>
     </div>
-  )
-}
 
-export default AdminSettings
+    <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-8px_30px_rgba(15,23,42,0.08)] backdrop-blur md:left-auto md:right-6 md:bottom-5 md:w-auto md:rounded-2xl md:border">
+      <div className="mx-auto flex max-w-6xl items-center justify-end gap-3">
+        <button type="button" disabled={!dirty || saving} onClick={() => setSettings(saved)} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 px-4 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40"><RotateCcw size={16} /> Discard</button>
+        <button type="button" disabled={!dirty || saving} onClick={saveSettings} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-violet-600 px-5 text-sm font-bold text-white shadow-lg shadow-violet-200 hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"><Save size={16} /> {saving ? 'Saving…' : 'Save settings'}</button>
+      </div>
+    </div>
+  </div>
+}

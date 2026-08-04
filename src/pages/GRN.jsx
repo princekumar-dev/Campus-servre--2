@@ -3,7 +3,7 @@ import { useAlert } from '../components/AlertContext'
 import ModalShell from '../components/ModalShell'
 import apiClient from '../utils/apiClient'
 import { getAuthOrNull } from '../utils/auth'
-import { ClipboardCheck, Plus, Package, CheckCircle, AlertTriangle, XCircle, ChevronDown, ChevronUp, Download, FileArchive } from 'lucide-react'
+import { ClipboardCheck, Plus, Package, CheckCircle, AlertTriangle, XCircle, ChevronDown, ChevronUp, Download, FileArchive, ExternalLink, Image as ImageIcon } from 'lucide-react'
 
 const grnTypeColors = {
   PARTIAL: 'bg-indigo-50 text-indigo-700 border-indigo-200',
@@ -175,17 +175,34 @@ async function downloadExport(url, filename) {
   setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
 }
 
-function GRNCard({ grn, onDownload }) {
+function EvidencePreview({ evidence, title, tone = 'violet' }) {
+  const isImage = String(evidence?.mimeType || '').startsWith('image/') || /^data:image\//.test(String(evidence?.url || ''))
+  const tones = tone === 'rose' ? 'border-rose-200 bg-rose-50/60 text-rose-700' : 'border-violet-100 bg-violet-50/50 text-violet-700'
+  return (
+    <a href={evidence.url} target="_blank" rel="noreferrer" className={`group block min-h-11 overflow-hidden rounded-xl border p-3 ${tones}`}>
+      <div className="flex items-center justify-between gap-2">
+        <span className="inline-flex items-center gap-2 text-xs font-black"><ImageIcon size={15} /> {title}</span>
+        <ExternalLink size={14} aria-hidden="true" />
+      </div>
+      {isImage ? <img src={evidence.url} alt={`${title}: ${evidence.name || 'uploaded evidence'}`} className="mt-3 h-36 w-full rounded-lg bg-white object-contain" /> : <div className="mt-3 flex h-20 items-center justify-center rounded-lg bg-white text-xs font-bold text-slate-600">Open attached document</div>}
+      <p className="mt-2 truncate text-xs font-semibold text-slate-600">{evidence.name || 'Uploaded evidence'}</p>
+    </a>
+  )
+}
+
+function GRNCard({ grn, po, onDownload }) {
   const [expanded, setExpanded] = useState(false)
   const [receiptEvidence, setReceiptEvidence] = useState(grn.receiptEvidence?.url ? grn.receiptEvidence : null)
+  const [damageEvidence, setDamageEvidence] = useState(grn.damageEvidence?.url ? grn.damageEvidence : null)
 
   const toggleExpanded = async () => {
     const nextExpanded = !expanded
     setExpanded(nextExpanded)
-    if (nextExpanded && grn.hasReceiptEvidence && !receiptEvidence) {
+    if (nextExpanded && ((grn.hasReceiptEvidence && !receiptEvidence) || (grn.hasDamageEvidence && !damageEvidence))) {
       try {
         const result = await apiClient.get(`/api/grn?id=${encodeURIComponent(grn._id)}`, { cache: false })
         if (result?.success && result.data?.receiptEvidence?.url) setReceiptEvidence(result.data.receiptEvidence)
+        if (result?.success && result.data?.damageEvidence?.url) setDamageEvidence(result.data.damageEvidence)
       } catch {
         // The GRN details remain usable if an older attachment cannot be loaded.
       }
@@ -251,6 +268,13 @@ function GRNCard({ grn, onDownload }) {
                 <p className="mt-2 truncate text-center text-xs text-slate-500">{receiptEvidence.name}</p>
               </div>
             </details>
+          )}
+          {(damageEvidence?.url || po?.serviceExecution?.expenses?.some(expense => expense.bill?.url) || po?.serviceExecution?.workEvidence?.length) && (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {damageEvidence?.url && <EvidencePreview evidence={damageEvidence} title="Damage proof" tone="rose" />}
+              {(po?.serviceExecution?.expenses || []).filter(expense => expense.bill?.url).map((expense, index) => <EvidencePreview key={`bill-${index}`} evidence={expense.bill} title={`Invoice / bill ${index + 1}`} />)}
+              {(po?.serviceExecution?.workEvidence || []).filter(evidence => evidence.url).map((evidence, index) => <EvidencePreview key={`work-${index}`} evidence={evidence} title={`Delivery evidence ${index + 1}`} />)}
+            </div>
           )}
           <div className="overflow-x-auto">
             <table className="w-full text-xs text-left">
@@ -355,7 +379,7 @@ function POGroup({ group, onDownloadGrn, onDownloadPackage }) {
             </button>
           </div>
           <div className="space-y-3">
-            {grns.map(grn => <GRNCard key={grn._id} grn={grn} onDownload={onDownloadGrn} />)}
+            {grns.map(grn => <GRNCard key={grn._id} grn={grn} po={po} onDownload={onDownloadGrn} />)}
           </div>
         </div>
       )}

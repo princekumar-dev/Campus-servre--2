@@ -1,0 +1,75 @@
+url=http://localhost:4173/dashboard
+title=MSEC CampusServe
+body=MSEC CampusServe
+Dashboard
+Assigned Requests
+Vendors
+Quotations
+Purchase Orders
+GRN
+S
+manager@msec.edu.in
+05:06 PM
+|
+Monday, August 3
+Good evening, Service
+
+Create purchase orders and upload signed proof
+
+Search
+ASSIGNED REQUESTS
+2
+Ready for PO creation
+DRAFT / REVISION POS
+0
+Signed proof required
+AWAITING ADMIN VERIFICATION
+0
+Signed proof submitted
+COMPLETED POS
+2
+Fulfilled or closed
+OPERATIONS CENTER
+My Action Queue
+Inspections & estimates
+Vendors
+Reports
+STATUS DISTRIBUTION
+Purchase Order Created (1)
+Closed (2)
+Assigned To Manager (2)
+Quotation In Progress (1)
+Recent Requests
+View All
+NUMBER	SUBJECT	PRIORITY	STATUS	ACTION
+REQ-2026-797104	vasdgaergserg	MEDIUM	QUOTATION IN PROGRESS	View
+REQ-2026-284635	door	EMERGENCY	ASSIGNED TO MANAGER	View
+REQ-2026-773378	cpu	EMERGENCY	CLOSED	View
+REQ-2026-458029	Door	EMERGENCY	ASSIGNED TO MANAGER	View
+REQ-2026-459427	Mouse	HIGH	CLOSED	View
+REQ-2026-706388	Mouse not working in lab	LOW	PURCHASE ORDER CREATED	View
+Activity Feed
+
+vasdgaergserg
+
+QUOTATION IN PROGRESS · about 4 hours ago
+
+door
+
+ASSIGNED TO MANAGER · about 4 hours ago
+
+cpu
+
+CLOSED · about 5 hours ago
+
+Door
+
+ASSIGNED TO MANAGER · 3 days ago
+
+Mouse
+
+CLOSED · 3 days ago
+
+Mouse not working in lab
+
+PURCHASE ORDER CREATED · 3 days ago

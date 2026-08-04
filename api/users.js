@@ -1,6 +1,7 @@
 import { connectToDatabase } from '../lib/mongo.js'
 import { User } from '../models.js'
 import bcrypt from 'bcryptjs'
+import { getSystemSettings } from '../lib/systemSettings.js'
 
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end()
@@ -70,8 +71,8 @@ export default async function handler(req, res) {
         if (!requestingUser) {
           return res.status(401).json({ success: false, error: 'User not found' })
         }
-        if (String(requestingUser.role || '').toLowerCase() !== 'admin') {
-          return res.status(403).json({ success: false, error: 'Only admin can list users' })
+        if (String(requestingUser.role || '').toLowerCase() !== 'super_admin') {
+          return res.status(403).json({ success: false, error: 'Only the super administrator can list users' })
         }
         const users = await User.find().select('_id name email role department phoneNumber createdAt').sort({ createdAt: -1 }).lean()
         const safe = users.map(u => ({
@@ -90,12 +91,6 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      // Only admin/super_admin can create users
-      const requestingRole = req.user ? req.user.role : (req.headers['x-user-role'] || '')
-      if (!['admin', 'super_admin'].includes(requestingRole)) {
-        return res.status(403).json({ success: false, error: 'Only admin can create users' })
-      }
-
       const { name, email, password, role, department, phoneNumber } = req.body
       if (!name || !email || !password || !role || !department) {
         return res.status(400).json({ success: false, error: 'name, email, password, role and department are required' })
@@ -104,6 +99,18 @@ export default async function handler(req, res) {
       const validRoles = ['admin', 'requester', 'manager', 'technician', 'accounts', 'vendor', 'service_provider', 'super_admin', 'gate', 'receiving_officer', 'delivery_person', 'hod', 'staff']
       if (!validRoles.includes(role)) {
         return res.status(400).json({ success: false, error: `role must be one of: ${validRoles.join(', ')}` })
+      }
+      const requestingRole = String(req.user?.role || '').toLowerCase()
+      const isSuperAdmin = requestingRole === 'super_admin'
+      const systemSettings = await getSystemSettings()
+      if (!isSuperAdmin && !systemSettings.allowPublicSignup) {
+        return res.status(403).json({ success: false, error: 'Public sign-up is currently disabled. Contact the system administrator.' })
+      }
+      if (!isSuperAdmin && role !== 'requester') {
+        return res.status(403).json({ success: false, error: 'Public sign-up is limited to Faculty/Staff requester accounts. A super administrator must create all other roles.' })
+      }
+      if (!isSuperAdmin && systemSettings.enforceEmailDomain && !email.toLowerCase().endsWith(systemSettings.emailDomain.toLowerCase())) {
+        return res.status(400).json({ success: false, error: `Use an official ${systemSettings.emailDomain} email address` })
       }
 
       const existing = await User.findOne({ email: email.toLowerCase() })
@@ -136,10 +143,10 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'DELETE') {
-      // Only admin can delete users
+      // User administration is reserved for the super administrator.
       const requestingRole = req.user ? req.user.role : (req.headers['x-user-role'] || '')
-      if (!['admin', 'super_admin'].includes(requestingRole)) {
-        return res.status(403).json({ success: false, error: 'Only admin can delete users' })
+      if (requestingRole !== 'super_admin') {
+        return res.status(403).json({ success: false, error: 'Only the super administrator can delete users' })
       }
 
       try {
@@ -171,8 +178,8 @@ export default async function handler(req, res) {
         }
 
         const adminUser = req.user || await User.findById(adminUserId).select('_id role').lean()
-        if (!adminUser || !['admin', 'super_admin'].includes(adminUser.role)) {
-          return res.status(403).json({ success: false, error: 'Only admin can change user passwords' })
+        if (!adminUser || adminUser.role !== 'super_admin') {
+          return res.status(403).json({ success: false, error: 'Only the super administrator can change user passwords' })
         }
 
         const targetUser = await User.findById(targetUserId).select('_id email role').lean()

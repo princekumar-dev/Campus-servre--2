@@ -1,0 +1,50 @@
+url=http://localhost:4173/quotations
+title=MSEC CampusServe
+body=MSEC CampusServe
+Dashboard
+Assigned Requests
+Vendors
+Quotations
+Purchase Orders
+GRN
+S
+manager@msec.edu.in
+Quotations
+
+Manage and compare vendor quotations
+
+ Create quotation
+All
+SUBMITTED
+APPROVED
+REJECTED
+REVISION REQUIRED
+QUO-2026-49660
+XYZ
+REQ-2026-797104 · VND-2026-14247
+₹1,416
+SELECTED
+PDF
+Add another quote
+Generate PO
+QUO-2026-191168
+XYZ
+REQ-2026-773378
+₹1,180
+APPROVED
+PDF
+Procurement closed
+QUO-2026-504304
+XYZ
+REQ-2026-459427
+₹177
+APPROVED
+PDF
+Procurement closed
+QUO-2026-935263
+XYZ
+REQ-2026-706388
+₹1,179.858
+APPROVED
+PDF
+PO already generated

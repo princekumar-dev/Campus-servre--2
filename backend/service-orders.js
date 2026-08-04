@@ -1,4 +1,5 @@
 import { GoodsReceipt, PurchaseOrder, ServiceRequest } from '../models.js'
+import { getSystemSettings } from '../lib/systemSettings.js'
 
 const allowedRoles = new Set(['vendor', 'service_provider', 'manager', 'admin', 'super_admin'])
 
@@ -88,8 +89,12 @@ export default async function serviceOrdersHandler(req, res) {
         note: String(req.body.note || '').trim(), uploadedBy: user.name
       })
     } else if (action === 'submit') {
+      const systemSettings = await getSystemSettings()
       if (!po.serviceExecution.expenses.length) {
         return res.status(400).json({ success: false, error: 'Add at least one repair cost and scanned bill before submitting' })
+      }
+      if (systemSettings.requireCompletionPhotos && !po.serviceExecution.workEvidence.length) {
+        return res.status(400).json({ success: false, error: 'Add at least one completion photo before submitting completed work' })
       }
       po.serviceExecution.status = 'SUBMITTED'
       po.serviceExecution.completedAt = new Date()

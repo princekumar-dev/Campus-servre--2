@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAlert } from '../components/AlertContext'
-import ModalShell from '../components/ModalShell'
 import ConfirmDialog from '../components/ConfirmDialog'
 import apiClient from '../utils/apiClient'
 import { getAuthOrNull } from '../utils/auth'
 import { Users, Plus, Trash2, Shield, Mail, Phone, Building2, Search } from 'lucide-react'
+import PageHeader from '../components/ui/PageHeader'
+import { EmptyState, ErrorState, LoadingState } from '../components/EmptyStates'
 
 function AdminUsers() {
   const navigate = useNavigate()
@@ -13,15 +14,13 @@ function AdminUsers() {
   const auth = getAuthOrNull()
   const [users, setUsers] = useState([])
   const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
-  const [showCreateModal, setShowCreateModal] = useState(false)
-  const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'requester', department: '', phoneNumber: '' })
-  const [creating, setCreating] = useState(false)
   const [pendingDelete, setPendingDelete] = useState(null)
   const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
-    if (!auth || !['admin', 'super_admin'].includes(auth.role)) {
+    if (!auth || auth.role !== 'super_admin') {
       navigate('/dashboard')
       return
     }
@@ -29,37 +28,16 @@ function AdminUsers() {
   }, [])
 
   const fetchUsers = async () => {
+    setIsLoading(true)
+    setLoadError('')
     try {
       const res = await apiClient.get(`/api/users?action=list&userId=${auth.id}`)
-      if (res.success) setUsers(res.users)
+      if (!res.success) throw new Error(res.error || 'Failed to load users')
+      setUsers(Array.isArray(res.users) ? res.users : [])
     } catch (err) {
-      showError('Error', 'Failed to load users')
+      setLoadError(err.message || 'Failed to load users')
     } finally {
       setIsLoading(false)
-    }
-  }
-
-  const handleCreateUser = async () => {
-    if (!newUser.name || !newUser.email || !newUser.password || !newUser.department) {
-      showError('Required', 'All fields are required')
-      return
-    }
-    setCreating(true)
-    try {
-      const res = await apiClient.post('/api/users', { ...newUser, creatorUserId: auth.id })
-      if (res.success) {
-        showSuccess('Created', 'User created successfully')
-        setShowCreateModal(false)
-        setNewUser({ name: '', email: '', password: '', role: 'requester', department: '', phoneNumber: '' })
-        if (res.user) setUsers(current => [...current, res.user])
-        else fetchUsers()
-      } else {
-        showError('Error', res.error || 'Failed to create user')
-      }
-    } catch (err) {
-      showError('Error', err.message)
-    } finally {
-      setCreating(false)
     }
   }
 
@@ -100,28 +78,16 @@ function AdminUsers() {
     super_admin: 'bg-red-100 text-red-700'
   }
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-violet-500" />
-      </div>
-    )
-  }
-
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-black text-slate-800">User Management</h1>
-          <p className="text-sm text-slate-500 mt-1">{users.length} total users</p>
-        </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white font-bold text-sm py-2.5 px-5 rounded-xl transition-all"
+      <PageHeader title="User Management" subtitle={loadError ? 'User records are currently unavailable.' : `${users.length} total users`} role={auth?.role} action={<button
+          onClick={() => navigate('/admin/users/new')}
+          className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 py-2.5 text-sm font-bold text-white transition-all hover:bg-violet-700"
         >
           <Plus size={16} /> Add User
-        </button>
-      </div>
+        </button>} />
+
+      {isLoading ? <LoadingState label="Loading users…" /> : loadError ? <ErrorState message={loadError} onRetry={fetchUsers} /> : <>
 
       <div className="relative">
         <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -187,34 +153,8 @@ function AdminUsers() {
           </table>
         </div>
       </div>
+      </>}
 
-      {showCreateModal && (
-        <ModalShell panelClassName="max-w-md">
-            <h2 className="text-xl font-bold text-slate-900 mb-4">Create New User</h2>
-            <div className="space-y-3">
-              <input type="text" placeholder="Full Name" value={newUser.name} onChange={e => setNewUser({...newUser, name: e.target.value})} className="w-full px-4 py-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-violet-500" />
-              <input type="email" placeholder="Email" value={newUser.email} onChange={e => setNewUser({...newUser, email: e.target.value})} className="w-full px-4 py-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-violet-500" />
-              <input type="password" placeholder="Password" value={newUser.password} onChange={e => setNewUser({...newUser, password: e.target.value})} className="w-full px-4 py-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-violet-500" />
-              <select value={newUser.role} onChange={e => setNewUser({...newUser, role: e.target.value})} className="w-full px-4 py-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-violet-500">
-                <option value="requester">Requester</option>
-                <option value="manager">Service Manager</option>
-                <option value="technician">Technician</option>
-                <option value="accounts">Accounts Officer</option>
-                <option value="admin">Administrator</option>
-                <option value="vendor">Vendor</option>
-                <option value="service_provider">Service Provider</option>
-              </select>
-              <input type="text" placeholder="Department" value={newUser.department} onChange={e => setNewUser({...newUser, department: e.target.value})} className="w-full px-4 py-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-violet-500" />
-              <input type="tel" placeholder="Phone Number" value={newUser.phoneNumber} onChange={e => setNewUser({...newUser, phoneNumber: e.target.value})} className="w-full px-4 py-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-violet-500" />
-            </div>
-            <div className="flex gap-3 mt-5">
-              <button onClick={() => setShowCreateModal(false)} className="flex-1 px-4 py-2.5 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-semibold text-sm">Cancel</button>
-              <button onClick={handleCreateUser} disabled={creating} className="flex-1 px-4 py-2.5 bg-violet-600 text-white rounded-lg hover:bg-violet-700 disabled:opacity-50 font-semibold text-sm">
-                {creating ? 'Creating...' : 'Create User'}
-              </button>
-            </div>
-        </ModalShell>
-      )}
       <ConfirmDialog
         open={Boolean(pendingDelete)}
         title="Remove user?"

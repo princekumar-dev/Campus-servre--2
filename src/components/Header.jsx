@@ -98,6 +98,7 @@ function Header() {
         <>
           <Link className={linkClass('/requests')} to="/requests">Request Triage</Link>
           <Link className={linkClass('/purchase-orders')} to="/purchase-orders">PO Verification</Link>
+          <Link className={linkClass('/reports')} to="/reports">Reports</Link>
         </>
       )}
 
@@ -113,6 +114,7 @@ function Header() {
           <Link className={linkClass('/grn')} to="/grn">GRN</Link>
           <Link className={linkClass('/reports')} to="/reports">Reports</Link>
           <Link className={linkClass('/admin/users')} to="/admin/users">Users</Link>
+          <Link className={linkClass('/admin/settings')} to="/admin/settings">Settings</Link>
           <Link className={linkClass('/admin/audit')} to="/admin/audit">Audit</Link>
         </>
       )}
@@ -203,7 +205,7 @@ function Header() {
             </h2>
       </Link>
 
-      <nav className="campusserve-primary-nav hidden min-w-0 items-center justify-start gap-2 overflow-x-auto lg:flex xl:gap-3 2xl:gap-4" aria-label="Primary navigation">
+      <nav className="campusserve-primary-nav hidden min-w-0 items-center justify-start gap-1 overflow-x-auto text-xs lg:flex xl:gap-1.5 2xl:gap-2" aria-label="Primary navigation">
         {navigation}
       </nav>
 

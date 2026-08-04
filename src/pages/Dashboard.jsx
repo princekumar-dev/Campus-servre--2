@@ -471,6 +471,12 @@ function Dashboard() {
           </div>
         )
       case 'admin':
+        return (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {action('/requests?queue=MY_ACTIONS', AlertCircle, 'bg-amber-50', 'text-amber-600', 'My Action Queue', `${stats.pendingAdmin} pending`, 'bg-amber-100 text-amber-700')}
+            {action('/reports', TrendingUp, 'bg-emerald-50', 'text-emerald-600', 'Reports & Analytics')}
+          </div>
+        )
       case 'super_admin':
         return (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -478,6 +484,7 @@ function Dashboard() {
             {action('/admin/users', Users, 'bg-slate-50', 'text-slate-600', 'Manage Users', `${stats.totalUsers || 0} registered`, 'bg-slate-100 text-slate-700')}
             {action('/admin/settings', Settings, 'bg-indigo-50', 'text-indigo-600', 'System Settings')}
             {action('/reports', TrendingUp, 'bg-emerald-50', 'text-emerald-600', 'Reports & Analytics')}
+            {action('/admin/audit', ClipboardCheck, 'bg-blue-50', 'text-blue-600', 'Audit Logs', 'Review administrator activity', 'bg-blue-100 text-blue-700')}
           </div>
         )
       case 'manager':

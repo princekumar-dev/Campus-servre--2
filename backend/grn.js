@@ -41,7 +41,7 @@ export default async function handler(req, res) {
       const poIds = [...new Set(grns.map(grn => String(grn.poId || '')).filter(Boolean))]
       const purchaseOrders = poIds.length
         ? await PurchaseOrder.find({ _id: { $in: poIds } })
-          .select('poNumber vendorName status grandTotal expectedDeliveryDate deliveryLocation createdAt closedAt items')
+          .select('poNumber vendorName status grandTotal expectedDeliveryDate deliveryLocation createdAt closedAt items serviceExecution.expenses serviceExecution.workEvidence invoice')
           .lean()
         : []
       return res.json({ success: true, data: grns, purchaseOrders, total: grns.length })

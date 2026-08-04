@@ -2,8 +2,10 @@ import { useState, useEffect, useCallback } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAlert } from '../components/AlertContext'
 import ModalShell from '../components/ModalShell'
+import PageHeader from '../components/ui/PageHeader'
+import { EmptyState, ErrorState, LoadingState } from '../components/EmptyStates'
 import apiClient from '../utils/apiClient'
-import { FileText, ArrowLeft, Plus, Trash2, Download } from 'lucide-react'
+import { FileText, ArrowLeft, Plus, Trash2, Download, CheckCircle2 } from 'lucide-react'
 
 const statusColors = {
   DRAFT: 'bg-slate-100 text-slate-600',
@@ -15,9 +17,17 @@ const statusColors = {
   NOT_SELECTED: 'bg-slate-100 text-slate-500',
 }
 
+const formatCurrency = value => new Intl.NumberFormat('en-IN', {
+  style: 'currency',
+  currency: 'INR',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+}).format(Number(value) || 0)
+
 export default function ManagerQuotations() {
   const [quotations, setQuotations] = useState([])
   const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [filter, setFilter] = useState('ALL')
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
@@ -42,10 +52,11 @@ export default function ManagerQuotations() {
 
   const fetchQuotations = useCallback(async () => {
     setIsLoading(true)
+    setLoadError('')
     try {
       const res = await apiClient.get('/api/quotations')
       if (res.success) setQuotations(res.data)
-    } catch (err) { showError('Error', err.message) }
+    } catch (err) { setLoadError(err.message || 'Quotations could not be loaded.') }
     finally { setIsLoading(false) }
   }, [showError])
 
@@ -129,6 +140,21 @@ export default function ManagerQuotations() {
   }
 
   const filtered = quotations.filter(q => (!requestId || String(q.requestId) === String(requestId)) && (filter === 'ALL' || q.status === filter))
+  const quotationGroups = Object.values(filtered.reduce((groups, quotation) => {
+    const key = String(quotation.requestId || quotation.requestNumber || 'legacy')
+    if (!groups[key]) groups[key] = {
+      key,
+      requestId: quotation.requestId,
+      requestNumber: quotation.requestNumber || 'Legacy request',
+      requestStatus: quotation.requestStatus,
+      hasPurchaseOrder: false,
+      quotations: [],
+    }
+    groups[key].quotations.push(quotation)
+    groups[key].hasPurchaseOrder = groups[key].hasPurchaseOrder || Boolean(quotation.hasPurchaseOrder)
+    if (quotation.requestStatus) groups[key].requestStatus = quotation.requestStatus
+    return groups
+  }, {}))
 
   if (isCreating) return (
     <div className="mx-auto w-full max-w-4xl space-y-6 animate-fadeIn">
@@ -200,13 +226,7 @@ export default function ManagerQuotations() {
           )}
         </ModalShell>
       )}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="font-display font-black text-2xl tracking-tight text-slate-800">Quotations</h1>
-          <p className="text-xs text-slate-500 mt-1">{requestId ? 'Compare quotations for this indent and select one for the PO' : 'Manage and compare vendor quotations'}</p>
-        </div>
-        <button type="button" onClick={requestId ? () => navigate(`/quotations?requestId=${requestId}&mode=create`) : openRequestPicker} className="rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-violet-700"><Plus size={15} className="mr-1.5 inline" /> {requestId ? 'Add quotation' : 'Create quotation'}</button>
-      </div>
+      <PageHeader title="Quotations" subtitle={requestId ? 'Compare vendor quotations for this request and select one for the purchase order.' : 'Manage and compare vendor quotations by request.'} action={<button type="button" onClick={requestId ? () => navigate(`/quotations?requestId=${requestId}&mode=create`) : openRequestPicker} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-violet-700"><Plus size={15} className="mr-1.5" /> {requestId ? 'Add vendor quote' : 'Create quotation'}</button>} />
 
       <div className="flex flex-wrap gap-2 p-4 premium-card">
         {['ALL', 'SUBMITTED', 'APPROVED', 'REJECTED', 'REVISION_REQUIRED'].map(s => (
@@ -218,47 +238,70 @@ export default function ManagerQuotations() {
       </div>
 
       {isLoading ? (
-        <div className="flex items-center justify-center py-16"><div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-violet-500" /></div>
+        <LoadingState label="Loading quotations…" />
+      ) : loadError ? (
+        <ErrorState message={loadError} onRetry={fetchQuotations} />
       ) : filtered.length === 0 ? (
-        <div className="text-center py-20 text-slate-400">
-          <FileText size={40} className="mx-auto mb-3 opacity-30" />
-          <p className="text-sm font-medium">No quotations found</p>
-        </div>
+        <EmptyState icon={FileText} title="No quotations found" description={filter === 'ALL' ? 'Create the first vendor quotation for an assigned request.' : `No quotations match the ${filter.replace(/_/g, ' ').toLowerCase()} filter.`} actionLabel={filter === 'ALL' ? 'Create quotation' : 'Show all quotations'} onAction={filter === 'ALL' ? openRequestPicker : () => setFilter('ALL')} />
       ) : (
         <div className="space-y-3">
-          {filtered.map(q => (
-            <div key={q._id} className={`premium-card p-5 transition-all hover:border-violet-200 ${q.selected ? 'border-emerald-300 ring-2 ring-emerald-100' : ''}`}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-4">
-                  <div className="p-2.5 bg-violet-50 rounded-xl text-violet-600"><FileText size={18} /></div>
+          {quotationGroups.map(group => {
+            const selectedQuotation = group.quotations.find(quotation => quotation.selected)
+            const isClosed = group.requestStatus === 'CLOSED'
+            const hasPO = group.hasPurchaseOrder || group.requestStatus === 'PURCHASE_ORDER_CREATED'
+            return (
+              <section key={group.key} className="premium-card overflow-hidden">
+                <div className="flex flex-col gap-4 border-b border-slate-100 bg-slate-50/70 p-5 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <div className="font-mono text-xs text-violet-600 font-bold">{q.quotationNumber || q._id?.slice(-6)}</div>
-                    <div className="font-bold text-slate-800 text-sm mt-0.5">{q.vendorName || 'Unknown Vendor'}</div>
-                    <div className="text-xs text-slate-500">{q.requestNumber || 'Legacy quotation'}{q.vendorCode ? ` · ${q.vendorCode}` : ''}</div>
+                    <p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-slate-400">Indent</p>
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <h2 className="font-mono text-sm font-black text-violet-700">{group.requestNumber}</h2>
+                      <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold text-violet-700">{group.quotations.length} {group.quotations.length === 1 ? 'quote' : 'quotes'}</span>
+                    </div>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {isClosed ? 'Procurement completed' : hasPO ? 'Purchase order generated' : selectedQuotation ? `${selectedQuotation.vendorName} selected` : 'Compare the vendor quotes and choose one for the PO'}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                    {!isClosed && !hasPO && (
+                      <button type="button" onClick={() => navigate(`/quotations?requestId=${group.requestId}&mode=create`)} className="rounded-lg border border-violet-200 bg-white px-3 py-2 text-xs font-bold text-violet-700 hover:bg-violet-50"><Plus size={13} className="mr-1 inline" /> Add vendor quote</button>
+                    )}
+                    {selectedQuotation && !isClosed && !hasPO && (
+                      <button type="button" onClick={() => navigate(`/purchase-orders?requestId=${group.requestId}&quotationId=${selectedQuotation._id}`)} className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700">Generate PO</button>
+                    )}
+                    {(isClosed || hasPO) && <span className="rounded-lg bg-slate-200 px-3 py-2 text-xs font-bold text-slate-600">{isClosed ? 'Procurement closed' : 'PO generated'}</span>}
                   </div>
                 </div>
-                <div className="text-right">
-                  <div className="text-lg font-black text-slate-800">₹{(q.grandTotal || 0).toLocaleString('en-IN')}</div>
-                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${statusColors[q.status] || 'bg-slate-100 text-slate-600'}`}>
-                    {q.status?.replace(/_/g, ' ')}
-                  </span>
+                <div className="divide-y divide-slate-100">
+                  {group.quotations.map(q => (
+                    <article key={q._id} className={`grid gap-4 p-5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center ${q.selected ? 'bg-emerald-50/50' : 'hover:bg-slate-50/60'}`}>
+                      <div className="flex min-w-0 items-start gap-3">
+                        <div className={`rounded-xl p-2.5 ${q.selected ? 'bg-emerald-100 text-emerald-700' : 'bg-violet-50 text-violet-600'}`}>{q.selected ? <CheckCircle2 size={18} /> : <FileText size={18} />}</div>
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="truncate text-sm font-black text-slate-800">{q.vendorName || 'Unknown Vendor'}</p>
+                            {q.selected && <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-extrabold uppercase text-emerald-700">Selected for PO</span>}
+                          </div>
+                          <p className="mt-1 font-mono text-xs font-bold text-violet-600">{q.quotationNumber || q._id?.slice(-6)}</p>
+                          <p className="mt-1 text-xs text-slate-500">{q.vendorCode || 'Vendor code unavailable'}</p>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                        <div className="mr-2 text-left sm:text-right">
+                          <p className="text-base font-black text-slate-800">{formatCurrency(q.grandTotal)}</p>
+                          <span className={`text-[10px] font-bold uppercase ${statusColors[q.status]?.split(' ').filter(token => token.startsWith('text-')).join(' ') || 'text-slate-500'}`}>{q.status?.replace(/_/g, ' ')}</span>
+                        </div>
+                        <button type="button" onClick={() => downloadQuotation(q)} aria-label={`Download ${q.quotationNumber || 'quotation'} PDF`} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"><Download size={13} /> PDF</button>
+                        {!q.selected && !isClosed && !hasPO && (
+                          <button type="button" disabled={formLoading} onClick={() => selectQuotation(q)} className="rounded-lg bg-violet-600 px-4 py-2 text-xs font-bold text-white hover:bg-violet-700 disabled:opacity-50">Select quote</button>
+                        )}
+                      </div>
+                    </article>
+                  ))}
                 </div>
-              </div>
-              <div className="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 pt-4">
-                <button type="button" onClick={() => downloadQuotation(q)} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"><Download size={13} /> PDF</button>
-                {q.hasPurchaseOrder || ['PURCHASE_ORDER_CREATED', 'CLOSED'].includes(q.requestStatus) ? (
-                  <span className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold text-slate-500">{q.requestStatus === 'CLOSED' ? 'Procurement closed' : 'PO already generated'}</span>
-                ) : <>
-                  <button type="button" onClick={() => navigate(`/quotations?requestId=${q.requestId}&mode=create`)} className="rounded-lg border border-violet-200 px-3 py-2 text-xs font-bold text-violet-700 hover:bg-violet-50">Add another quote</button>
-                  {q.selected ? (
-                    <button type="button" onClick={() => navigate(`/purchase-orders?requestId=${q.requestId}&quotationId=${q._id}`)} className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700">Generate PO</button>
-                  ) : (
-                    <button type="button" disabled={formLoading} onClick={() => selectQuotation(q)} className="rounded-lg bg-violet-600 px-4 py-2 text-xs font-bold text-white hover:bg-violet-700 disabled:opacity-50">Select for PO</button>
-                  )}
-                </>}
-              </div>
-            </div>
-          ))}
+              </section>
+            )
+          })}
         </div>
       )}
     </div>

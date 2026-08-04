@@ -224,10 +224,11 @@ function AppContent() {
                   <Route path="/requests/:id" element={<ProtectedRoute><RequestDetails /></ProtectedRoute>} />
                   
                   {/* Reports */}
-                  <Route path="/reports" element={<ProtectedRoute allowedRoles={['super_admin', 'accounts']}><Reports /></ProtectedRoute>} />
+                  <Route path="/reports" element={<ProtectedRoute allowedRoles={['admin', 'super_admin', 'accounts', 'manager']}><Reports /></ProtectedRoute>} />
                   
                   {/* Admin routes */}
                   <Route path="/admin/users" element={<ProtectedRoute allowedRoles={['super_admin']}><AdminUsers /></ProtectedRoute>} />
+                  <Route path="/admin/users/new" element={<ProtectedRoute allowedRoles={['super_admin']}><SignUp adminMode /></ProtectedRoute>} />
                   <Route path="/admin/settings" element={<ProtectedRoute allowedRoles={['super_admin']}><AdminSettings /></ProtectedRoute>} />
                   <Route path="/admin/audit" element={<ProtectedRoute allowedRoles={['super_admin']}><AdminAudit /></ProtectedRoute>} />
                   

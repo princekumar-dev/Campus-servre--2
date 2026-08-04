@@ -1,0 +1,28 @@
+url=http://localhost:4173/admin/users
+title=MSEC CampusServe
+body=MSEC CampusServe
+Dashboard
+Requests
+Vendors
+Quotations
+POs
+Deliveries
+Gate
+GRN
+Reports
+Users
+Audit
+6
+S
+super@msec.edu.in
+User Management
+
+0 total users
+
+Add User
+NAME	EMAIL	ROLE	DEPARTMENT	PHONE	ACTIONS
+No users found
+Error
+Failed to load users
+Error
+Failed to load users

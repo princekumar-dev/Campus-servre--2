@@ -1,0 +1,8 @@
+url=http://localhost:4173/service/dashboard
+title=MSEC CampusServe
+body=Oops! Something went wrong
+
+We're sorry, but there was an error loading the application.
+
+Reload Latest Version
+Error Details

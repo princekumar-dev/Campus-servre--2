@@ -584,6 +584,30 @@ const EmailVerificationSchema = new mongoose.Schema({
 EmailVerificationSchema.index({ email: 1, purpose: 1 })
 EmailVerificationSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 })
 
+const SystemSettingsSchema = new mongoose.Schema({
+  key: { type: String, default: 'global', unique: true },
+  collegeName: { type: String, default: 'MSEC' },
+  collegeFullName: { type: String, default: 'Meenakshi Sundararajan Engineering College' },
+  emailDomain: { type: String, default: '@msec.edu.in' },
+  defaultDepartment: { type: String, default: 'MAINTENANCE' },
+  timezone: { type: String, default: 'Asia/Kolkata' },
+  currency: { type: String, default: 'INR' },
+  allowPublicSignup: { type: Boolean, default: true },
+  enforceEmailDomain: { type: Boolean, default: true },
+  enableNotifications: { type: Boolean, default: true },
+  enableEmailAlerts: { type: Boolean, default: true },
+  requireIssuePhoto: { type: Boolean, default: false },
+  requireCompletionPhotos: { type: Boolean, default: true },
+  maxAttachmentSizeMB: { type: Number, min: 1, max: 25, default: 5 },
+  requestEditWindowHours: { type: Number, min: 0, max: 168, default: 24 },
+  slaLowHours: { type: Number, min: 1, max: 720, default: 72 },
+  slaMediumHours: { type: Number, min: 1, max: 720, default: 48 },
+  slaHighHours: { type: Number, min: 1, max: 720, default: 24 },
+  slaEmergencyHours: { type: Number, min: 1, max: 720, default: 4 },
+  updatedBy: { type: String },
+  updatedAt: { type: Date, default: Date.now }
+}, { versionKey: false })
+
 // Export all models
 export const User = mongoose.models.User || mongoose.model('User', UserSchema)
 export const ServiceRequest = mongoose.models.ServiceRequest || mongoose.model('ServiceRequest', ServiceRequestSchema)
@@ -598,3 +622,4 @@ export const GateEntry = mongoose.models.GateEntry || mongoose.model('GateEntry'
 export const GoodsReceipt = mongoose.models.GoodsReceipt || mongoose.model('GoodsReceipt', GoodsReceiptSchema)
 export const AuditLog = mongoose.models.AuditLog || mongoose.model('AuditLog', AuditLogSchema)
 export const EmailVerification = mongoose.models.EmailVerification || mongoose.model('EmailVerification', EmailVerificationSchema)
+export const SystemSettings = mongoose.models.SystemSettings || mongoose.model('SystemSettings', SystemSettingsSchema)

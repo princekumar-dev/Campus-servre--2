@@ -47,6 +47,7 @@ export default async function handler(req, res) {
       startOfToday.setHours(0, 0, 0, 0)
       const [
         purchaseOrders,
+        technicians,
         awaitingGate,
         gateApprovedToday,
         gateRejectedToday,
@@ -55,7 +56,8 @@ export default async function handler(req, res) {
         completedReceipts,
         finalizedGrns,
       ] = await Promise.all([
-        PurchaseOrder.find(poFilter).select('status signedPo.status').lean(),
+        PurchaseOrder.find(poFilter).select('status signedPo.status grandTotal requestId').lean(),
+        User.find({ role: 'technician', isActive: true }).select('name').sort({ name: 1 }).lean(),
         DeliverySchedule.countDocuments({ status: { $in: ['PASS_GENERATED', 'AT_GATE'] } }),
         GateEntry.countDocuments({ entryTime: { $gte: startOfToday }, decision: 'APPROVED' }),
         GateEntry.countDocuments({ entryTime: { $gte: startOfToday }, decision: 'REJECTED' }),
@@ -86,6 +88,8 @@ export default async function handler(req, res) {
       const activePOs = purchaseOrders.filter(po => ['ACTIVE', 'PARTIALLY_FULFILLED'].includes(po.status)).length
       const fulfilledPOs = purchaseOrders.filter(po => po.status === 'FULFILLED').length
       const closedPOs = purchaseOrders.filter(po => po.status === 'CLOSED').length
+      const reportablePOs = purchaseOrders.filter(po => !['DRAFT', 'REVISION_REQUIRED', 'REJECTED'].includes(po.status))
+      const totalPOValue = reportablePOs.reduce((sum, po) => sum + Number(po.grandTotal || 0), 0)
 
       const byStatus = requests.reduce((counts, request) => {
         const key = String(request.status || 'UNKNOWN').toLowerCase()
@@ -103,15 +107,18 @@ export default async function handler(req, res) {
       let totalExpenses = 0
       let totalQuotations = 0
 
-      const paidRequesterIds = [...new Set(requests
-        .filter(r => r.payments?.some(payment => Number(payment.amount) > 0) && r.requesterId)
-        .map(r => String(r.requesterId)))]
-      const requesterDepartments = paidRequesterIds.length
-        ? await User.find({ _id: { $in: paidRequesterIds } }).select('department').lean()
+      const requesterIds = [...new Set(requests.filter(r => r.requesterId).map(r => String(r.requesterId)))]
+      const requesterDepartments = requesterIds.length
+        ? await User.find({ _id: { $in: requesterIds } }).select('department').lean()
         : []
       const departmentByRequester = new Map(
         requesterDepartments.map(requester => [String(requester._id), requester.department || 'General'])
       )
+      const requestById = new Map(requests.map(request => [String(request._id), request]))
+
+      technicians.forEach(technician => {
+        techStats[technician.name] = { assigned: 0, completed: 0 }
+      })
 
       for (const r of requests) {
         // Category count
@@ -125,12 +132,6 @@ export default async function handler(req, res) {
         const totalPaid = r.payments ? r.payments.reduce((sum, p) => sum + p.amount, 0) : 0
         totalExpenses += totalPaid
 
-        // Department cost — look up requester's department
-        if (totalPaid > 0) {
-          const dept = departmentByRequester.get(String(r.requesterId || '')) || 'General'
-          departmentCosts[dept] = (departmentCosts[dept] || 0) + totalPaid
-        }
-
         // Tech stats
         if (r.workOrder && r.workOrder.technicianName) {
           const tech = r.workOrder.technicianName
@@ -142,6 +143,13 @@ export default async function handler(req, res) {
             techStats[tech].completed += 1
           }
         }
+      }
+
+      // Attribute committed PO value to the department that raised each request.
+      for (const po of reportablePOs) {
+        const request = requestById.get(String(po.requestId || ''))
+        const dept = departmentByRequester.get(String(request?.requesterId || '')) || 'General'
+        departmentCosts[dept] = (departmentCosts[dept] || 0) + Number(po.grandTotal || 0)
       }
 
       // Turn categories object into array for charting
@@ -191,7 +199,8 @@ export default async function handler(req, res) {
           finalizedGrns,
           byStatus,
           totalExpenses,
-          totalQuotations
+          totalQuotations,
+          totalPOValue
         },
         charts: {
           categoryData,

@@ -1,0 +1,13 @@
+url=http://localhost:4173/login
+title=MSEC CampusServe
+body=MSEC CampusServe
+Welcome Back
+
+Sign in to your MSEC CampusServe account
+
+Email Address
+Password
+Forgot password?
+Sign In
+
+Don't have an account? Sign up

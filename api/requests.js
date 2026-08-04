@@ -1,6 +1,7 @@
 import { connectToDatabase } from '../lib/mongo.js'
 import { ServiceRequest, User } from '../models.js'
 import { calculateSlaDueAt, finalizeRequestWorkflow } from '../lib/workflowEngine.js'
+import { getSystemSettings } from '../lib/systemSettings.js'
 
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end()
@@ -76,6 +77,7 @@ export default async function handler(req, res) {
 
       // 1. Create New Request
       if (!action) {
+        const systemSettings = await getSystemSettings()
         const { title, category, location, assetCode, priority, emergencyReason, requestedItem, requestedQuantity, requestedUnit, description, evidence, submitImmediately } = req.body
 
         if (!title || !category || !location || !requestedItem || !description) {
@@ -87,6 +89,13 @@ export default async function handler(req, res) {
         const validEvidence = Array.isArray(evidence) ? evidence.filter(item =>
           item?.name && typeof item.url === 'string' && /^data:image\/(jpeg|png|webp);base64,/.test(item.url)
         ).slice(0, 1) : []
+        if (systemSettings.requireIssuePhoto && validEvidence.length === 0) {
+          return res.status(400).json({ success: false, error: 'An issue photo is required by system policy' })
+        }
+        const maxBase64Length = Math.ceil(systemSettings.maxAttachmentSizeMB * 1024 * 1024 * 4 / 3) + 1024
+        if (validEvidence.some(item => item.url.length > maxBase64Length)) {
+          return res.status(400).json({ success: false, error: `Attachments must be ${systemSettings.maxAttachmentSizeMB} MB or smaller` })
+        }
         if (Array.isArray(evidence) && evidence.length > 0 && validEvidence.length === 0) {
           return res.status(400).json({ success: false, error: 'The selected photo could not be saved. Use a JPG, PNG, or WebP image up to 2 MB.' })
         }
@@ -381,6 +390,7 @@ export default async function handler(req, res) {
 
     // Edit drafts, clarification requests, or submitted requests during the first 24 hours
     if (req.method === 'PATCH') {
+      const systemSettings = await getSystemSettings()
       const { id } = req.query
       if (!id) return res.status(400).json({ success: false, error: 'Request ID is required' })
 
@@ -392,10 +402,13 @@ export default async function handler(req, res) {
       }
 
       const submittedAt = request.submittedAt || request.createdAt
-      const submittedWithin24Hours = request.status === 'SUBMITTED' &&
-        Date.now() - new Date(submittedAt).getTime() <= 24 * 60 * 60 * 1000
-      if (!['DRAFT', 'CLARIFICATION_REQUIRED'].includes(request.status) && !submittedWithin24Hours) {
-        return res.status(400).json({ success: false, error: 'Submitted requests can only be edited within 24 hours of submission' })
+      const submittedWithinEditWindow = request.status === 'SUBMITTED' &&
+        Date.now() - new Date(submittedAt).getTime() <= systemSettings.requestEditWindowHours * 60 * 60 * 1000
+      if (!['DRAFT', 'CLARIFICATION_REQUIRED'].includes(request.status) && !submittedWithinEditWindow) {
+        const editPolicyMessage = systemSettings.requestEditWindowHours === 0
+          ? 'Editing is disabled after a request is submitted'
+          : `Submitted requests can only be edited within ${systemSettings.requestEditWindowHours} hours of submission`
+        return res.status(400).json({ success: false, error: editPolicyMessage })
       }
 
       const allowedFields = ['title', 'category', 'location', 'assetCode', 'priority', 'emergencyReason', 'requestedItem', 'requestedQuantity', 'requestedUnit', 'description']

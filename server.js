@@ -146,6 +146,9 @@ app.use('/api', async (req, res, next) => {
   // Skip auth for OPTIONS preflight, login endpoint, and health/debug
   if (req.method === 'OPTIONS') return next();
   if (req.path === '/auth' && req.method === 'POST') return next();
+  // Faculty/staff may self-register as requesters. Authenticated user creation
+  // still flows through JWT validation and is restricted in the users handler.
+  if (req.path === '/users' && req.method === 'POST' && !req.headers.authorization) return next();
   if (req.path === '/health') return next();
   if (req.path === '/debug') return next();
 
@@ -214,6 +217,7 @@ app.get('/', (req, res) => {
 // API routes
 import authHandler from './api/auth.js';
 import usersHandler from './api/users.js';
+import settingsHandler from './api/settings.js';
 import requestsHandler from './api/requests.js';
 import quotationsHandler from './api/quotations.js';
 import workOrdersHandler from './api/work-orders.js';
@@ -248,6 +252,7 @@ app.get('/api/health', (req, res) => {
 
 app.all('/api/auth', authLimiter, authHandler);
 app.all('/api/users', usersHandler);
+app.all('/api/settings', settingsHandler);
 app.all('/api/requests', requestsHandler);
 app.all('/api/quotations', quotationsHandler);
 app.all('/api/work-orders', workOrdersHandler);
