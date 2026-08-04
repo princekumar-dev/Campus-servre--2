@@ -1,11 +1,12 @@
-import { BrowserRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom'
-import { Suspense, lazy, useEffect } from 'react'
+import { BrowserRouter, Routes, Route, useLocation, useNavigate, Navigate } from 'react-router-dom'
+import { Suspense, lazy, useEffect, useState } from 'react'
 import ErrorBoundary from './components/ErrorBoundary'
 import Header from './components/Header'
 import BottomNav from './components/BottomNav'
 import { AlertProvider } from './components/AlertContext'
 import { getAuthOrNull, getDashboardPath } from './utils/auth'
 import GlobalExecutionLoader from './components/GlobalExecutionLoader'
+import { getGateLocation, locationQuery } from './utils/gateLocation'
 
 const clearStoredAuth = () => {
   try {
@@ -86,6 +87,55 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   }
   
   return children
+}
+
+const GateQrRoute = () => {
+  const location = useLocation()
+  const navigate = useNavigate()
+  const parsed = getAuthOrNull()
+  const [checkingLocation, setCheckingLocation] = useState(false)
+  const [locationError, setLocationError] = useState('')
+  const gateRoles = ['gate', 'admin', 'super_admin']
+
+  if (parsed?.isAuthenticated) {
+    if (!gateRoles.includes(parsed.role)) return <Navigate to={getDashboardPath(parsed.role)} replace />
+    return <GatePOVerification />
+  }
+
+  const continueToLogin = async () => {
+    setCheckingLocation(true)
+    setLocationError('')
+    try {
+      const gateLocation = await getGateLocation()
+      const nextSearch = new URLSearchParams(location.search)
+      const locationParams = new URLSearchParams(locationQuery(gateLocation))
+      locationParams.forEach((value, key) => nextSearch.set(key, value))
+      const next = `${location.pathname}?${nextSearch.toString()}`
+      navigate(`/login?portal=gate&next=${encodeURIComponent(next)}`, { replace: true })
+    } catch (error) {
+      setLocationError(error.message || 'Location permission is required before gate login.')
+    } finally {
+      setCheckingLocation(false)
+    }
+  }
+
+  return (
+    <div className="mx-auto max-w-lg rounded-3xl border border-violet-200 bg-white p-7 text-center shadow-lg sm:p-9">
+      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-violet-100 text-violet-700">
+        <span className="text-3xl font-black">⌖</span>
+      </div>
+      <p className="mt-5 text-xs font-black uppercase tracking-[0.18em] text-violet-600">Gate login required</p>
+      <h1 className="mt-2 text-2xl font-black text-slate-900">Enable location to continue</h1>
+      <p className="mt-3 text-sm leading-6 text-slate-600">
+        CampusServe will confirm you are at the campus gate before opening the gate officer login for this PO scanner.
+      </p>
+      {locationError && <p className="mt-4 rounded-xl bg-rose-50 p-3 text-sm leading-6 text-rose-700">{locationError}</p>}
+      <button type="button" onClick={continueToLogin} disabled={checkingLocation}
+        className="mt-6 inline-flex w-full items-center justify-center rounded-xl bg-violet-600 px-5 py-3 text-sm font-black text-white hover:bg-violet-700 disabled:opacity-60">
+        {checkingLocation ? 'Checking Location...' : 'Allow Location & Continue to Login'}
+      </button>
+    </div>
+  )
 }
 
 // Redirect if already logged in
@@ -245,8 +295,7 @@ function AppContent() {
                   
                   {/* Gate routes */}
                   <Route path="/gate" element={<ProtectedRoute allowedRoles={['admin', 'super_admin', 'gate']}><GateScanner /></ProtectedRoute>} />
-                  {/* The signed token in a printed PO provides access only to this verification screen. */}
-                  <Route path="/gate/po/:id" element={<GatePOVerification />} />
+                  <Route path="/gate/po/:id" element={<GateQrRoute />} />
                   <Route path="/gate/dashboard" element={<ProtectedRoute allowedRoles={['admin', 'super_admin', 'gate']}><GateDashboard /></ProtectedRoute>} />
                   <Route path="/gate/history" element={<ProtectedRoute allowedRoles={['admin', 'super_admin', 'gate']}><GateHistory /></ProtectedRoute>} />
                   <Route path="/service/dashboard" element={<ProtectedRoute allowedRoles={['service_provider', 'vendor', 'manager', 'admin', 'super_admin']}><ServiceDashboard /></ProtectedRoute>} />

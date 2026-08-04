@@ -322,6 +322,7 @@ export default function PurchaseOrderDetails() {
             {[
               { label: 'PO Number', value: po.poNumber },
               { label: 'Vendor', value: po.vendorName },
+              { label: 'Vendor Address', value: po.vendorAddress || '—' },
               { label: 'Delivery Address', value: po.deliveryAddress },
               { label: 'Payment Terms', value: po.paymentTerms },
               { label: 'Expected Delivery', value: displayDate(po.expectedDeliveryDate) },
@@ -351,6 +352,14 @@ export default function PurchaseOrderDetails() {
               <span className="font-black text-violet-700 text-base">₹{money(po.grandTotal)}</span>
             </div>
           </div>
+          {(po.adminRequirementType || po.adminDescription || po.adminAssessmentNote) && (
+            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-3 lg:col-span-2">
+              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Admin Product Description</h3>
+              {po.adminRequirementType && <p className="text-sm font-black text-violet-700">{String(po.adminRequirementType).replace(/_/g, ' ')}</p>}
+              {po.adminDescription && <p className="text-sm leading-6 text-slate-700">{po.adminDescription}</p>}
+              {po.adminAssessmentNote && <p className="rounded-xl bg-violet-50 p-3 text-xs font-semibold leading-5 text-violet-800">{po.adminAssessmentNote}</p>}
+            </div>
+          )}
         </div>
       )}
 

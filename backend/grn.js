@@ -5,6 +5,7 @@ import { isValidObjectId } from 'mongoose'
 import { storeNotification } from '../lib/notificationService.js'
 import { getProductId } from '../lib/productId.js'
 import { canReceivePo, getPoReceivingBlockReason } from '../lib/poReceiving.js'
+import { verifyIssuedPoQrToken } from '../lib/poQrToken.js'
 
 const roundMoney = value => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100
 
@@ -50,17 +51,17 @@ export default async function handler(req, res) {
 
     // ── POST /api/grn — Create GRN ────────────────────────────────────────────
     if (req.method === 'POST' && !id) {
-      const hasQrAccess = Boolean(req.poQrAccess)
-      if (!hasQrAccess && !['gate', 'receiving_officer', 'manager', 'admin', 'super_admin'].includes(actorRole)) {
+      if (!['gate', 'admin', 'super_admin'].includes(actorRole)) {
         return res.status(403).json({ success: false, error: 'You are not authorized to record a GRN' })
       }
 
       const { poId: bodyPoId, deliveryScheduleId, items, remarks, qrToken, receiptEvidence, damageEvidence } = req.body
-      if ((hasQrAccess || actorRole === 'gate') && !requireGateLocation(req, res).allowed) return
+      if (!requireGateLocation(req, res).allowed) return
       if (!bodyPoId || !items || !items.length) {
         return res.status(400).json({ success: false, error: 'poId and items are required' })
       }
-      if ((hasQrAccess || actorRole === 'gate') && req.poQrAccess?.poId !== String(bodyPoId)) {
+      const qrPoId = await verifyIssuedPoQrToken(qrToken)
+      if (!qrPoId || qrPoId !== String(bodyPoId)) {
         return res.status(403).json({ success: false, error: 'A valid PO QR code is required for gate receipt entry' })
       }
       const validatePhotoEvidence = (evidence, label) => {
@@ -95,8 +96,8 @@ export default async function handler(req, res) {
         return res.status(error.statusCode || 400).json({ success: false, error: error.message })
       }
 
-      const receiptActorId = hasQrAccess ? `po-qr:${bodyPoId}` : actorId
-      const receiptActorName = hasQrAccess ? 'Gate QR verification' : actorName
+      const receiptActorId = actorId
+      const receiptActorName = actorName
 
       const po = await PurchaseOrder.findById(bodyPoId)
       if (!po) return res.status(404).json({ success: false, error: 'PO not found' })

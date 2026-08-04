@@ -152,23 +152,6 @@ app.use('/api', async (req, res, next) => {
   if (req.path === '/health') return next();
   if (req.path === '/debug') return next();
 
-  // A signed PO QR is a narrowly scoped gate credential. It may read only the
-  // PO encoded in the QR and create a GRN only for that same PO; it does not
-  // create a normal user session or unlock any other gate API.
-  if (req.path === '/gate' && req.method === 'GET' && req.query.action === 'po-details') {
-    const qrPoId = await verifyIssuedPoQrToken(req.query.token);
-    if (qrPoId) {
-      req.poQrAccess = { poId: qrPoId };
-      return next();
-    }
-  }
-  if (req.path === '/grn' && req.method === 'POST') {
-    const qrPoId = await verifyIssuedPoQrToken(req.body?.qrToken);
-    if (qrPoId && qrPoId === String(req.body?.poId || '')) {
-      req.poQrAccess = { poId: qrPoId };
-      return next();
-    }
-  }
   if (req.path === '/service-orders') {
     const suppliedToken = req.method === 'GET' ? req.query.token : req.body?.qrToken
     const requestedPoId = String(req.query.id || req.body?.poId || '')

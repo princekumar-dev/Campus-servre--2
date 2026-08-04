@@ -278,6 +278,7 @@ export default function GatePOVerification() {
           <dl className="space-y-2 text-sm">
             <div className="grid grid-cols-[minmax(5.5rem,auto)_minmax(0,1fr)] items-start gap-3"><dt className="whitespace-nowrap text-slate-500">Vendor</dt><dd className="min-w-0 break-words text-right font-bold text-slate-800">{po.vendorName}</dd></div>
             <div className="grid grid-cols-[minmax(5.5rem,auto)_minmax(0,1fr)] items-start gap-3"><dt className="whitespace-nowrap text-slate-500">Email</dt><dd className="min-w-0 break-all text-right font-semibold text-slate-700">{po.vendorEmail || 'Not provided'}</dd></div>
+            <div className="grid grid-cols-[minmax(5.5rem,auto)_minmax(0,1fr)] items-start gap-3"><dt className="whitespace-nowrap text-slate-500">Address</dt><dd className="min-w-0 break-words text-right font-semibold leading-5 text-slate-700">{po.vendorAddress || 'Not provided'}</dd></div>
             <div className="grid grid-cols-[minmax(5.5rem,auto)_minmax(0,1fr)] items-start gap-3"><dt className="whitespace-nowrap text-slate-500">PO status</dt><dd className="min-w-0 text-right font-bold text-emerald-700">{po.status.replace(/_/g, ' ')}</dd></div>
           </dl>
         </div>

@@ -70,6 +70,22 @@ export default async function handler(req, res) {
       if (id) {
         const po = await PurchaseOrder.findById(id).lean()
         if (!po) return res.status(404).json({ success: false, error: 'PO not found' })
+        const [vendor, request] = await Promise.all([
+          po.vendorId && !po.vendorAddress ? Vendor.findById(po.vendorId).select('address').lean() : null,
+          po.requestId && (!po.adminDescription || !po.adminRequirementType || !po.adminAssessmentNote)
+            ? ServiceRequest.findById(po.requestId).select('description adminAssessment').lean()
+            : null
+        ])
+        if (vendor?.address) po.vendorAddress = vendor.address
+        if (request) {
+          po.adminRequirementType ||= request.adminAssessment?.requirementType || ''
+          po.adminDescription ||= request.description || ''
+          po.adminAssessmentNote ||= request.adminAssessment?.note || ''
+          po.items = (po.items || []).map(item => ({
+            ...item,
+            specification: item.specification || request.description || request.adminAssessment?.note || ''
+          }))
+        }
         po.items = addProductIds(po.items)
         return res.json({ success: true, data: po })
       }
@@ -96,6 +112,7 @@ export default async function handler(req, res) {
       let vendorId = requestedVendorId
       let items = requestedItems
       let selectedQuotation = null
+      let serviceRequest = null
       if (selectedQuotationId) {
         selectedQuotation = await VendorQuotation.findById(selectedQuotationId).lean()
         if (!selectedQuotation || !selectedQuotation.selected || selectedQuotation.status !== 'SELECTED') {
@@ -105,8 +122,10 @@ export default async function handler(req, res) {
           return res.status(400).json({ success: false, error: 'The selected quotation does not belong to this indent' })
         }
         vendorId = selectedQuotation.vendorId
+        const requestedItemSpecs = Array.isArray(requestedItems) ? requestedItems : []
         items = selectedQuotation.items.map(item => ({
           description: item.description,
+          specification: requestedItemSpecs.find(candidate => String(candidate.description || '').trim().toLowerCase() === String(item.description || '').trim().toLowerCase())?.specification,
           quantityOrdered: item.quantity,
           unit: item.unit,
           unitPrice: item.unitPrice,
@@ -123,7 +142,6 @@ export default async function handler(req, res) {
       const vendor = await Vendor.findById(vendorId).lean()
       if (!vendor) return res.status(404).json({ success: false, error: 'Vendor not found' })
       if (vendor.status !== 'ACTIVE') return res.status(400).json({ success: false, error: 'Vendor is not active' })
-      let serviceRequest = null
       if (requestId) {
         serviceRequest = await ServiceRequest.findById(requestId)
         if (!serviceRequest) return res.status(404).json({ success: false, error: 'Service request not found' })
@@ -195,7 +213,19 @@ export default async function handler(req, res) {
         const lineTax = roundMoney((lineSubtotal - lineDiscount) * (taxRate / 100))
         const lineTotal = roundMoney(lineSubtotal - lineDiscount + lineTax)
         subtotal += lineSubtotal; discountTotal += lineDiscount; taxTotal += lineTax
-        return { ...item, productId: generateProductId(), quantityOrdered: qty, unit: normalizeUnit(item.unit), unitPrice: roundMoney(price), taxRate, discount: lineDiscount, lineTotal, quantityAccepted: 0, quantityRemaining: qty }
+        return {
+          ...item,
+          specification: String(item.specification || serviceRequest?.description || serviceRequest?.adminAssessment?.note || '').trim(),
+          productId: generateProductId(),
+          quantityOrdered: qty,
+          unit: normalizeUnit(item.unit),
+          unitPrice: roundMoney(price),
+          taxRate,
+          discount: lineDiscount,
+          lineTotal,
+          quantityAccepted: 0,
+          quantityRemaining: qty
+        }
       })
       subtotal = roundMoney(subtotal); discountTotal = roundMoney(discountTotal); taxTotal = roundMoney(taxTotal)
       const dc = roundMoney(deliveryCharge || 0)
@@ -208,6 +238,10 @@ export default async function handler(req, res) {
 
       const po = new PurchaseOrder({
         poNumber, requestId, vendorId, vendorName: vendor.legalName, vendorEmail: vendor.email,
+        vendorAddress: vendor.address || '',
+        adminRequirementType: serviceRequest?.adminAssessment?.requirementType || '',
+        adminDescription: serviceRequest?.description || '',
+        adminAssessmentNote: serviceRequest?.adminAssessment?.note || '',
         items: processedItems, subtotal, taxTotal, discountTotal, deliveryCharge: dc, grandTotal,
         deliveryAddress, deliveryLocation, expectedDeliveryDate, paymentTerms: paymentTerms || 'Net 30',
         warrantyTerms, notes, createdBy: actorName, createdById: actorId, status: 'DRAFT',

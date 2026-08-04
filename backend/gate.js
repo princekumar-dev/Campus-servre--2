@@ -1,5 +1,5 @@
 import { connectToDatabase } from '../lib/mongo.js'
-import { GateEntry, DeliverySchedule, GoodsReceipt, PurchaseOrder, User } from '../models.js'
+import { GateEntry, DeliverySchedule, GoodsReceipt, PurchaseOrder, User, Vendor } from '../models.js'
 import crypto from 'crypto'
 import { isValidObjectId } from 'mongoose'
 import { createPoQrToken, verifyIssuedPoQrToken } from '../lib/poQrToken.js'
@@ -76,18 +76,19 @@ export default async function handler(req, res) {
     // ── GET /api/gate?action=po-details&token=... — PO QR landing data ───────
     if (req.method === 'GET' && action === 'po-details') {
       if (!requireGateLocation(req, res).allowed) return
-      if (!req.poQrAccess && !['gate', 'super_admin', 'receiving_officer', 'manager'].includes(actorRole)) {
+      if (!['gate', 'admin', 'super_admin'].includes(actorRole)) {
         return res.status(403).json({ success: false, error: 'Gate verification access is required' })
       }
 
-      const poId = req.poQrAccess?.poId || await verifyIssuedPoQrToken(token)
+      const poId = await verifyIssuedPoQrToken(token)
       if (!poId) return res.status(400).json({ success: false, error: 'Invalid or altered purchase-order QR code' })
-      if (req.poQrAccess && req.poQrAccess.poId !== poId) {
-        return res.status(403).json({ success: false, error: 'QR access does not match this purchase order' })
-      }
 
       const po = await PurchaseOrder.findById(poId).lean()
       if (!po) return res.status(404).json({ success: false, error: 'Purchase Order not found' })
+      if (!po.vendorAddress && po.vendorId) {
+        const vendor = await Vendor.findById(po.vendorId).select('address').lean()
+        if (vendor?.address) po.vendorAddress = vendor.address
+      }
       const signedPoVerified = isSignedPoVerified(po)
       const canReceive = canReceivePo(po)
 
@@ -104,6 +105,7 @@ export default async function handler(req, res) {
             : getPoReceivingBlockReason(po),
           vendorName: po.vendorName,
           vendorEmail: po.vendorEmail,
+          vendorAddress: po.vendorAddress,
           deliveryAddress: po.deliveryAddress,
           deliveryLocation: po.deliveryLocation,
           expectedDeliveryDate: po.expectedDeliveryDate,

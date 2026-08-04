@@ -1,5 +1,5 @@
 import { connectToDatabase } from '../lib/mongo.js'
-import { ServiceRequest, PurchaseOrder, GoodsReceipt, VendorQuotation } from '../models.js'
+import { ServiceRequest, PurchaseOrder, GoodsReceipt, VendorQuotation, Vendor } from '../models.js'
 import PDFDocument from 'pdfkit'
 import sharp from 'sharp'
 import QRCode from 'qrcode'
@@ -323,6 +323,10 @@ export default async function handler(req, res) {
         { $set: { qrTokenHash: hashPoQrToken(poQrToken), qrIssuedAt: new Date() } }
       )
       const linkedRequest = po.requestId ? await ServiceRequest.findById(po.requestId).lean() : null
+      if (!po.vendorAddress && po.vendorId) {
+        const vendor = await Vendor.findById(po.vendorId).select('address').lean()
+        if (vendor?.address) po.vendorAddress = vendor.address
+      }
       const isServicePo = linkedRequest?.adminAssessment?.requirementType === 'MAINTENANCE'
       const poDocumentTitle = isServicePo ? 'SERVICE PURCHASE ORDER' : 'PURCHASE ORDER'
       const gateVerificationUrl = isServicePo
@@ -431,10 +435,26 @@ export default async function handler(req, res) {
       doc.rect(left, detailsY, 247, 86).fillAndStroke(PO.white, PO.line)
       doc.rect(306, detailsY, 247, 86).fillAndStroke(PO.white, PO.line)
       field(isServicePo ? 'Service Provider' : 'Vendor', po.vendorName, left + 10, detailsY + 12, 227)
+      field('Vendor Address', po.vendorAddress || 'N/A', left + 10, detailsY + 36, 227)
       field('Email', po.vendorEmail || 'N/A', left + 10, detailsY + 60, 227)
       field(isServicePo ? 'Service At' : 'Deliver To', po.deliveryAddress, 316, detailsY + 12, 227)
       field(isServicePo ? 'Asset / Location' : 'Location', po.deliveryLocation || linkedRequest?.location || 'MSEC Campus', 316, detailsY + 60, 227)
       doc.y = detailsY + 98
+
+      const adminDescription = po.adminDescription || linkedRequest?.description
+      const adminAssessmentNote = po.adminAssessmentNote || linkedRequest?.adminAssessment?.note
+      const adminRequirementType = po.adminRequirementType || linkedRequest?.adminAssessment?.requirementType
+      if (adminDescription || adminAssessmentNote || adminRequirementType) {
+        sectionTitle('Admin product description')
+        const adminY = doc.y
+        doc.rect(left, adminY, width, 76).fillAndStroke(PO.soft, PO.line)
+        field('Requirement', adminRequirementType || 'Purchase', left + 12, adminY + 10, 240)
+        doc.fillColor(PO.muted).font('Helvetica-Bold').fontSize(7.4).text('DESCRIPTION', left + 12, adminY + 33, { width: 72 })
+        doc.fillColor(PO.ink).font('Helvetica').fontSize(8.2).text(adminDescription || 'N/A', left + 92, adminY + 31, { width: width - 104, height: 18, ellipsis: true })
+        doc.fillColor(PO.muted).font('Helvetica-Bold').fontSize(7.4).text('ADMIN NOTE', left + 12, adminY + 56, { width: 72 })
+        doc.fillColor(PO.ink).font('Helvetica').fontSize(8.2).text(adminAssessmentNote || 'N/A', left + 92, adminY + 54, { width: width - 104, height: 16, ellipsis: true })
+        doc.y = adminY + 91
+      }
 
       sectionTitle(isServicePo ? 'Service scope and approved cost' : 'Order items')
       const columns = [left, left + 28, left + 250, left + 305, left + 380, left + 440]

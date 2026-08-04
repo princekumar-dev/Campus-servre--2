@@ -278,6 +278,10 @@ const PurchaseOrderSchema = new mongoose.Schema({
   vendorId: { type: mongoose.Schema.Types.ObjectId, ref: 'Vendor', required: true },
   vendorName: { type: String, required: true },
   vendorEmail: { type: String },
+  vendorAddress: { type: String },
+  adminRequirementType: { type: String },
+  adminDescription: { type: String },
+  adminAssessmentNote: { type: String },
   version: { type: Number, default: 1 },
   status: { 
     type: String, 
