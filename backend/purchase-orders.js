@@ -143,11 +143,12 @@ export default async function handler(req, res) {
       if (userRole !== 'manager') {
         return res.status(403).json({ success: false, error: 'Only the assigned manager can generate a purchase order' })
       }
-      const { vendorId: requestedVendorId, selectedQuotationId, requestId, poType: requestedPoType, items: requestedItems, deliveryAddress, deliveryLocation, expectedDeliveryDate, paymentTerms, warrantyTerms, notes, deliveryCharge } = req.body
+      const { vendorId: requestedVendorId, serviceProviderId, selectedQuotationId, requestId, poType: requestedPoType, items: requestedItems, deliveryAddress, deliveryLocation, expectedDeliveryDate, paymentTerms, warrantyTerms, notes, deliveryCharge } = req.body
       let vendorId = requestedVendorId
       let items = requestedItems
       let selectedQuotation = null
       let serviceRequest = null
+      let serviceProvider = null
       if (selectedQuotationId) {
         selectedQuotation = await VendorQuotation.findById(selectedQuotationId).lean()
         if (!selectedQuotation || !selectedQuotation.selected || selectedQuotation.status !== 'SELECTED') {
@@ -168,18 +169,27 @@ export default async function handler(req, res) {
           discount: item.discount || 0
         }))
       }
-      if (!vendorId || !Array.isArray(items) || !items.length || !deliveryAddress) {
-        return res.status(400).json({ success: false, error: 'A vendor, at least one item, and a delivery address are required' })
-      }
-      if (items.some(item => !String(item.description || '').trim())) {
-        return res.status(400).json({ success: false, error: 'Every purchase order item needs a product description' })
-      }
-      const vendor = await Vendor.findById(vendorId).lean()
-      if (!vendor) return res.status(404).json({ success: false, error: 'Vendor not found' })
-      if (vendor.status !== 'ACTIVE') return res.status(400).json({ success: false, error: 'Vendor is not active' })
       if (requestId) {
         serviceRequest = await ServiceRequest.findById(requestId)
         if (!serviceRequest) return res.status(404).json({ success: false, error: 'Service request not found' })
+      }
+      const isServiceOrder = serviceRequest?.adminAssessment?.requirementType === 'MAINTENANCE' || (!serviceRequest && requestedPoType === 'SERVICE')
+      if (!Array.isArray(items) || !items.length || !deliveryAddress) {
+        return res.status(400).json({ success: false, error: 'At least one scope/item and a campus service or delivery address are required' })
+      }
+      if (isServiceOrder && !serviceProviderId) return res.status(400).json({ success: false, error: 'Select an active service provider' })
+      if (!isServiceOrder && !vendorId) return res.status(400).json({ success: false, error: 'Select an active vendor' })
+      if (items.some(item => !String(item.description || '').trim())) {
+        return res.status(400).json({ success: false, error: 'Every purchase order item needs a product description' })
+      }
+      const vendor = isServiceOrder ? null : await Vendor.findById(vendorId).lean()
+      if (!isServiceOrder && !vendor) return res.status(404).json({ success: false, error: 'Vendor not found' })
+      if (vendor && vendor.status !== 'ACTIVE') return res.status(400).json({ success: false, error: 'Vendor is not active' })
+      if (isServiceOrder) {
+        serviceProvider = await User.findOne({ _id: serviceProviderId, role: 'service_provider', isActive: true }).lean()
+        if (!serviceProvider) return res.status(404).json({ success: false, error: 'Active service provider not found' })
+      }
+      if (requestId) {
         if (userRole === 'manager' && String(serviceRequest.assignedManagerId) !== String(actorId)) {
           return res.status(403).json({ success: false, error: 'This request is not assigned to you' })
         }
@@ -270,8 +280,12 @@ export default async function handler(req, res) {
       const poNumber = `PO-${year}-${rnd}`
 
       const po = new PurchaseOrder({
-        poNumber, requestId, vendorId, vendorName: vendor.legalName, vendorEmail: vendor.email,
-        vendorAddress: vendor.address || '',
+        poNumber, requestId,
+        vendorId: vendor?._id, vendorName: vendor?.legalName || serviceProvider?.name, vendorEmail: vendor?.email || serviceProvider?.email,
+        vendorAddress: vendor?.address || '',
+        serviceProviderId: serviceProvider?._id,
+        serviceProviderName: serviceProvider?.name,
+        serviceProviderEmail: serviceProvider?.email,
         adminRequirementType: serviceRequest?.adminAssessment?.requirementType || '',
         poType: serviceRequest?.adminAssessment?.requirementType === 'MAINTENANCE'
           ? 'SERVICE'

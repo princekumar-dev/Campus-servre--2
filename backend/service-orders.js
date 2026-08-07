@@ -26,7 +26,11 @@ async function loadServiceOrder(id) {
 
 function canAccess(po, user) {
   if (!allowedRoles.has(user.role)) return false
-  if (user.role === 'service_provider') return true
+  if (user.role === 'service_provider') {
+    return (!po.serviceProviderId && !po.serviceProviderEmail) ||
+      String(po.serviceProviderId || '') === String(user.id || '') ||
+      String(po.serviceProviderEmail || '').toLowerCase() === user.email
+  }
   if (user.role !== 'vendor') return true
   return !po.vendorEmail || po.vendorEmail.toLowerCase() === user.email
 }
@@ -52,6 +56,11 @@ export default async function serviceOrdersHandler(req, res) {
       const requestById = new Map(serviceRequests.map(request => [String(request._id), request]))
       const filter = { requestId: { $in: serviceRequests.map(request => request._id) } }
       if (user.role === 'vendor') filter.vendorEmail = user.email
+      if (user.role === 'service_provider') filter.$or = [
+        { serviceProviderId: user.id },
+        { serviceProviderEmail: user.email },
+        { serviceProviderId: { $exists: false }, serviceProviderEmail: { $exists: false } }
+      ]
       const orders = await PurchaseOrder.find(filter)
         .select('-signedPo.url -qrTokenHash -documentUrl -serviceExecution.workEvidence.url -serviceExecution.expenses.bill.url -statusHistory')
         .sort({ createdAt: -1 })

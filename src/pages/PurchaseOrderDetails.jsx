@@ -323,8 +323,8 @@ export default function PurchaseOrderDetails() {
             {[
               { label: 'PO Number', value: po.poNumber },
               { label: 'PO Type', value: po.adminRequirementType === 'MAINTENANCE' ? 'Service PO' : po.adminRequirementType === 'REPLACEMENT' ? 'Replacement PO' : po.adminRequirementType === 'NEW_PURCHASE' ? 'Goods PO' : po.poType === 'SERVICE' ? 'Service PO' : po.poType === 'REPLACEMENT' ? 'Replacement PO' : 'Goods PO' },
-              { label: 'Vendor', value: po.vendorName },
-              { label: 'Vendor Address', value: po.vendorAddress || '—' },
+              { label: po.poType === 'SERVICE' || po.adminRequirementType === 'MAINTENANCE' ? 'Service Provider' : 'Vendor', value: po.serviceProviderName || po.vendorName },
+              { label: po.poType === 'SERVICE' || po.adminRequirementType === 'MAINTENANCE' ? 'Provider Email' : 'Vendor Address', value: po.serviceProviderEmail || po.vendorAddress || '—' },
               { label: 'Delivery Address', value: po.deliveryAddress },
               { label: 'Payment Terms', value: po.paymentTerms },
               { label: 'Expected Delivery', value: displayDate(po.expectedDeliveryDate) },

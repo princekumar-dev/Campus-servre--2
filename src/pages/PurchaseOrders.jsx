@@ -42,14 +42,16 @@ const getPoType = po => po?.adminRequirementType === 'MAINTENANCE'
 function CreatePOModal({ onClose, onSaved, sourceRequest, selectedQuotation }) {
   const navigate = useNavigate()
   const [vendors, setVendors] = useState([])
-  const [form, setForm] = useState({ poType: sourceRequest?.adminAssessment?.requirementType === 'MAINTENANCE' ? 'SERVICE' : sourceRequest?.adminAssessment?.requirementType === 'REPLACEMENT' ? 'REPLACEMENT' : 'GOODS', vendorId: selectedQuotation?.vendorId || '', deliveryAddress: '363, Arcot Road, Kodambakkam, Chennai - 600024', deliveryLocation: sourceRequest?.location || '', expectedDeliveryDate: '', paymentTerms: 'Net 30', notes: sourceRequest ? `Generated for ${sourceRequest.requestNumber}: ${sourceRequest.title}` : '', deliveryCharge: 0 })
+  const [serviceProviders, setServiceProviders] = useState([])
+  const [form, setForm] = useState({ poType: sourceRequest?.adminAssessment?.requirementType === 'MAINTENANCE' ? 'SERVICE' : sourceRequest?.adminAssessment?.requirementType === 'REPLACEMENT' ? 'REPLACEMENT' : 'GOODS', vendorId: selectedQuotation?.vendorId || '', serviceProviderId: '', deliveryAddress: '363, Arcot Road, Kodambakkam, Chennai - 600024', deliveryLocation: sourceRequest?.location || '', expectedDeliveryDate: '', paymentTerms: 'Net 30', notes: sourceRequest ? `Generated for ${sourceRequest.requestNumber}: ${sourceRequest.title}` : '', deliveryCharge: 0 })
   const isServicePo = form.poType === 'SERVICE'
-  const [items, setItems] = useState(selectedQuotation?.items?.length ? selectedQuotation.items.map(item => ({ description: item.description, specification: sourceRequest?.description || '', brand: '', quantityOrdered: item.quantity, unit: normalizeUnit(item.unit), unitPrice: item.unitPrice, taxRate: item.taxRate, discount: item.discount || 0 })) : [{ description: isServicePo ? sourceRequest?.title : sourceRequest?.requestedItem || '', specification: sourceRequest?.description || '', brand: '', quantityOrdered: isServicePo ? 1 : sourceRequest?.requestedQuantity || 1, unit: isServicePo ? 'service' : normalizeUnit(sourceRequest?.requestedUnit), unitPrice: 0, taxRate: 18, discount: 0 }])
+  const [items, setItems] = useState(selectedQuotation?.items?.length ? selectedQuotation.items.map(item => ({ description: item.description, specification: sourceRequest?.description || '', brand: '', quantityOrdered: item.quantity, unit: normalizeUnit(item.unit), unitPrice: item.unitPrice, taxRate: item.taxRate, discount: item.discount || 0 })) : [{ description: isServicePo ? sourceRequest?.title : sourceRequest?.requestedItem || '', specification: sourceRequest?.description || '', brand: '', quantityOrdered: isServicePo ? 1 : sourceRequest?.requestedQuantity || 1, unit: isServicePo ? 'service' : normalizeUnit(sourceRequest?.requestedUnit), unitPrice: 0, taxRate: isServicePo ? 0 : 18, discount: 0 }])
   const [loading, setLoading] = useState(false)
   const { showSuccess, showError } = useAlert()
 
   useEffect(() => {
     apiClient.get('/api/vendors?status=ACTIVE').then(r => { if (r.success) setVendors(r.data) })
+    apiClient.get('/api/users?role=service_provider', { cache: false }).then(r => { if (r.success) setServiceProviders(r.users || []) })
   }, [])
 
   const addItem = () => {
@@ -89,7 +91,7 @@ function CreatePOModal({ onClose, onSaved, sourceRequest, selectedQuotation }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!form.vendorId || !items.some(i => i.description)) return showError('Missing Info', 'Select vendor and add at least one item')
+    if ((isServicePo ? !form.serviceProviderId : !form.vendorId) || !items.some(i => i.description)) return showError('Missing Info', isServicePo ? 'Select a service provider and confirm the service scope' : 'Select a vendor and add at least one item')
     setLoading(true)
     try {
       const normalizedItems = items.map(item => ({ ...item, unitPrice: getLineValues(item).unitPrice }))
@@ -148,10 +150,17 @@ function CreatePOModal({ onClose, onSaved, sourceRequest, selectedQuotation }) {
               {selectedQuotation && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">Selected quotation: {selectedQuotation.quotationNumber} · {selectedQuotation.vendorName} · ₹{Number(selectedQuotation.grandTotal || 0).toFixed(2)}</div>}
             </div>
           )}
-          {/* Vendor */}
+          {/* Vendor / service provider */}
           <div>
-            <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Vendor *</label>
-            <select
+            <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">{isServicePo ? 'Assigned Service Provider *' : 'Vendor *'}</label>
+            {isServicePo ? <select
+              value={form.serviceProviderId}
+              onChange={e => setForm(p => ({ ...p, serviceProviderId: e.target.value }))}
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm transition-all focus:border-violet-500 focus:outline-none"
+            >
+              <option value="">Select active service provider...</option>
+              {serviceProviders.map(provider => <option key={provider._id} value={provider._id}>{provider.name} ({provider.email})</option>)}
+            </select> : <select
               value={form.vendorId}
               onChange={e => setForm(p => ({ ...p, vendorId: e.target.value }))}
               disabled={Boolean(selectedQuotation)}
@@ -159,7 +168,8 @@ function CreatePOModal({ onClose, onSaved, sourceRequest, selectedQuotation }) {
             >
               <option value="">Select active vendor...</option>
               {vendors.map(v => <option key={v._id} value={v._id}>{v.legalName} ({v.vendorCode})</option>)}
-            </select>
+            </select>}
+            {isServicePo && serviceProviders.length === 0 && <p className="mt-2 text-xs font-semibold text-amber-700">No active service-provider account is available. Ask the administrator to create or activate one.</p>}
             {selectedQuotation && (
               <p className="mt-2 text-xs font-medium text-emerald-700">Vendor is locked to the selected quotation.</p>
             )}
@@ -168,7 +178,7 @@ function CreatePOModal({ onClose, onSaved, sourceRequest, selectedQuotation }) {
           {/* Line Items */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">{isServicePo ? 'Service Scope and Cost *' : 'Line Items *'}</label>
+              <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">{isServicePo ? 'Service Scope *' : 'Line Items *'}</label>
               {!sourceRequest && (
                 <button type="button" onClick={addItem} className="text-xs text-violet-600 font-bold hover:text-violet-700 flex items-center space-x-1">
                   <Plus size={12} /><span>Add Item</span>
@@ -178,18 +188,18 @@ function CreatePOModal({ onClose, onSaved, sourceRequest, selectedQuotation }) {
             <div className="space-y-3">
               {items.map((item, idx) => (
                 <div key={idx} className="grid grid-cols-1 gap-3 rounded-xl border border-slate-100 bg-slate-50 p-4 sm:grid-cols-3 sm:gap-x-3 sm:gap-y-3">
-                  <div className="min-w-0">
+                  {!isServicePo && <div className="min-w-0">
                     <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Description *</label>
                     <input type="text" value={item.description} onChange={e => updateItem(idx, 'description', e.target.value)} readOnly={Boolean(sourceRequest)} placeholder="Item name..." className={`w-full mt-1 border border-slate-200 rounded-lg p-2 text-xs focus:outline-none focus:border-violet-500 ${sourceRequest ? 'cursor-not-allowed bg-slate-100 text-slate-600' : 'bg-white'}`} />
-                  </div>
-                  <div className="min-w-0">
+                  </div>}
+                  {!isServicePo && <div className="min-w-0">
                     <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Qty *</label>
                     <input type="number" value={item.quantityOrdered} onChange={e => updateItem(idx, 'quantityOrdered', e.target.value)} readOnly={Boolean(sourceRequest)} min="1" className={`w-full mt-1 border border-slate-200 rounded-lg p-2 text-xs focus:outline-none focus:border-violet-500 ${sourceRequest ? 'cursor-not-allowed bg-slate-100 text-slate-600' : 'bg-white'}`} />
-                  </div>
-                  <div className="min-w-0">
+                  </div>}
+                  {!isServicePo && <div className="min-w-0">
                     <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Unit</label>
                     <select value={item.unit} onChange={e => updateItem(idx, 'unit', e.target.value)} disabled={Boolean(sourceRequest)} className={`w-full mt-1 border border-slate-200 rounded-lg p-2 text-xs focus:outline-none focus:border-violet-500 ${sourceRequest ? 'cursor-not-allowed bg-slate-100 text-slate-600' : 'bg-white'}`}><UnitOptions /></select>
-                  </div>
+                  </div>}
                   <div className="min-w-0">
                     <label className="block truncate whitespace-nowrap text-[11px] font-bold uppercase tracking-wider text-slate-400" title={isServicePo ? 'Optional initial estimate' : 'Unit price'}>{isServicePo ? 'Initial estimate (₹)' : 'Unit price (₹) *'}</label>
                     <input type="number" value={item.unitPrice} onChange={e => updateItem(idx, 'unitPrice', e.target.value)} min="0" step="0.01" required={!isServicePo} className="mt-1 w-full rounded-lg border border-violet-300 bg-white p-2 text-xs font-semibold outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100" />
@@ -203,7 +213,7 @@ function CreatePOModal({ onClose, onSaved, sourceRequest, selectedQuotation }) {
                     <div className="mt-1 flex min-h-[34px] items-center justify-end rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-extrabold text-slate-700">₹{getLineValues(item).subtotal.toFixed(2)}</div>
                   </div>
                   <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200/70 pt-3 sm:col-span-full">
-                    <span className="text-xs text-slate-500">{item.quantityOrdered || 1} {item.unit || 'unit'} × ₹{getLineValues(item).unitPrice.toFixed(2)} = ₹{getLineValues(item).subtotal.toFixed(2)} · GST {Number(item.taxRate) || 0}%</span>
+                    <span className="text-xs text-slate-500">{isServicePo ? 'Actual costs and scanned bills will be recorded by the service provider after completing the work.' : `${item.quantityOrdered || 1} ${item.unit || 'unit'} × ₹${getLineValues(item).unitPrice.toFixed(2)} = ₹${getLineValues(item).subtotal.toFixed(2)} · GST ${Number(item.taxRate) || 0}%`}</span>
                     {items.length > 1 && (
                       <button type="button" onClick={() => removeItem(idx)} className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-600 transition-all hover:bg-rose-100">
                         Remove item
@@ -216,11 +226,11 @@ function CreatePOModal({ onClose, onSaved, sourceRequest, selectedQuotation }) {
           </div>
 
           {/* Totals Preview */}
-          <div className="bg-violet-50 border border-violet-100 rounded-xl p-4 text-right space-y-1 text-sm">
+          {!isServicePo && <div className="bg-violet-50 border border-violet-100 rounded-xl p-4 text-right space-y-1 text-sm">
             <div className="text-slate-500">Subtotal: <strong className="text-slate-800">₹{totals.subtotal.toFixed(2)}</strong></div>
             <div className="text-slate-500">Tax (GST): <strong className="text-slate-800">₹{totals.taxTotal.toFixed(2)}</strong></div>
             <div className="text-violet-700 text-base font-black">Grand Total: ₹{totals.grandTotal.toFixed(2)}</div>
-          </div>
+          </div>}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>

@@ -19,7 +19,7 @@ export default async function handler(req, res) {
 
       // Role-filter: populate manager/technician dropdowns
       if (role && !action) {
-        const allowedRoles = ['manager', 'technician', 'accounts', 'admin', 'requester']
+        const allowedRoles = ['manager', 'technician', 'accounts', 'admin', 'requester', 'service_provider']
         if (!allowedRoles.includes(role)) {
           return res.status(400).json({ success: false, error: 'Invalid role filter' })
         }
