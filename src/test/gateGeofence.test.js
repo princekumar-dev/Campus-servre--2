@@ -2,18 +2,18 @@ import { describe, expect, it } from 'vitest'
 import { distanceInMeters, distanceToCampusBoundary, isInsideCampusBoundary, validateGateLocation } from '../../lib/gateGeofence'
 
 describe('gate PO geofence', () => {
-  it('allows the previous location because it is within the 1 km buffer', () => {
+  it('rejects the previous location because the old 1 km buffer was removed', () => {
     expect(validateGateLocation({
       latitude: 13.050807,
       longitude: 80.224843,
       accuracy: 15
-    }).allowed).toBe(true)
+    }).allowed).toBe(false)
   })
 
-  it('allows the supplied college centre point', () => {
+  it('allows the centre of the new approved scan area', () => {
     expect(validateGateLocation({
-      latitude: 13.0551111111,
-      longitude: 80.2268611111,
+      latitude: 13.0541390965,
+      longitude: 80.2270551494,
       accuracy: 15
     }).allowed).toBe(true)
   })
@@ -36,17 +36,17 @@ describe('gate PO geofence', () => {
     }).allowed).toBe(false)
   })
 
-  it('calculates zero distance at the configured gate point', () => {
-    expect(distanceInMeters(13.0551111111, 80.2268611111)).toBe(0)
+  it('calculates zero distance at the configured scan-area centre', () => {
+    expect(distanceInMeters(13.0541390965, 80.2270551494)).toBe(0)
   })
 
   it('uses all four supplied corners as the campus polygon', () => {
-    expect(isInsideCampusBoundary(13.0552, 80.2272)).toBe(true)
-    expect(isInsideCampusBoundary(13.0535, 80.2272)).toBe(false)
+    expect(isInsideCampusBoundary(13.0541390965, 80.2270551494)).toBe(true)
+    expect(isInsideCampusBoundary(13.0543, 80.2272)).toBe(false)
   })
 
   it('measures zero boundary distance inside campus and a positive distance outside', () => {
-    expect(distanceToCampusBoundary(13.0552, 80.2272)).toBe(0)
-    expect(distanceToCampusBoundary(13.0652, 80.2272)).toBeGreaterThan(900)
+    expect(distanceToCampusBoundary(13.0541390965, 80.2270551494)).toBe(0)
+    expect(distanceToCampusBoundary(13.0641390965, 80.2270551494)).toBeGreaterThan(1000)
   })
 })
