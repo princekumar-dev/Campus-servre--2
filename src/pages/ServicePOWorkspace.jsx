@@ -30,12 +30,15 @@ export default function ServicePOWorkspace() {
   const { showError, showSuccess } = useAlert()
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [saving, setSaving] = useState(false)
   const [expense, setExpense] = useState({ category: 'PARTS', description: '', amount: '', bill: null })
   const [summary, setSummary] = useState('')
   const auth = getAuthOrNull()
 
   const load = async () => {
+    setLoading(true)
+    setLoadError('')
     try {
       const tokenQuery = qrToken ? `&token=${encodeURIComponent(qrToken)}&latitude=${encodeURIComponent(qrLocation.latitude)}&longitude=${encodeURIComponent(qrLocation.longitude)}&accuracy=${encodeURIComponent(qrLocation.accuracy)}` : ''
       const result = await apiClient.get(`/api/service-orders?id=${id}${tokenQuery}`, { cache: false })
@@ -43,11 +46,13 @@ export default function ServicePOWorkspace() {
       setData(result)
       setSummary(result.data.serviceExecution?.serviceSummary || '')
     } catch (error) {
-      if (error?.status === 403) {
+      if (error?.status === 401 || error?.data?.code === 'SCAN_LOGIN_REQUIRED') {
         const next = `${window.location.pathname}${window.location.search}`
         window.location.replace(`/login?next=${encodeURIComponent(next)}&portal=service&switch=1`)
         return
       }
+      const message = error.message || 'This service order could not be opened.'
+      setLoadError(message)
       showError('Service PO unavailable', error.message)
     }
     finally { setLoading(false) }
@@ -76,7 +81,19 @@ export default function ServicePOWorkspace() {
 
   const total = useMemo(() => (data?.data.serviceExecution?.expenses || []).reduce((sum, item) => sum + Number(item.amount || 0), 0), [data])
   if (loading) return <div className="py-20 text-center text-sm text-slate-500">Opening service workspace…</div>
-  if (!data) return <div className="py-20 text-center text-sm text-rose-600">This service order could not be opened.</div>
+  if (!data) return (
+    <div className="mx-auto max-w-lg rounded-2xl border border-rose-200 bg-white p-6 text-center shadow-sm">
+      <h1 className="font-black text-slate-900">Service PO could not be opened</h1>
+      <p className="mt-2 text-sm leading-6 text-rose-600">{loadError || 'Check the QR code and your assigned Service Provider account.'}</p>
+      <div className="mt-5 grid gap-2 sm:grid-cols-2">
+        <button type="button" onClick={load} className="rounded-xl bg-violet-600 px-4 py-3 text-sm font-bold text-white hover:bg-violet-700">Try again</button>
+        <button type="button" onClick={() => {
+          const next = `${window.location.pathname}${window.location.search}`
+          window.location.assign(`/login?next=${encodeURIComponent(next)}&portal=service&switch=1`)
+        }} className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50">Switch service account</button>
+      </div>
+    </div>
+  )
 
   const po = data.data
   const execution = po.serviceExecution || {}

@@ -43,11 +43,11 @@ export default async function serviceOrdersHandler(req, res) {
     const suppliedToken = req.method === 'GET' ? req.query.token : req.body?.qrToken
     if (suppliedToken) {
       if (user.role !== 'service_provider' || req.user?.scanPortal !== 'service' || req.user?.scanTarget !== `/service/po/${id}`) {
-        return res.status(403).json({ success: false, error: 'Sign in with the service-provider account to scan this Service PO' })
+        return res.status(403).json({ success: false, code: 'SCAN_LOGIN_REQUIRED', error: 'Sign in with the service-provider account to scan this Service PO' })
       }
       const qrPoId = await verifyIssuedPoQrToken(suppliedToken)
       if (!qrPoId || qrPoId !== id) {
-        return res.status(403).json({ success: false, error: 'Invalid or altered Service PO QR code' })
+        return res.status(403).json({ success: false, code: 'INVALID_PO_QR', error: 'Invalid or altered Service PO QR code' })
       }
       if (!requireGateLocation(req, res).allowed) return
     }
@@ -71,7 +71,7 @@ export default async function serviceOrdersHandler(req, res) {
     const loaded = await loadServiceOrder(id)
     if (loaded.error) return res.status(loaded.status).json({ success: false, error: loaded.error })
     const { po, request } = loaded
-    if (!canAccess(po, user)) return res.status(403).json({ success: false, error: 'This service order is not assigned to your account' })
+    if (!canAccess(po, user)) return res.status(403).json({ success: false, code: 'SERVICE_PO_NOT_ASSIGNED', error: 'This service order is not assigned to your account' })
 
     if (req.method === 'GET') {
       return res.json({ success: true, data: po.toObject(), request })

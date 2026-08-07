@@ -48,8 +48,12 @@ function Login() {
           department: res.user.department,
           phoneNumber: res.user.phoneNumber,
           eSignature: res.user.eSignature,
-          scanPortal: res.scanPortal || '',
-          scanTarget: res.scanTarget || ''
+          // Keep QR login navigation compatible while Vercel and the API host
+          // roll out the same release at slightly different times. The server
+          // has already authenticated the role above; newer API versions also
+          // return these values in the signed JWT.
+          scanPortal: res.scanPortal || requestedPortal,
+          scanTarget: res.scanTarget || scanTarget
         }
         localStorage.setItem('auth', JSON.stringify(authData))
         localStorage.setItem('isLoggedIn', 'true')
