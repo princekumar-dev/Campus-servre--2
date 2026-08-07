@@ -82,8 +82,10 @@ function Header() {
 
   const navigation = user && (
     <>
-      {/* Dashboard - all roles */}
-      <Link className={linkClass(getDashboardPath(user.role))} to={getDashboardPath(user.role)}>Dashboard</Link>
+      {/* Dedicated service navigation already links to its dashboard below. */}
+      {user.role !== 'service_provider' && (
+        <Link className={linkClass(getDashboardPath(user.role))} to={getDashboardPath(user.role)}>Dashboard</Link>
+      )}
       
       {/* Requester / HOD / Staff */}
       {['requester', 'hod', 'staff'].includes(user.role) && (

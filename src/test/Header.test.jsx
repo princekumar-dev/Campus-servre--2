@@ -55,4 +55,22 @@ describe('Header Component', () => {
     expect(isNavPathActive('/requests/new', '/requests')).toBe(false)
     expect(isNavPathActive('/requests/new', '/requests/new')).toBe(true)
   })
+
+  it('shows one active dashboard destination for a service provider', async () => {
+    localStorage.getItem.mockImplementation(key => key === 'auth' ? JSON.stringify({
+      isAuthenticated: true,
+      email: 'service@msec.edu.in',
+      role: 'service_provider'
+    }) : null)
+    window.history.pushState({}, '', '/service/dashboard')
+
+    render(
+      <BrowserRouter>
+        <Header />
+      </BrowserRouter>
+    )
+
+    expect(await screen.findByRole('link', { name: 'Service Orders' })).toHaveClass('active')
+    expect(screen.queryByRole('link', { name: 'Dashboard' })).not.toBeInTheDocument()
+  })
 })
