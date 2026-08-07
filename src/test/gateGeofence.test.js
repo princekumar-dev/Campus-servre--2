@@ -49,4 +49,23 @@ describe('gate PO geofence', () => {
     expect(distanceToCampusBoundary(13.0541390965, 80.2270551494)).toBe(0)
     expect(distanceToCampusBoundary(13.0641390965, 80.2270551494)).toBeGreaterThan(1000)
   })
+
+  it('allows a Service PO scan within the 200 m campus GPS buffer', () => {
+    const location = {
+      latitude: 13.05555,
+      longitude: 80.2270551494,
+      accuracy: 25
+    }
+    expect(distanceToCampusBoundary(location.latitude, location.longitude)).toBeGreaterThan(100)
+    expect(distanceToCampusBoundary(location.latitude, location.longitude)).toBeLessThan(200)
+    expect(validateGateLocation(location, { boundaryBufferMeters: 200 }).allowed).toBe(true)
+  })
+
+  it('still rejects a Service PO scan beyond the 200 m campus GPS buffer', () => {
+    expect(validateGateLocation({
+      latitude: 13.057,
+      longitude: 80.2270551494,
+      accuracy: 25
+    }, { boundaryBufferMeters: 200 }).allowed).toBe(false)
+  })
 })

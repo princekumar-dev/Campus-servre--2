@@ -4,6 +4,7 @@ import { verifyIssuedPoQrToken } from '../lib/poQrToken.js'
 import { requireGateLocation } from '../lib/gateGeofence.js'
 
 const allowedRoles = new Set(['vendor', 'service_provider', 'manager', 'admin', 'super_admin'])
+const serviceBoundaryBufferMeters = Number(process.env.SERVICE_PO_BOUNDARY_BUFFER_METERS || 200)
 
 function actor(req) {
   return {
@@ -49,7 +50,7 @@ export default async function serviceOrdersHandler(req, res) {
       if (!qrPoId || qrPoId !== id) {
         return res.status(403).json({ success: false, code: 'INVALID_PO_QR', error: 'Invalid or altered Service PO QR code' })
       }
-      if (!requireGateLocation(req, res).allowed) return
+      if (!requireGateLocation(req, res, { boundaryBufferMeters: serviceBoundaryBufferMeters }).allowed) return
     }
     if (!id && req.method === 'GET') {
       const serviceRequests = await ServiceRequest.find({ 'adminAssessment.requirementType': 'MAINTENANCE' }).select('_id title location assetCode').lean()
