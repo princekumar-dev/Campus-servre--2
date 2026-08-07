@@ -398,10 +398,20 @@ function RequestDetails() {
     return false
   }
 
-  const nextAction = getWorkflowGuidance(request?.status, auth?.role)
+  const isServiceRequest = request?.adminAssessment?.requirementType === 'MAINTENANCE'
+  const poTypeLabel = request?.adminAssessment?.requirementType === 'MAINTENANCE'
+    ? 'Service PO'
+    : request?.adminAssessment?.requirementType === 'REPLACEMENT'
+      ? 'Replacement PO'
+      : 'Goods PO'
+  const nextAction = getWorkflowGuidance(request?.status, auth?.role, request)
   const visibleTabs = TABS
 
   const openNextAction = () => {
+    if (isServiceRequest && request?.status === 'ASSIGNED_TO_MANAGER' && auth?.role === 'manager') {
+      navigate(`/purchase-orders?requestId=${id}`)
+      return
+    }
     if (nextAction.tab === 'Quotation' && auth?.role === 'manager') {
       navigate(`/quotations?requestId=${id}`)
       return
@@ -516,16 +526,20 @@ function RequestDetails() {
         <section className="rounded-2xl border border-violet-200 bg-white p-4 shadow-sm sm:p-5" aria-labelledby="procurement-actions-title">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-violet-500">Quotation in progress</p>
-              <h2 id="procurement-actions-title" className="mt-1 text-sm font-extrabold text-slate-900">Quotation and purchase-order actions</h2>
-              <p className="mt-1 text-xs text-slate-500">Compare vendor quotations, select one, then create the PO from the selected quotation.</p>
+              <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-violet-500">{isServiceRequest ? 'Service PO workflow' : 'Quotation in progress'}</p>
+              <h2 id="procurement-actions-title" className="mt-1 text-sm font-extrabold text-slate-900">{isServiceRequest ? 'Create the Service PO directly' : 'Quotation and purchase-order actions'}</h2>
+              <p className="mt-1 text-xs text-slate-500">{isServiceRequest ? 'No quotation is required. The provider records actual repair costs and scanned bills after completing the service.' : 'Compare vendor quotations, select one, then create the PO from the selected quotation.'}</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={() => navigate(`/quotations?requestId=${id}&mode=create`)} className="inline-flex items-center gap-2 rounded-xl border border-violet-200 px-4 py-2.5 text-xs font-bold text-violet-700 hover:bg-violet-50"><Plus size={14} /> Add quotation</button>
-              <button type="button" onClick={() => navigate(`/quotations?requestId=${id}`)} className="inline-flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-violet-700">View quotations <ChevronRight size={14} /></button>
-              {request.selectedQuotationId && <>
+              {isServiceRequest ? (
+                <button type="button" onClick={() => navigate(`/purchase-orders?requestId=${id}`)} className="inline-flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-violet-700"><FileCheck size={14} /> Create {poTypeLabel} & PDF</button>
+              ) : <>
+                <button type="button" onClick={() => navigate(`/quotations?requestId=${id}&mode=create`)} className="inline-flex items-center gap-2 rounded-xl border border-violet-200 px-4 py-2.5 text-xs font-bold text-violet-700 hover:bg-violet-50"><Plus size={14} /> Add quotation</button>
+                <button type="button" onClick={() => navigate(`/quotations?requestId=${id}`)} className="inline-flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-violet-700">View quotations <ChevronRight size={14} /></button>
+              </>}
+              {!isServiceRequest && request.selectedQuotationId && <>
                 <button type="button" onClick={openSelectedQuotationPdf} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50"><Download size={14} /> Quotation PDF</button>
-                <button type="button" onClick={() => navigate(`/purchase-orders?requestId=${id}&quotationId=${request.selectedQuotationId}`)} className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-emerald-700"><FileCheck size={14} /> Create PO</button>
+                <button type="button" onClick={() => navigate(`/purchase-orders?requestId=${id}&quotationId=${request.selectedQuotationId}`)} className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-emerald-700"><FileCheck size={14} /> Create {poTypeLabel} & PDF</button>
               </>}
             </div>
           </div>
@@ -690,7 +704,7 @@ function RequestDetails() {
                     <div className="rounded-xl bg-violet-600 p-2.5 text-white"><FileCheck size={18} /></div>
                     <div>
                       <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-violet-500">Purchase manager action</p>
-                      <h3 className="mt-1 text-base font-extrabold text-slate-900">Create the fulfilment order</h3>
+                      <h3 className="mt-1 text-base font-extrabold text-slate-900">Create the {poTypeLabel}</h3>
                       <p className="mt-1 text-xs leading-relaxed text-slate-600">Use the confirmed requirement below to prepare the vendor order and official PDF.</p>
                     </div>
                   </div>
@@ -701,7 +715,7 @@ function RequestDetails() {
                   </div>
                   {request.adminAssessment?.note && <p className="mt-3 rounded-lg bg-white p-3 text-xs text-slate-600"><strong>Admin note:</strong> {request.adminAssessment.note}</p>}
                   <button type="button" onClick={() => navigate(`/purchase-orders?requestId=${id}`)} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-violet-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-violet-700">
-                    <FileCheck size={16} /> Create Order & PDF <ChevronRight size={15} />
+                    <FileCheck size={16} /> Create {poTypeLabel} & PDF <ChevronRight size={15} />
                   </button>
                 </div>
               )}

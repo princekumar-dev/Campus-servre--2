@@ -66,8 +66,11 @@ export function getWorkflowPhase(status) {
   return WORKFLOW_PHASES.find(phase => phase.statuses.includes(status)) || null
 }
 
-export function getWorkflowGuidance(status, role) {
-  const item = guidance[status] || { tab: 'History', owner: null, title: 'Archived workflow record', description: 'This request belongs to the previous workflow and is available for reference only.' }
+export function getWorkflowGuidance(status, role, request) {
+  const isServiceRequest = request?.adminAssessment?.requirementType === 'MAINTENANCE'
+  const item = status === 'ASSIGNED_TO_MANAGER' && isServiceRequest
+    ? { tab: 'Overview', owner: 'manager', title: 'Create the Service PO', description: 'Create the Service PO directly. Actual repair costs and scanned bills will be recorded after the service is completed.' }
+    : guidance[status] || { tab: 'History', owner: null, title: 'Archived workflow record', description: 'This request belongs to the previous workflow and is available for reference only.' }
   const normalizedRole = normalizeRole(role)
   return {
     ...item,

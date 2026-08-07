@@ -38,6 +38,12 @@ const STATUS_PRESENTATION = {
 
 const normalizeRole = role => ['hod', 'staff'].includes(role) ? 'requester' : role
 const getStatusPresentation = status => STATUS_PRESENTATION[status] || { label: status?.replace(/_/g, ' ') || 'Unknown', helper: 'Legacy workflow record', color: 'bg-slate-100 text-slate-600 border-slate-200' }
+const PO_TYPE_PRESENTATION = {
+  MAINTENANCE: { label: 'Service PO', color: 'bg-cyan-50 text-cyan-700 border-cyan-200' },
+  NEW_PURCHASE: { label: 'Goods PO', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+  REPLACEMENT: { label: 'Replacement PO', color: 'bg-orange-50 text-orange-700 border-orange-200' },
+}
+const getPoTypePresentation = request => PO_TYPE_PRESENTATION[request?.adminAssessment?.requirementType] || { label: 'Pending Type', color: 'bg-slate-50 text-slate-500 border-slate-200' }
 
 const ITEMS_PER_PAGE = 15
 
@@ -81,7 +87,7 @@ function Requests() {
     const fetchRequests = async () => {
       setIsLoading(true)
       try {
-        const res = await apiClient.get('/api/requests', { ttl: 30 * 1000 })
+        const res = await apiClient.get('/api/requests', { cache: false, dedupe: false })
         if (res.success) {
           setRequests(res.data)
           const counts = {}
@@ -121,7 +127,9 @@ function Requests() {
         req.requestNumber?.toLowerCase().includes(q) ||
         req.requesterName?.toLowerCase().includes(q) ||
         req.location?.toLowerCase().includes(q) ||
-        req.category?.toLowerCase().includes(q)
+        req.category?.toLowerCase().includes(q) ||
+        req.adminAssessment?.requirementType?.toLowerCase().replace(/_/g, ' ').includes(q) ||
+        getPoTypePresentation(req).label.toLowerCase().includes(q)
       )
     })
   }, [requests, searchQuery, selectedStatus, selectedPriority, queueMode, auth?.role])
@@ -374,7 +382,7 @@ function Requests() {
             <div className="space-y-3 p-3 lg:hidden">
               {paginatedRequests.map((req) => (
                 (() => {
-                  const guidance = getWorkflowGuidance(req.status, auth?.role)
+                  const guidance = getWorkflowGuidance(req.status, auth?.role, req)
                   const phase = getWorkflowPhase(req.status)
                   return (
                 <Link
@@ -399,6 +407,9 @@ function Requests() {
                     <span className={`inline-flex rounded-full border px-2 py-1 text-[10px] font-extrabold ${getStatusPresentation(req.status).color}`} title={getStatusPresentation(req.status).helper}>
                       {getStatusPresentation(req.status).label}
                     </span>
+                    <span className={`inline-flex rounded-full border px-2 py-1 text-[10px] font-extrabold ${getPoTypePresentation(req).color}`}>
+                      {getPoTypePresentation(req).label}
+                    </span>
                     {req.isEscalated && <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-1 text-[10px] font-bold text-rose-700"><TimerReset size={10} /> Overdue</span>}
                     <span className="ml-auto text-[10px] text-slate-400">
                       {formatDistanceToNow(new Date(req.updatedAt || req.createdAt), { addSuffix: true })}
@@ -419,6 +430,7 @@ function Requests() {
                   <tr className="border-b border-slate-200 text-xs font-bold text-slate-400 uppercase tracking-wider bg-slate-50/50">
                     <th className="py-3 px-6">Number</th>
                     <th className="py-3 px-2">Subject</th>
+                    <th className="py-3 px-2">PO Type</th>
                     <th className="py-3 px-2 hidden lg:table-cell">Location</th>
                     <th className="py-3 px-2 hidden sm:table-cell">Requester</th>
                     <th className="py-3 px-2">Priority</th>
@@ -429,13 +441,18 @@ function Requests() {
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {paginatedRequests.map((req) => (
-                    <tr key={req._id} className={`table-row-hover border-l-3 ${getPriorityBorder(req.priority)} ${getWorkflowGuidance(req.status, auth?.role).isMyTurn ? 'bg-violet-50/30' : ''}`}>
+                    <tr key={req._id} className={`table-row-hover border-l-3 ${getPriorityBorder(req.priority)} ${getWorkflowGuidance(req.status, auth?.role, req).isMyTurn ? 'bg-violet-50/30' : ''}`}>
                       <td className="py-4 px-6">
                         <span className="font-mono text-xs text-violet-600 font-bold">{req.requestNumber}</span>
                       </td>
                       <td className="py-4 px-2">
                         <div className="font-semibold text-slate-800 text-xs">{req.title}</div>
                         <span className="text-xs text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded mt-1 inline-block capitalize border border-slate-100">{req.category}</span>
+                      </td>
+                      <td className="py-4 px-2">
+                        <span className={`inline-flex whitespace-nowrap rounded-full border px-2.5 py-1 text-[10px] font-extrabold ${getPoTypePresentation(req).color}`}>
+                          {getPoTypePresentation(req).label}
+                        </span>
                       </td>
                       <td className="py-4 px-2 hidden lg:table-cell text-slate-500 text-xs">{req.location}</td>
                       <td className="py-4 px-2 hidden sm:table-cell">
@@ -479,7 +496,7 @@ function Requests() {
                             to={`/requests/${req._id}`}
                             className="inline-flex items-center gap-1 bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs py-1.5 px-3 rounded-lg shadow-sm transition-all group"
                           >
-                            {getWorkflowGuidance(req.status, auth?.role).isMyTurn ? 'Take action' : 'View'} <ArrowRight size={10} className="group-hover:translate-x-0.5 transition-transform" />
+                            {getWorkflowGuidance(req.status, auth?.role, req).isMyTurn ? 'Take action' : 'View'} <ArrowRight size={10} className="group-hover:translate-x-0.5 transition-transform" />
                           </Link>
                         </div>
                       </td>

@@ -56,7 +56,7 @@ export default async function handler(req, res) {
         // List screens only render these summary fields. Avoid transferring the
         // embedded evidence, quotation, invoice, work order, and audit history.
         requestsQuery = requestsQuery.select(
-          'requestNumber title category location priority status requesterId requesterName assignedManagerId assignedManagerName currentOwnerRole slaDueAt submittedAt createdAt updatedAt'
+          'requestNumber title category location priority status requesterId requesterName assignedManagerId assignedManagerName adminAssessment.requirementType currentOwnerRole slaDueAt submittedAt createdAt updatedAt'
         )
       }
       const requests = await requestsQuery.lean()

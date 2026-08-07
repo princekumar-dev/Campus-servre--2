@@ -183,11 +183,12 @@ export default async function handler(req, res) {
         if (userRole === 'manager' && String(serviceRequest.assignedManagerId) !== String(actorId)) {
           return res.status(403).json({ success: false, error: 'This request is not assigned to you' })
         }
+        const isServiceRequest = serviceRequest.adminAssessment?.requirementType === 'MAINTENANCE'
         const quotationCount = await VendorQuotation.countDocuments({ requestId })
-        if (quotationCount > 0 && !selectedQuotationId) {
+        if (!isServiceRequest && quotationCount > 0 && !selectedQuotationId) {
           return res.status(400).json({ success: false, error: 'Compare and select a quotation before generating the PO' })
         }
-        if (serviceRequest.selectedQuotationId && String(serviceRequest.selectedQuotationId) !== String(selectedQuotationId || '')) {
+        if (!isServiceRequest && serviceRequest.selectedQuotationId && String(serviceRequest.selectedQuotationId) !== String(selectedQuotationId || '')) {
           return res.status(400).json({ success: false, error: 'Generate the PO from the quotation selected for this indent' })
         }
         const existingPo = await PurchaseOrder.findOne({ requestId }).lean()
@@ -225,9 +226,6 @@ export default async function handler(req, res) {
             success: false,
             error: 'A request-based purchase order must contain only the single item, quantity, and unit approved in that request'
           })
-        }
-        if (isServicePo && Number(submittedItem?.unitPrice || 0) <= 0) {
-          return res.status(400).json({ success: false, error: 'An approved estimated service cost greater than zero is required' })
         }
       }
 

@@ -85,11 +85,11 @@ function CreatePOModal({ onClose, onSaved, sourceRequest, selectedQuotation }) {
     REPLACEMENT: 'Replacement order',
     NEW_PURCHASE: 'New purchase order'
   }[requirementType] || 'Purchase order'
+  const poTypeLabel = form.poType === 'SERVICE' ? 'Service PO' : form.poType === 'REPLACEMENT' ? 'Replacement PO' : 'Goods PO'
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!form.vendorId || !items.some(i => i.description)) return showError('Missing Info', 'Select vendor and add at least one item')
-    if (isServicePo && Number(items[0]?.unitPrice || 0) <= 0) return showError('Service Cost Required', 'Enter the approved estimated service cost before creating the Service PO')
     setLoading(true)
     try {
       const normalizedItems = items.map(item => ({ ...item, unitPrice: getLineValues(item).unitPrice }))
@@ -114,7 +114,7 @@ function CreatePOModal({ onClose, onSaved, sourceRequest, selectedQuotation }) {
   return (
     <ModalShell panelClassName="max-w-3xl space-y-6 animate-fadeIn">
         <div className="flex items-center justify-between">
-          <div><p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-violet-500">{requirementLabel}</p><h2 className="mt-1 text-lg font-black text-slate-800">Create Fulfilment Order</h2></div>
+          <div><p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-violet-500">{requirementLabel}</p><h2 className="mt-1 text-lg font-black text-slate-800">Create {poTypeLabel}</h2></div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl font-bold">×</button>
         </div>
         <form onSubmit={handleSubmit} className="space-y-5">
@@ -137,12 +137,13 @@ function CreatePOModal({ onClose, onSaved, sourceRequest, selectedQuotation }) {
                 <div><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Requested</p><p className="mt-1 text-xs font-extrabold text-slate-800">{sourceRequest.requestedQuantity || 1} {sourceRequest.requestedUnit || 'pcs'} · {sourceRequest.requestedItem || sourceRequest.title}</p></div>
               </div>
               <div className="flex flex-col gap-2 border-t border-violet-100 pt-3 sm:flex-row">
-                <button type="button" onClick={() => navigate(`/quotations?requestId=${sourceRequest._id}&mode=create`)} className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-white px-3 py-2 text-xs font-bold text-violet-700 ring-1 ring-violet-200 transition-all hover:bg-violet-100">
+                {!isServicePo && <button type="button" onClick={() => navigate(`/quotations?requestId=${sourceRequest._id}&mode=create`)} className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-white px-3 py-2 text-xs font-bold text-violet-700 ring-1 ring-violet-200 transition-all hover:bg-violet-100">
                   <FileText size={14} /> Create quotation for this request
-                </button>
-                <button type="button" onClick={() => navigate('/quotations')} className="inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-bold text-slate-600 transition-all hover:bg-white hover:text-violet-700">
+                </button>}
+                {!isServicePo && <button type="button" onClick={() => navigate('/quotations')} className="inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-bold text-slate-600 transition-all hover:bg-white hover:text-violet-700">
                   View all quotations <ChevronRight size={14} />
-                </button>
+                </button>}
+                {isServicePo && <p className="text-xs font-semibold text-cyan-700">Quotation not required. Actual costs and scanned bills are recorded after service completion.</p>}
               </div>
               {selectedQuotation && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">Selected quotation: {selectedQuotation.quotationNumber} · {selectedQuotation.vendorName} · ₹{Number(selectedQuotation.grandTotal || 0).toFixed(2)}</div>}
             </div>
@@ -190,8 +191,8 @@ function CreatePOModal({ onClose, onSaved, sourceRequest, selectedQuotation }) {
                     <select value={item.unit} onChange={e => updateItem(idx, 'unit', e.target.value)} disabled={Boolean(sourceRequest)} className={`w-full mt-1 border border-slate-200 rounded-lg p-2 text-xs focus:outline-none focus:border-violet-500 ${sourceRequest ? 'cursor-not-allowed bg-slate-100 text-slate-600' : 'bg-white'}`}><UnitOptions /></select>
                   </div>
                   <div className="min-w-0">
-                    <label className="block truncate whitespace-nowrap text-[11px] font-bold uppercase tracking-wider text-slate-400" title={isServicePo ? 'Estimated service cost' : 'Unit price'}>{isServicePo ? 'Service cost (₹) *' : 'Unit price (₹) *'}</label>
-                    <input type="number" value={item.unitPrice} onChange={e => updateItem(idx, 'unitPrice', e.target.value)} min={isServicePo ? '0.01' : '0'} step="0.01" required className="mt-1 w-full rounded-lg border border-violet-300 bg-white p-2 text-xs font-semibold outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100" />
+                    <label className="block truncate whitespace-nowrap text-[11px] font-bold uppercase tracking-wider text-slate-400" title={isServicePo ? 'Optional initial estimate' : 'Unit price'}>{isServicePo ? 'Initial estimate (₹)' : 'Unit price (₹) *'}</label>
+                    <input type="number" value={item.unitPrice} onChange={e => updateItem(idx, 'unitPrice', e.target.value)} min="0" step="0.01" required={!isServicePo} className="mt-1 w-full rounded-lg border border-violet-300 bg-white p-2 text-xs font-semibold outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100" />
                   </div>
                   <div className="min-w-0">
                     <label className="whitespace-nowrap text-[11px] font-bold uppercase tracking-wider text-slate-400">GST (%) *</label>
@@ -235,7 +236,7 @@ function CreatePOModal({ onClose, onSaved, sourceRequest, selectedQuotation }) {
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="flex-1 border border-slate-200 text-slate-600 font-semibold text-sm py-2.5 rounded-xl hover:bg-slate-50 transition-all">Cancel</button>
             <button type="submit" disabled={loading} className="flex-1 bg-violet-600 hover:bg-violet-700 text-white font-bold text-sm py-2.5 rounded-xl transition-all disabled:opacity-50">
-              {loading ? 'Creating...' : 'Create PO Draft'}
+              {loading ? 'Creating...' : `Create ${poTypeLabel} Draft`}
             </button>
           </div>
         </form>
