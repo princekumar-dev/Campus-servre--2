@@ -541,33 +541,37 @@ export default async function handler(req, res) {
       const approvalX = left
       const approvalY = doc.y
       const approvalWidth = width
-      const approvalHeight = 105
+      const approvalHeight = 88
       const approvalColumnWidth = approvalWidth / 4
       const approvalLabels = ['Purchase Manager', 'Finance Manager', 'COO', 'Secretary']
 
       doc.rect(approvalX, approvalY, approvalWidth, approvalHeight).fillAndStroke(PO.white, PO.line)
-      doc.fillColor(PO.muted).font('Helvetica-Bold').fontSize(8)
-        .text('DECLARATION & APPROVALS', approvalX + 12, approvalY + 10, { width: approvalWidth - 24, characterSpacing: 0.65 })
-      doc.fillColor(PO.ink).font('Helvetica').fontSize(7.5)
-        .text('Certified that this purchase is necessary, budgeted, technically verified, and approved in accordance with institutional procurement policy.', approvalX + 12, approvalY + 25, { width: approvalWidth - 24, height: 20, ellipsis: true })
+      // Match the accent, heading weight, and divider used by every other PO section.
+      doc.rect(approvalX + 12, approvalY + 8, 18, 2).fill(PO.accent)
+      doc.fillColor(PO.black).font('Helvetica-Bold').fontSize(8.8)
+        .text('DECLARATION & APPROVALS', approvalX + 12, approvalY + 14, { width: approvalWidth - 24, characterSpacing: 0.7 })
+      doc.strokeColor(PO.black).lineWidth(0.8)
+        .moveTo(approvalX + 12, approvalY + 28).lineTo(approvalX + approvalWidth - 12, approvalY + 28).stroke()
+      doc.fillColor(PO.ink).font('Helvetica').fontSize(7.2)
+        .text('Certified that this purchase is necessary, budgeted, technically verified, and approved under institutional procurement policy.', approvalX + 12, approvalY + 35, { width: approvalWidth - 24, height: 13, ellipsis: true })
 
       approvalLabels.forEach((label, index) => {
         const columnX = approvalX + (index * approvalColumnWidth)
         if (index > 0) {
           doc.strokeColor(PO.line).lineWidth(0.5)
-            .moveTo(columnX, approvalY + 48).lineTo(columnX, approvalY + approvalHeight).stroke()
+            .moveTo(columnX, approvalY + 51).lineTo(columnX, approvalY + approvalHeight).stroke()
         }
-        const signatureX = columnX + 14
-        const signatureWidth = approvalColumnWidth - 28
-        const signatureLineY = approvalY + 76
+        const signatureX = columnX + 16
+        const signatureWidth = approvalColumnWidth - 32
+        const signatureLineY = approvalY + 65
         doc.strokeColor(PO.black).lineWidth(0.8)
           .moveTo(signatureX, signatureLineY)
           .lineTo(signatureX + signatureWidth, signatureLineY)
           .stroke()
         doc.fillColor(PO.black).font('Times-Bold').fontSize(8)
-          .text(label, signatureX, signatureLineY + 7, { width: signatureWidth, align: 'center', height: 18 })
+          .text(label, signatureX, signatureLineY + 6, { width: signatureWidth, align: 'center', height: 14 })
       })
-      doc.y = approvalY + approvalHeight + 8
+      doc.y = approvalY + approvalHeight + 6
 
       attachedImages.forEach(({ evidence, image }, index) => {
         doc.addPage(); drawHeader(`ATTACHED EVIDENCE ${index + 1}`)
@@ -581,6 +585,9 @@ export default async function handler(req, res) {
       const pages = doc.bufferedPageRange()
       for (let page = pages.start; page < pages.start + pages.count; page++) {
         doc.switchToPage(page)
+        // Page 1 ends with the institutional approval signatures. Do not draw
+        // a generated-document footer through that legally significant area.
+        if (page === pages.start) continue
         // Footer text must remain above the bottom margin or PDFKit will
         // silently append blank overflow pages.
         const footerY = doc.page.height - doc.page.margins.bottom - 12
