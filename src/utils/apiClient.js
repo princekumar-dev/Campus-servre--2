@@ -110,6 +110,10 @@ async function request(method, url, opts = {}) {
           headers: mergedHeaders,
           body: fetchBody,
           signal: controller.signal,
+          // `cache: false` must bypass both CampusServe's in-memory cache and
+          // the browser HTTP cache. This is especially important for generated
+          // documents, which must always reflect the latest database state.
+          cache: useCache ? 'default' : 'no-store',
         });
 
         clearTimeout(timer);

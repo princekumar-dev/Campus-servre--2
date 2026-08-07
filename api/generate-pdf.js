@@ -291,6 +291,10 @@ export default async function handler(req, res) {
   res.setHeader('Pragma', 'no-cache')
   res.setHeader('Expires', '0')
   res.setHeader('Surrogate-Control', 'no-store')
+  res.setHeader('CDN-Cache-Control', 'no-store')
+  res.setHeader('Vercel-CDN-Cache-Control', 'no-store')
+  res.setHeader('Netlify-CDN-Cache-Control', 'no-store')
+  res.setHeader('Last-Modified', new Date().toUTCString())
   res.setHeader('X-CampusServe-PDF-Template', 'academics-marksheet-v2')
 
   try {

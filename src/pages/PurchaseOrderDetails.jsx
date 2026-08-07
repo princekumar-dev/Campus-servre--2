@@ -158,7 +158,8 @@ export default function PurchaseOrderDetails() {
     if (pdfLoading || !po) return
     setPdfLoading(true)
     try {
-      const blob = await apiClient.get(`/api/generate-pdf?type=purchase-order&id=${id}&template=academics-marksheet-v2&t=${Date.now()}`, {
+      const freshRequestId = `${Date.now()}-${globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2)}`
+      const blob = await apiClient.get(`/api/generate-pdf?type=purchase-order&id=${id}&template=academics-marksheet-v2&fresh=${encodeURIComponent(freshRequestId)}`, {
         cache: false,
         dedupe: false,
         responseType: 'blob',
