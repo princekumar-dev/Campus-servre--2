@@ -136,7 +136,15 @@ export default function CampusServeNotifications({ isOpen, onClose, setUnreadCou
                     <div className="flex items-start justify-between gap-3"><h3 className={`text-sm ${item.read ? 'font-semibold text-slate-700' : 'font-black text-slate-900'}`}>{item.title || 'CampusServe update'}</h3><time className="shrink-0 text-[10px] font-semibold text-slate-400">{formatTime(item.createdAt)}</time></div>
                     <p className="mt-1 text-xs leading-5 text-slate-500">{item.body || item.message || 'There is an update waiting for you.'}</p>
                   </div>
-                  <button type="button" onClick={event => remove(event, item._id)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-300 opacity-0 hover:bg-rose-50 hover:text-rose-600 group-hover:opacity-100 focus:opacity-100" aria-label="Delete notification"><Trash2 size={14} /></button>
+                  <button
+                    type="button"
+                    onClick={event => remove(event, item._id)}
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-transparent text-slate-400 transition-colors hover:border-rose-100 hover:bg-rose-50 hover:text-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300"
+                    aria-label="Delete notification"
+                    title="Delete notification"
+                  >
+                    <Trash2 size={15} />
+                  </button>
                   {(item.url || item.data?.url) && <ChevronRight className="mt-1 shrink-0 text-slate-300" size={17} />}
                 </article>
               ))}
