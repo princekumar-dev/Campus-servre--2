@@ -534,48 +534,40 @@ export default async function handler(req, res) {
       doc.fillColor(PO.accent).font('Helvetica-Bold').fontSize(9.5).text(isServicePo ? 'APPROVED COST' : 'GRAND TOTAL', totalX + 16, grandTotalY + 7)
       doc.fontSize(10).text(money(po.grandTotal), totalX + 108, grandTotalY + 7, { width: 88, align: 'right' })
 
-      const isVerified = po.signedPo?.status === 'VERIFIED'
-      if (!isVerified) {
-        // Use the otherwise-empty area beside the totals for the institutional
-        // approvals. A compact 2 x 2 grid guarantees all signatures stay on the
-        // front page even when the commercial terms reach the page footer.
-        const approvalX = left
-        const approvalY = totalsY
-        const approvalWidth = totalX - left - 14
-        const approvalHeight = 107
-        const approvalGap = 12
-        const approvalColumnWidth = (approvalWidth - approvalGap) / 2
-        const approvalLabels = ['PM', 'Finance Manager', 'COO', 'Secretary']
-
-        doc.rect(approvalX, approvalY, approvalWidth, approvalHeight).fillAndStroke(PO.white, PO.line)
-        doc.fillColor(PO.muted).font('Helvetica-Bold').fontSize(7.2)
-          .text('APPROVAL SIGNATURES', approvalX + 9, approvalY + 8, { width: approvalWidth - 18, characterSpacing: 0.6 })
-
-        approvalLabels.forEach((label, index) => {
-          const column = index % 2
-          const row = Math.floor(index / 2)
-          const signatureX = approvalX + 9 + (column * (approvalColumnWidth + approvalGap))
-          const signatureLineY = approvalY + 42 + (row * 43)
-          doc.strokeColor(PO.black).lineWidth(0.7)
-            .moveTo(signatureX, signatureLineY)
-            .lineTo(signatureX + approvalColumnWidth - 18, signatureLineY)
-            .stroke()
-          doc.fillColor(PO.black).font('Times-Bold').fontSize(8.2)
-            .text(label, signatureX, signatureLineY + 6, { width: approvalColumnWidth - 18, align: 'center' })
-        })
-      }
       doc.y = totalsY + 119
 
-      sectionTitle('Commercial terms')
-      const termsY = doc.y
-      doc.rect(left, termsY, width, 58).fillAndStroke(PO.soft, PO.line)
-      field('Payment', po.paymentTerms || 'Net 30', left + 12, termsY + 11, 240)
-      field('Warranty', po.warrantyTerms || 'As per vendor/manufacturer warranty', 306, termsY + 11, 235)
-      doc.fillColor(PO.muted).font('Helvetica-Bold').fontSize(7.4).text('NOTES', left + 12, termsY + 36, { width: 62 })
-      doc.fillColor(PO.ink).font('Helvetica').fontSize(8.3).text(po.notes || (isServicePo
-        ? 'Complete the approved repair/service, record every actual cost, and upload its scanned bill through the Service Login QR. Campus approval generates the final service GRN.'
-        : 'Supply must conform to the specifications and quantities stated in this purchase order.'), left + 75, termsY + 35, { width: width - 87, height: 18, ellipsis: true })
-      doc.y = termsY + 77
+      // Replace commercial terms with one full-width institutional declaration
+      // and four generously spaced approval signatures on the first page.
+      const approvalX = left
+      const approvalY = doc.y
+      const approvalWidth = width
+      const approvalHeight = 105
+      const approvalColumnWidth = approvalWidth / 4
+      const approvalLabels = ['Purchase Manager', 'Finance Manager', 'COO', 'Secretary']
+
+      doc.rect(approvalX, approvalY, approvalWidth, approvalHeight).fillAndStroke(PO.white, PO.line)
+      doc.fillColor(PO.muted).font('Helvetica-Bold').fontSize(8)
+        .text('DECLARATION & APPROVALS', approvalX + 12, approvalY + 10, { width: approvalWidth - 24, characterSpacing: 0.65 })
+      doc.fillColor(PO.ink).font('Helvetica').fontSize(7.5)
+        .text('Certified that this purchase is necessary, budgeted, technically verified, and approved in accordance with institutional procurement policy.', approvalX + 12, approvalY + 25, { width: approvalWidth - 24, height: 20, ellipsis: true })
+
+      approvalLabels.forEach((label, index) => {
+        const columnX = approvalX + (index * approvalColumnWidth)
+        if (index > 0) {
+          doc.strokeColor(PO.line).lineWidth(0.5)
+            .moveTo(columnX, approvalY + 48).lineTo(columnX, approvalY + approvalHeight).stroke()
+        }
+        const signatureX = columnX + 14
+        const signatureWidth = approvalColumnWidth - 28
+        const signatureLineY = approvalY + 76
+        doc.strokeColor(PO.black).lineWidth(0.8)
+          .moveTo(signatureX, signatureLineY)
+          .lineTo(signatureX + signatureWidth, signatureLineY)
+          .stroke()
+        doc.fillColor(PO.black).font('Times-Bold').fontSize(8)
+          .text(label, signatureX, signatureLineY + 7, { width: signatureWidth, align: 'center', height: 18 })
+      })
+      doc.y = approvalY + approvalHeight + 8
 
       attachedImages.forEach(({ evidence, image }, index) => {
         doc.addPage(); drawHeader(`ATTACHED EVIDENCE ${index + 1}`)
