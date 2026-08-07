@@ -51,8 +51,9 @@ export default async function handler(req, res) {
 
     // ── POST /api/grn — Create GRN ────────────────────────────────────────────
     if (req.method === 'POST' && !id) {
-      if (!['gate', 'admin', 'super_admin'].includes(actorRole)) {
-        return res.status(403).json({ success: false, error: 'You are not authorized to record a GRN' })
+      const requestedPoId = String(req.body?.poId || '')
+      if (actorRole !== 'gate' || req.user?.scanPortal !== 'gate' || req.user?.scanTarget !== `/gate/po/${requestedPoId}`) {
+        return res.status(403).json({ success: false, error: 'Fresh Gate Officer login is required to record a scanned PO receipt' })
       }
 
       const { poId: bodyPoId, deliveryScheduleId, items, remarks, qrToken, receiptEvidence, damageEvidence } = req.body

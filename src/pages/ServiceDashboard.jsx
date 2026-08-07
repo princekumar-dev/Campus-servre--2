@@ -5,6 +5,7 @@ import apiClient from '../utils/apiClient'
 import { useAlert } from '../components/AlertContext'
 import { EmptyState, ErrorState, LoadingState } from '../components/EmptyStates'
 import PageHeader from '../components/ui/PageHeader'
+import RefreshButton from '../components/RefreshButton'
 
 export default function ServiceDashboard() {
   const [orders, setOrders] = useState([])
@@ -15,7 +16,7 @@ export default function ServiceDashboard() {
   const fetchOrders = () => {
     setLoading(true)
     setLoadError('')
-    apiClient.get('/api/service-orders', { cache: false }).then(result => {
+    apiClient.get('/api/service-orders', { cache: false, dedupe: false }).then(result => {
       if (!result.success) throw new Error(result.error)
       setOrders(Array.isArray(result.data) ? result.data : [])
     }).catch(error => setLoadError(error.message || 'Service purchase orders could not be loaded.')).finally(() => setLoading(false))
@@ -25,10 +26,10 @@ export default function ServiceDashboard() {
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6">
-      <PageHeader title="Service Provider Dashboard" subtitle="Open service orders, upload repair bills, record costs, and submit completed work." badge="Service Provider" />
+      <PageHeader title="Service Provider Dashboard" subtitle="Open service orders, upload repair bills, record costs, and submit completed work." badge="Service Provider" action={<RefreshButton isLoading={loading} onClick={fetchOrders} ariaLabel="Refresh service orders" />} />
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex items-center justify-between"><h2 className="font-black text-slate-800">Service Purchase Orders</h2><span className="rounded-full bg-violet-50 px-3 py-1 text-xs font-bold text-violet-700">{orders.length} orders</span></div>
+        <div className="flex items-center justify-between gap-3"><h2 className="min-w-0 font-black text-slate-800">Service Purchase Orders</h2><span className="shrink-0 rounded-full bg-violet-50 px-3 py-1 text-xs font-bold text-violet-700">{orders.length} orders</span></div>
         <div className="mt-5">{loading ? <LoadingState label="Loading service purchase orders…" /> : loadError ? <ErrorState message={loadError} onRetry={fetchOrders} /> : orders.length === 0 ?
           <EmptyState icon={ClipboardList} title="No service purchase orders" description="No service work is assigned to this account yet." /> :
           <div className="mt-5 grid gap-3 md:grid-cols-2">

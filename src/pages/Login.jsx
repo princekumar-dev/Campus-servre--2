@@ -25,13 +25,16 @@ function Login() {
 
     setIsLoading(true)
     try {
-      const res = await apiClient.post('/api/auth', { email, password })
+      const requestedPath = searchParams.get('next') || ''
+      const requestedPortal = isGatePortal ? 'gate' : isServicePortal ? 'service' : ''
+      const scanTarget = requestedPortal ? requestedPath.split('?')[0] : ''
+      const res = await apiClient.post('/api/auth', { email, password, portal: requestedPortal, scanTarget })
       if (res.success && res.user) {
-        if (isGatePortal && !['gate', 'admin', 'super_admin'].includes(res.user.role)) {
-          showError('Gate Access Required', 'Sign in with a gate officer, administrator, or super administrator account.')
+        if (isGatePortal && res.user.role !== 'gate') {
+          showError('Gate Access Required', 'Sign in with a Gate Officer account.')
           return
         }
-        if (isServicePortal && !['service_provider', 'vendor', 'manager', 'admin', 'super_admin'].includes(res.user.role)) {
+        if (isServicePortal && res.user.role !== 'service_provider') {
           showError('Service Access Required', 'Sign in with the assigned service-provider account.')
           return
         }
@@ -44,7 +47,9 @@ function Login() {
           role: res.user.role,
           department: res.user.department,
           phoneNumber: res.user.phoneNumber,
-          eSignature: res.user.eSignature
+          eSignature: res.user.eSignature,
+          scanPortal: res.scanPortal || '',
+          scanTarget: res.scanTarget || ''
         }
         localStorage.setItem('auth', JSON.stringify(authData))
         localStorage.setItem('isLoggedIn', 'true')
@@ -53,7 +58,6 @@ function Login() {
         
         window.dispatchEvent(new Event('authStateChanged'))
         showSuccess('Welcome Back!', `Logged in successfully as ${res.user.name}`)
-        const requestedPath = searchParams.get('next') || ''
         const safeNextPath = requestedPath.startsWith('/') && !requestedPath.startsWith('//')
           ? requestedPath
           : getDashboardPath(res.user.role)

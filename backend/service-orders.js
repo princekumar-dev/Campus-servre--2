@@ -42,7 +42,7 @@ export default async function serviceOrdersHandler(req, res) {
     if (!allowedRoles.has(user.role)) return res.status(403).json({ success: false, error: 'Service-provider access is required' })
     const suppliedToken = req.method === 'GET' ? req.query.token : req.body?.qrToken
     if (suppliedToken) {
-      if (user.role !== 'service_provider') {
+      if (user.role !== 'service_provider' || req.user?.scanPortal !== 'service' || req.user?.scanTarget !== `/service/po/${id}`) {
         return res.status(403).json({ success: false, error: 'Sign in with the service-provider account to scan this Service PO' })
       }
       const qrPoId = await verifyIssuedPoQrToken(suppliedToken)

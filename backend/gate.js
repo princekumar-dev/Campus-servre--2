@@ -76,12 +76,15 @@ export default async function handler(req, res) {
     // ── GET /api/gate?action=po-details&token=... — PO QR landing data ───────
     if (req.method === 'GET' && action === 'po-details') {
       if (!requireGateLocation(req, res).allowed) return
-      if (!['gate', 'admin', 'super_admin'].includes(actorRole)) {
-        return res.status(403).json({ success: false, error: 'Gate verification access is required' })
+      if (actorRole !== 'gate' || req.user?.scanPortal !== 'gate') {
+        return res.status(403).json({ success: false, error: 'Fresh Gate Officer login is required for this PO scan' })
       }
 
       const poId = await verifyIssuedPoQrToken(token)
       if (!poId) return res.status(400).json({ success: false, error: 'Invalid or altered purchase-order QR code' })
+      if (req.user?.scanTarget !== `/gate/po/${poId}`) {
+        return res.status(403).json({ success: false, error: 'This Gate Officer login belongs to a different PO scan' })
+      }
 
       const po = await PurchaseOrder.findById(poId).lean()
       if (!po) return res.status(404).json({ success: false, error: 'Purchase Order not found' })

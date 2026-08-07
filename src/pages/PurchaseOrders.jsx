@@ -6,6 +6,7 @@ import apiClient from '../utils/apiClient'
 import { getAuthOrNull } from '../utils/auth'
 import { normalizeUnit, UnitOptions } from '../utils/unitOptions'
 import { ShoppingCart, Plus, Search, ChevronRight, Clock, CheckCircle2, AlertCircle, Send, XCircle, RefreshCw, Package, FileText } from 'lucide-react'
+import RefreshButton from '../components/RefreshButton'
 
 const statusConfig = {
   DRAFT: { label: 'Draft', color: 'bg-zinc-100 text-zinc-700 border-zinc-300 ring-1 ring-zinc-200' },
@@ -294,7 +295,7 @@ export default function PurchaseOrders() {
   const fetchPOs = useCallback(async () => {
     setIsLoading(true)
     try {
-      const res = await apiClient.get('/api/purchase-orders')
+      const res = await apiClient.get('/api/purchase-orders', { cache: false, dedupe: false })
       if (res.success) setPos(res.data)
       else showError('Load Error', res.error)
     } catch (err) { showError('Network Error', err.message) }
@@ -350,16 +351,17 @@ export default function PurchaseOrders() {
           <h1 className="font-display font-black text-2xl tracking-tight text-slate-800">Purchase Orders</h1>
           <p className="text-xs text-slate-500 mt-1">Manage all purchase orders from creation to closure</p>
         </div>
-        {canCreate && (
-          <div className="flex flex-wrap items-center gap-2 self-start">
+        <div className="flex w-full flex-wrap items-center gap-2 self-start sm:w-auto sm:justify-end">
+          <RefreshButton isLoading={isLoading} onClick={fetchPOs} ariaLabel="Refresh purchase orders" />
+          {canCreate && (<>
             <Link to="/requests" className="flex items-center space-x-2 rounded-xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-xs font-bold text-violet-700 transition-all hover:border-violet-300 hover:bg-violet-100">
               <Package size={15} /><span>Assigned Requests</span>
             </Link>
             <button type="button" onClick={openDirectCreate} className="flex items-center space-x-2 rounded-xl bg-violet-600 px-5 py-2.5 text-xs font-bold text-white shadow-sm transition-all hover:bg-violet-700">
               <Plus size={15} /><span>Create Purchase Order</span>
             </button>
-          </div>
-        )}
+          </>)}
+        </div>
       </div>
 
       {/* Filter Bar */}

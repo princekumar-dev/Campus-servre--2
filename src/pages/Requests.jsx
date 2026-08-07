@@ -7,6 +7,7 @@ import { formatDistanceToNow } from 'date-fns'
 import { Search, PlusCircle, ChevronRight, X, ChevronLeft, Filter, ClipboardList, ArrowRight, Sparkles, TimerReset, Pencil, Trash2 } from 'lucide-react'
 import { PageHeader } from '../components/ui'
 import ConfirmDialog from '../components/ConfirmDialog'
+import RefreshButton from '../components/RefreshButton'
 import { getRoleActionStatuses, getWorkflowGuidance, getWorkflowPhase } from '../utils/workflowGuidance'
 
 const TRACKING_FILTERS = {
@@ -83,8 +84,7 @@ function Requests() {
     []
   )
 
-  useEffect(() => {
-    const fetchRequests = async () => {
+  const fetchRequests = useCallback(async () => {
       setIsLoading(true)
       try {
         const res = await apiClient.get('/api/requests', { cache: false, dedupe: false })
@@ -104,7 +104,9 @@ function Requests() {
       } finally {
         setIsLoading(false)
       }
-    }
+  }, [showError])
+
+  useEffect(() => {
     fetchRequests()
     window.addEventListener('requestsUpdated', fetchRequests)
     window.addEventListener('focus', fetchRequests)
@@ -112,7 +114,7 @@ function Requests() {
       window.removeEventListener('requestsUpdated', fetchRequests)
       window.removeEventListener('focus', fetchRequests)
     }
-  }, [showError])
+  }, [fetchRequests])
 
   const filteredRequests = useMemo(() => {
     const myActionStatuses = getRoleActionStatuses(auth?.role)
@@ -227,12 +229,15 @@ function Requests() {
         title={roleKey === 'requester' ? 'My Requests' : roleKey === 'admin' ? 'Request Triage' : roleKey === 'manager' ? 'Assigned Requests' : 'Requests'}
         subtitle={roleKey === 'requester' ? 'Track each request from submission to order creation.' : roleKey === 'admin' ? 'Classify new requests and assign them to a purchase manager.' : roleKey === 'manager' ? 'Create purchase orders only for requests assigned to you.' : 'Track request progress.'}
         role={auth?.role}
-        action={['requester', 'hod', 'staff'].includes(auth?.role) ? (
-          <Link to="/requests/new" className="btn-premium">
-            <PlusCircle size={15} />
-            <span>Create Request</span>
-          </Link>
-        ) : null}
+        action={<div className="flex w-full items-center justify-end gap-2 sm:w-auto">
+          <RefreshButton isLoading={isLoading} onClick={fetchRequests} ariaLabel="Refresh requests" />
+          {['requester', 'hod', 'staff'].includes(auth?.role) && (
+            <Link to="/requests/new" className="btn-premium min-h-10">
+              <PlusCircle size={15} />
+              <span>Create Request</span>
+            </Link>
+          )}
+        </div>}
       />
 
       {/* Personal work queue */}

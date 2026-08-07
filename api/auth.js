@@ -12,7 +12,7 @@ export default async function handler(req, res) {
     try {
       await connectToDatabase()
       
-      const { email, password } = req.body
+      const { email, password, portal, scanTarget: requestedScanTarget } = req.body
 
       if (!email || !password) {
         return res.status(400).json({
@@ -46,11 +46,30 @@ export default async function handler(req, res) {
         })
       }
 
-      const token = generateToken(user)
+      const scanPortal = ['gate', 'service'].includes(portal) ? portal : ''
+      const scanTarget = String(requestedScanTarget || '').split('?')[0]
+      const validScanTarget = scanPortal === 'gate'
+        ? /^\/gate\/po\/[a-f\d]{24}$/i.test(scanTarget)
+        : scanPortal === 'service'
+          ? /^\/service\/po\/[a-f\d]{24}$/i.test(scanTarget)
+          : !scanTarget
+      if (!validScanTarget) {
+        return res.status(400).json({ success: false, error: 'The scanned PO destination is invalid.' })
+      }
+      if (scanPortal === 'gate' && user.role !== 'gate') {
+        return res.status(403).json({ success: false, error: 'Sign in with a Gate Officer account for PO scanning.' })
+      }
+      if (scanPortal === 'service' && user.role !== 'service_provider') {
+        return res.status(403).json({ success: false, error: 'Sign in with the assigned Service Provider account for this Service PO.' })
+      }
+
+      const token = generateToken(user, { scanPortal, scanTarget })
 
       return res.status(200).json({
         success: true,
         token,
+        scanPortal,
+        scanTarget,
         user: {
           id: user._id,
           email: user.email,

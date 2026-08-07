@@ -95,11 +95,18 @@ const GateQrRoute = () => {
   const parsed = getAuthOrNull()
   const [checkingLocation, setCheckingLocation] = useState(false)
   const [locationError, setLocationError] = useState('')
-  const gateRoles = ['gate', 'admin', 'super_admin']
+  const params = new URLSearchParams(location.search)
+  const hasLocation = ['latitude', 'longitude', 'accuracy'].every(key => {
+    const value = params.get(key)
+    return value !== null && value !== '' && Number.isFinite(Number(value))
+  })
 
-  if (parsed?.isAuthenticated) {
-    if (!gateRoles.includes(parsed.role)) return <Navigate to={getDashboardPath(parsed.role)} replace />
-    return <GatePOVerification />
+  if (hasLocation) {
+    if (parsed?.isAuthenticated && parsed.role === 'gate' && parsed.scanPortal === 'gate' && parsed.scanTarget === location.pathname) {
+      return <GatePOVerification />
+    }
+    const next = `${location.pathname}${location.search}`
+    return <Navigate to={`/login?portal=gate&next=${encodeURIComponent(next)}&switch=1`} replace />
   }
 
   const continueToLogin = async () => {
@@ -111,7 +118,7 @@ const GateQrRoute = () => {
       const locationParams = new URLSearchParams(locationQuery(gateLocation))
       locationParams.forEach((value, key) => nextSearch.set(key, value))
       const next = `${location.pathname}?${nextSearch.toString()}`
-      navigate(`/login?portal=gate&next=${encodeURIComponent(next)}`, { replace: true })
+      navigate(`/login?portal=gate&next=${encodeURIComponent(next)}&switch=1`, { replace: true })
     } catch (error) {
       setLocationError(error.message || 'Location permission is required before gate login.')
     } finally {
@@ -156,9 +163,9 @@ const ServicePoRoute = () => {
   }
 
   if (hasLocation) {
-    if (!parsed?.isAuthenticated) {
+    if (!parsed?.isAuthenticated || parsed.scanPortal !== 'service' || parsed.scanTarget !== location.pathname) {
       const next = `${location.pathname}${location.search}`
-      return <Navigate to={`/login?next=${encodeURIComponent(next)}&portal=service`} replace />
+      return <Navigate to={`/login?next=${encodeURIComponent(next)}&portal=service&switch=1`} replace />
     }
     if (parsed.role !== 'service_provider') {
       const next = `${location.pathname}${location.search}`
@@ -199,8 +206,8 @@ const RedirectIfAuthenticated = ({ children }) => {
   const location = useLocation()
   const parsed = getAuthOrNull()
   const params = new URLSearchParams(location.search)
-  const isServiceAccountSwitch = params.get('portal') === 'service' && params.get('switch') === '1'
-  if (isServiceAccountSwitch) return children
+  const isScanAccountSwitch = ['service', 'gate'].includes(params.get('portal')) && params.get('switch') === '1'
+  if (isScanAccountSwitch) return children
   if (parsed && parsed.isAuthenticated) {
     return <Navigate to={getDashboardPath(parsed.role)} replace />
   }

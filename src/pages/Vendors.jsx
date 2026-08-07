@@ -5,6 +5,7 @@ import ModalShell from '../components/ModalShell'
 import apiClient from '../utils/apiClient'
 import { getAuthOrNull } from '../utils/auth'
 import { Building2, Plus, Phone, Mail, Star, Package, TrendingUp, CheckCircle, XCircle, AlertTriangle, Search, Edit3, Users, Truck } from 'lucide-react'
+import RefreshButton from '../components/RefreshButton'
 
 const statusColors = {
   ACTIVE: 'bg-emerald-50 text-emerald-700 border-emerald-200',
@@ -155,7 +156,7 @@ export default function Vendors() {
   const fetchVendors = useCallback(async () => {
     setIsLoading(true)
     try {
-      const res = await apiClient.get('/api/vendors', { cache: false })
+      const res = await apiClient.get('/api/vendors', { cache: false, dedupe: false })
       if (res.success) setVendors(res.data)
       else showError('Load Error', res.error)
     } catch (err) { showError('Network Error', err.message) }
@@ -206,11 +207,14 @@ export default function Vendors() {
           <h1 className="font-display font-black text-2xl tracking-tight text-slate-800">Vendor Registry</h1>
           <p className="text-xs text-slate-500 mt-1">Manage approved suppliers and their delivery representatives</p>
         </div>
-        {canManage && (
+        <div className="flex w-full items-center gap-2 sm:w-auto">
+          <RefreshButton isLoading={isLoading} onClick={fetchVendors} ariaLabel="Refresh vendors" />
+          {canManage && (
           <button onClick={() => setShowAdd(true)} className="bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs py-2.5 px-5 rounded-xl flex items-center space-x-2 transition-all shadow-sm shadow-violet-600/20 self-start">
             <Plus size={15} /><span>Register Vendor</span>
           </button>
-        )}
+          )}
+        </div>
       </div>
 
       {/* KPI Strip */}

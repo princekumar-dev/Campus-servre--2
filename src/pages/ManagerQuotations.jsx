@@ -6,6 +6,7 @@ import PageHeader from '../components/ui/PageHeader'
 import { EmptyState, ErrorState, LoadingState } from '../components/EmptyStates'
 import apiClient from '../utils/apiClient'
 import { FileText, ArrowLeft, Plus, Trash2, CheckCircle2 } from 'lucide-react'
+import RefreshButton from '../components/RefreshButton'
 
 const statusColors = {
   DRAFT: 'bg-slate-100 text-slate-600',
@@ -49,7 +50,7 @@ export default function ManagerQuotations() {
     setIsLoading(true)
     setLoadError('')
     try {
-      const res = await apiClient.get('/api/quotations')
+      const res = await apiClient.get('/api/quotations', { cache: false, dedupe: false })
       if (res.success) setQuotations(res.data)
     } catch (err) { setLoadError(err.message || 'Quotations could not be loaded.') }
     finally { setIsLoading(false) }
@@ -221,7 +222,7 @@ export default function ManagerQuotations() {
           )}
         </ModalShell>
       )}
-      <PageHeader title="Quotations" subtitle={requestId ? 'Compare vendor quotations for this request and select one for the purchase order.' : 'Manage and compare vendor quotations by request.'} action={<button type="button" onClick={requestId ? () => navigate(`/quotations?requestId=${requestId}&mode=create`) : openRequestPicker} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-violet-700"><Plus size={15} className="mr-1.5" /> {requestId ? 'Add vendor quote' : 'Create quotation'}</button>} />
+      <PageHeader title="Quotations" subtitle={requestId ? 'Compare vendor quotations for this request and select one for the purchase order.' : 'Manage and compare vendor quotations by request.'} action={<div className="flex items-center justify-end gap-2"><RefreshButton isLoading={isLoading} onClick={fetchQuotations} ariaLabel="Refresh quotations" /><button type="button" onClick={requestId ? () => navigate(`/quotations?requestId=${requestId}&mode=create`) : openRequestPicker} className="inline-flex min-h-10 items-center justify-center rounded-xl bg-violet-600 px-3 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-violet-700 sm:px-4 sm:text-sm"><Plus size={15} className="mr-1.5" /> {requestId ? 'Add quote' : 'Create quotation'}</button></div>} />
 
       <div className="flex flex-wrap gap-2 p-4 premium-card">
         {['ALL', 'SUBMITTED', 'APPROVED', 'REJECTED', 'REVISION_REQUIRED'].map(s => (

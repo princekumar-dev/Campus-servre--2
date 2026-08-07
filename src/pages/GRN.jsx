@@ -4,6 +4,7 @@ import ModalShell from '../components/ModalShell'
 import apiClient from '../utils/apiClient'
 import { getAuthOrNull } from '../utils/auth'
 import { ClipboardCheck, Plus, Package, CheckCircle, AlertTriangle, XCircle, ChevronDown, ChevronUp, Download, FileArchive, ExternalLink, Image as ImageIcon } from 'lucide-react'
+import RefreshButton from '../components/RefreshButton'
 
 const grnTypeColors = {
   PARTIAL: 'bg-indigo-50 text-indigo-700 border-indigo-200',
@@ -401,7 +402,7 @@ export default function GRN() {
   const fetchGRNs = useCallback(async () => {
     setIsLoading(true)
     try {
-      const res = await apiClient.get('/api/grn')
+      const res = await apiClient.get('/api/grn', { cache: false, dedupe: false })
       if (res.success) {
         setGrns(res.data)
         setPurchaseOrders(res.purchaseOrders || [])
@@ -446,11 +447,14 @@ export default function GRN() {
           <h1 className="font-display font-black text-2xl tracking-tight text-slate-800">Goods Receipts (GRN)</h1>
           <p className="text-xs text-slate-500 mt-1">Record and track all inbound goods receipts with quantity validation</p>
         </div>
-        {canRecord && (
+        <div className="flex w-full items-center gap-2 sm:w-auto">
+          <RefreshButton isLoading={isLoading} onClick={fetchGRNs} ariaLabel="Refresh goods receipts" />
+          {canRecord && (
           <button onClick={() => setShowCreate(true)} className="bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs py-2.5 px-5 rounded-xl flex items-center space-x-2 transition-all shadow-sm shadow-violet-600/20 self-start">
             <Plus size={15} /><span>Record GRN</span>
           </button>
-        )}
+          )}
+        </div>
       </div>
 
       {/* KPI Row */}
