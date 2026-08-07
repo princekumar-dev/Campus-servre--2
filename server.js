@@ -6,7 +6,6 @@ import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { connectToDatabase } from './lib/mongo.js';
 import mongoose from 'mongoose';
 import { authenticate } from './lib/auth.js';
-import { verifyIssuedPoQrToken } from './lib/poQrToken.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -151,16 +150,6 @@ app.use('/api', async (req, res, next) => {
   if (req.path === '/users' && req.method === 'POST' && !req.headers.authorization) return next();
   if (req.path === '/health') return next();
   if (req.path === '/debug') return next();
-
-  if (req.path === '/service-orders') {
-    const suppliedToken = req.method === 'GET' ? req.query.token : req.body?.qrToken
-    const requestedPoId = String(req.query.id || req.body?.poId || '')
-    const qrPoId = await verifyIssuedPoQrToken(suppliedToken)
-    if (qrPoId && qrPoId === requestedPoId) {
-      req.poQrAccess = { poId: qrPoId, portal: 'service' }
-      return next()
-    }
-  }
 
   authenticate(req, res, next);
 });

@@ -116,7 +116,25 @@ export default async function handler(req, res) {
         .select('-signedPo.url -documentUrl -serviceExecution.workEvidence.url -serviceExecution.expenses.bill.url -statusHistory')
         .sort({ createdAt: -1 })
         .lean()
-      pos.forEach(po => { po.items = addProductIds(po.items) })
+      // Always derive request-based PO type from the admin assessment. This also
+      // corrects legacy records that predate poType or received an incorrect default.
+      const requestIds = [...new Set(pos.filter(po => po.requestId).map(po => String(po.requestId)))]
+      const linkedRequests = requestIds.length
+        ? await ServiceRequest.find({ _id: { $in: requestIds } }).select('adminAssessment.requirementType').lean()
+        : []
+      const requirementByRequest = new Map(linkedRequests.map(request => [String(request._id), request.adminAssessment?.requirementType]))
+      pos.forEach(po => {
+        const requirementType = requirementByRequest.get(String(po.requestId || '')) || po.adminRequirementType
+        po.adminRequirementType = requirementType || ''
+        po.poType = requirementType === 'MAINTENANCE'
+          ? 'SERVICE'
+          : requirementType === 'REPLACEMENT'
+            ? 'REPLACEMENT'
+            : requirementType === 'NEW_PURCHASE'
+              ? 'GOODS'
+              : (po.poType || 'GOODS')
+        po.items = addProductIds(po.items)
+      })
       return res.json({ success: true, data: pos, total: pos.length })
     }
 
@@ -125,7 +143,7 @@ export default async function handler(req, res) {
       if (userRole !== 'manager') {
         return res.status(403).json({ success: false, error: 'Only the assigned manager can generate a purchase order' })
       }
-      const { vendorId: requestedVendorId, selectedQuotationId, requestId, items: requestedItems, deliveryAddress, deliveryLocation, expectedDeliveryDate, paymentTerms, warrantyTerms, notes, deliveryCharge } = req.body
+      const { vendorId: requestedVendorId, selectedQuotationId, requestId, poType: requestedPoType, items: requestedItems, deliveryAddress, deliveryLocation, expectedDeliveryDate, paymentTerms, warrantyTerms, notes, deliveryCharge } = req.body
       let vendorId = requestedVendorId
       let items = requestedItems
       let selectedQuotation = null
@@ -257,6 +275,11 @@ export default async function handler(req, res) {
         poNumber, requestId, vendorId, vendorName: vendor.legalName, vendorEmail: vendor.email,
         vendorAddress: vendor.address || '',
         adminRequirementType: serviceRequest?.adminAssessment?.requirementType || '',
+        poType: serviceRequest?.adminAssessment?.requirementType === 'MAINTENANCE'
+          ? 'SERVICE'
+          : serviceRequest?.adminAssessment?.requirementType === 'REPLACEMENT'
+            ? 'REPLACEMENT'
+            : (['SERVICE', 'GOODS', 'REPLACEMENT'].includes(requestedPoType) ? requestedPoType : 'GOODS'),
         adminDescription: serviceRequest?.description || '',
         adminAssessmentNote: serviceRequest?.adminAssessment?.note || '',
         items: processedItems, subtotal, taxTotal, discountTotal, deliveryCharge: dc, grandTotal,

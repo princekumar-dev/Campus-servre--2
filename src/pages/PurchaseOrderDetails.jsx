@@ -321,6 +321,7 @@ export default function PurchaseOrderDetails() {
             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Order Details</h3>
             {[
               { label: 'PO Number', value: po.poNumber },
+              { label: 'PO Type', value: po.adminRequirementType === 'MAINTENANCE' ? 'Service PO' : po.adminRequirementType === 'REPLACEMENT' ? 'Replacement PO' : po.adminRequirementType === 'NEW_PURCHASE' ? 'Goods PO' : po.poType === 'SERVICE' ? 'Service PO' : po.poType === 'REPLACEMENT' ? 'Replacement PO' : 'Goods PO' },
               { label: 'Vendor', value: po.vendorName },
               { label: 'Vendor Address', value: po.vendorAddress || '—' },
               { label: 'Delivery Address', value: po.deliveryAddress },

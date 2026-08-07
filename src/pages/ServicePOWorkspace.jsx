@@ -21,6 +21,11 @@ export default function ServicePOWorkspace() {
   const { id } = useParams()
   const [searchParams] = useSearchParams()
   const qrToken = searchParams.get('token') || ''
+  const qrLocation = {
+    latitude: searchParams.get('latitude') || '',
+    longitude: searchParams.get('longitude') || '',
+    accuracy: searchParams.get('accuracy') || ''
+  }
   const currentAuth = getAuthOrNull()
   const { showError, showSuccess } = useAlert()
   const [data, setData] = useState(null)
@@ -32,7 +37,7 @@ export default function ServicePOWorkspace() {
 
   const load = async () => {
     try {
-      const tokenQuery = qrToken ? `&token=${encodeURIComponent(qrToken)}` : ''
+      const tokenQuery = qrToken ? `&token=${encodeURIComponent(qrToken)}&latitude=${encodeURIComponent(qrLocation.latitude)}&longitude=${encodeURIComponent(qrLocation.longitude)}&accuracy=${encodeURIComponent(qrLocation.accuracy)}` : ''
       const result = await apiClient.get(`/api/service-orders?id=${id}${tokenQuery}`, { cache: false })
       if (!result.success) throw new Error(result.error)
       setData(result)
@@ -48,7 +53,7 @@ export default function ServicePOWorkspace() {
     finally { setLoading(false) }
   }
   useEffect(() => {
-    if (!qrToken && !currentAuth?.isAuthenticated) {
+    if (!currentAuth?.isAuthenticated) {
       const next = `${window.location.pathname}${window.location.search}`
       window.location.replace(`/login?next=${encodeURIComponent(next)}&portal=service`)
       return
@@ -59,7 +64,7 @@ export default function ServicePOWorkspace() {
   const run = async (action, payload = {}) => {
     setSaving(true)
     try {
-      const result = await apiClient.post(`/api/service-orders?id=${id}&action=${action}`, { ...payload, poId: id, qrToken: qrToken || undefined })
+      const result = await apiClient.post(`/api/service-orders?id=${id}&action=${action}`, { ...payload, poId: id, qrToken: qrToken || undefined, ...(qrToken ? qrLocation : {}) })
       if (!result.success) throw new Error(result.error)
       setData(current => ({ ...current, data: result.data }))
       showSuccess('Service order updated', action === 'submit' ? 'Repair costs and bills were submitted for review.' : 'Your update was saved.')
@@ -77,7 +82,7 @@ export default function ServicePOWorkspace() {
   const execution = po.serviceExecution || {}
   const submitted = ['SUBMITTED', 'COMPLETED'].includes(execution.status)
   const approved = execution.status === 'COMPLETED'
-  const canFinalize = Boolean(qrToken) || ['service_provider', 'vendor', 'manager', 'admin', 'super_admin'].includes(auth?.role)
+  const canFinalize = ['service_provider', 'vendor', 'manager', 'admin', 'super_admin'].includes(auth?.role)
   return (
     <div className="mx-auto w-full max-w-5xl space-y-5">
       <section className="rounded-3xl bg-gradient-to-br from-violet-700 to-indigo-900 p-6 text-white shadow-xl">

@@ -23,11 +23,27 @@ const statusConfig = {
   CANCELLED: { label: 'Cancelled', color: 'bg-slate-200 text-slate-700 border-slate-400 ring-1 ring-slate-300' },
 }
 
+const poTypeConfig = {
+  SERVICE: { label: 'Service PO', color: 'bg-cyan-50 text-cyan-700 border-cyan-200' },
+  GOODS: { label: 'Goods PO', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+  REPLACEMENT: { label: 'Replacement PO', color: 'bg-orange-50 text-orange-700 border-orange-200' },
+}
+
+// The request's admin classification is the source of truth for request-based POs.
+// poType is used for manually created POs, which have no upstream request classification.
+const getPoType = po => po?.adminRequirementType === 'MAINTENANCE'
+  ? 'SERVICE'
+  : po?.adminRequirementType === 'REPLACEMENT'
+    ? 'REPLACEMENT'
+    : po?.adminRequirementType === 'NEW_PURCHASE'
+      ? 'GOODS'
+      : (po?.poType || 'GOODS')
+
 function CreatePOModal({ onClose, onSaved, sourceRequest, selectedQuotation }) {
   const navigate = useNavigate()
-  const isServicePo = sourceRequest?.adminAssessment?.requirementType === 'MAINTENANCE'
   const [vendors, setVendors] = useState([])
-  const [form, setForm] = useState({ vendorId: selectedQuotation?.vendorId || '', deliveryAddress: '363, Arcot Road, Kodambakkam, Chennai - 600024', deliveryLocation: sourceRequest?.location || '', expectedDeliveryDate: '', paymentTerms: 'Net 30', notes: sourceRequest ? `Generated for ${sourceRequest.requestNumber}: ${sourceRequest.title}` : '', deliveryCharge: 0 })
+  const [form, setForm] = useState({ poType: sourceRequest?.adminAssessment?.requirementType === 'MAINTENANCE' ? 'SERVICE' : sourceRequest?.adminAssessment?.requirementType === 'REPLACEMENT' ? 'REPLACEMENT' : 'GOODS', vendorId: selectedQuotation?.vendorId || '', deliveryAddress: '363, Arcot Road, Kodambakkam, Chennai - 600024', deliveryLocation: sourceRequest?.location || '', expectedDeliveryDate: '', paymentTerms: 'Net 30', notes: sourceRequest ? `Generated for ${sourceRequest.requestNumber}: ${sourceRequest.title}` : '', deliveryCharge: 0 })
+  const isServicePo = form.poType === 'SERVICE'
   const [items, setItems] = useState(selectedQuotation?.items?.length ? selectedQuotation.items.map(item => ({ description: item.description, specification: sourceRequest?.description || '', brand: '', quantityOrdered: item.quantity, unit: normalizeUnit(item.unit), unitPrice: item.unitPrice, taxRate: item.taxRate, discount: item.discount || 0 })) : [{ description: isServicePo ? sourceRequest?.title : sourceRequest?.requestedItem || '', specification: sourceRequest?.description || '', brand: '', quantityOrdered: isServicePo ? 1 : sourceRequest?.requestedQuantity || 1, unit: isServicePo ? 'service' : normalizeUnit(sourceRequest?.requestedUnit), unitPrice: 0, taxRate: 18, discount: 0 }])
   const [loading, setLoading] = useState(false)
   const { showSuccess, showError } = useAlert()
@@ -102,6 +118,17 @@ function CreatePOModal({ onClose, onSaved, sourceRequest, selectedQuotation }) {
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl font-bold">×</button>
         </div>
         <form onSubmit={handleSubmit} className="space-y-5">
+          {!sourceRequest && (
+            <div>
+              <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-600">PO Type *</label>
+              <select value={form.poType} onChange={e => setForm(p => ({ ...p, poType: e.target.value }))} className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm outline-none focus:border-violet-500">
+                <option value="GOODS">Goods PO</option>
+                <option value="SERVICE">Service PO</option>
+                <option value="REPLACEMENT">Replacement PO</option>
+              </select>
+              <p className="mt-1.5 text-xs text-slate-500">Choose Service for labour or maintenance work; choose Goods for physical items.</p>
+            </div>
+          )}
           {sourceRequest && (
             <div className="space-y-3 rounded-2xl border border-violet-100 bg-violet-50/60 p-4">
               <div className="grid gap-3 sm:grid-cols-3">
@@ -221,6 +248,7 @@ export default function PurchaseOrders() {
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('ALL')
+  const [typeFilter, setTypeFilter] = useState('ALL')
   const [showCreate, setShowCreate] = useState(false)
   const { showSuccess, showError } = useAlert()
   const auth = getAuthOrNull()
@@ -277,6 +305,8 @@ export default function PurchaseOrders() {
       po.vendorName,
       po.vendorEmail,
       po.status,
+      getPoType(po),
+      poTypeConfig[getPoType(po)]?.label,
       statusConfig[po.status]?.label,
       po.requestNumber,
       po.deliveryLocation,
@@ -292,7 +322,8 @@ export default function PurchaseOrders() {
     ].filter(Boolean).join(' '))
     const matchSearch = searchTerms.length === 0 || searchTerms.every(term => searchableText.includes(term))
     const matchStatus = statusFilter === 'ALL' || po.status === statusFilter
-    return matchSearch && matchStatus
+    const matchType = typeFilter === 'ALL' || getPoType(po) === typeFilter
+    return matchSearch && matchStatus && matchType
   })
 
   // Keep the filters aligned with every status rendered by the PO workflow.
@@ -344,6 +375,10 @@ export default function PurchaseOrders() {
             </button>
           )}
         </div>
+        <select aria-label="Filter by PO type" value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className="h-11 rounded-full border border-slate-200 bg-white px-4 text-xs font-bold text-slate-600 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100">
+          <option value="ALL">All PO Types ({pos.length})</option>
+          {Object.entries(poTypeConfig).map(([value, config]) => <option key={value} value={value}>{config.label} ({pos.filter(po => getPoType(po) === value).length})</option>)}
+        </select>
       </div>
 
       {/* PO Table */}
@@ -364,6 +399,7 @@ export default function PurchaseOrders() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-mono text-[11px] font-bold text-violet-600">{po.poNumber}</p>
                     <h3 className="mt-1 truncate text-sm font-bold text-slate-800">{po.vendorName}</h3>
+                    <span className={`mt-2 inline-flex rounded-full border px-2 py-0.5 text-[10px] font-bold ${poTypeConfig[getPoType(po)].color}`}>{poTypeConfig[getPoType(po)].label}</span>
                   </div>
                   <Link
                     to={`/purchase-orders/${po._id}`}
@@ -405,6 +441,7 @@ export default function PurchaseOrders() {
                 <tr className="border-b border-slate-100 text-xs font-bold text-slate-400 uppercase tracking-wider">
                   <th className="px-6 py-4">PO Number</th>
                   <th className="px-6 py-4">Vendor</th>
+                  <th className="px-6 py-4">PO Type</th>
                   <th className="px-6 py-4">Items</th>
                   <th className="px-6 py-4 text-right">Grand Total</th>
                   <th className="px-6 py-4">Expected Delivery</th>
@@ -417,6 +454,7 @@ export default function PurchaseOrders() {
                   <tr key={po._id} className="table-row-hover group cursor-pointer" onClick={() => navigate(`/purchase-orders/${po._id}`)}>
                     <td className="px-6 py-4 font-mono text-xs font-bold text-violet-600">{po.poNumber}</td>
                     <td className="px-6 py-4 font-semibold text-slate-800">{po.vendorName}</td>
+                    <td className="px-6 py-4"><span className={`whitespace-nowrap rounded-full border px-2.5 py-1 text-[11px] font-bold ${poTypeConfig[getPoType(po)].color}`}>{poTypeConfig[getPoType(po)].label}</span></td>
                     <td className="px-6 py-4 text-slate-500 text-xs">{po.items?.length || 0} items</td>
                     <td className="px-6 py-4 text-right font-bold text-slate-800">₹{(po.grandTotal || 0).toFixed(2)}</td>
                     <td className="px-6 py-4 text-slate-500 text-xs">

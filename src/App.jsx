@@ -138,6 +138,62 @@ const GateQrRoute = () => {
   )
 }
 
+const ServicePoRoute = () => {
+  const location = useLocation()
+  const navigate = useNavigate()
+  const parsed = getAuthOrNull()
+  const params = new URLSearchParams(location.search)
+  const isQrEntry = Boolean(params.get('token'))
+  const hasLocation = ['latitude', 'longitude', 'accuracy'].every(key => {
+    const value = params.get(key)
+    return value !== null && value !== '' && Number.isFinite(Number(value))
+  })
+  const [checkingLocation, setCheckingLocation] = useState(false)
+  const [locationError, setLocationError] = useState('')
+
+  if (!isQrEntry) {
+    return <ProtectedRoute allowedRoles={['service_provider', 'vendor', 'manager', 'admin', 'super_admin']}><ServicePOWorkspace /></ProtectedRoute>
+  }
+
+  if (hasLocation) {
+    if (!parsed?.isAuthenticated) {
+      const next = `${location.pathname}${location.search}`
+      return <Navigate to={`/login?next=${encodeURIComponent(next)}&portal=service`} replace />
+    }
+    if (parsed.role !== 'service_provider') {
+      const next = `${location.pathname}${location.search}`
+      return <Navigate to={`/login?next=${encodeURIComponent(next)}&portal=service&switch=1`} replace />
+    }
+    return <ProtectedRoute allowedRoles={['service_provider']}><ServicePOWorkspace /></ProtectedRoute>
+  }
+
+  const continueToLogin = async () => {
+    setCheckingLocation(true)
+    setLocationError('')
+    try {
+      const campusLocation = await getGateLocation()
+      const nextParams = new URLSearchParams(location.search)
+      new URLSearchParams(locationQuery(campusLocation)).forEach((value, key) => nextParams.set(key, value))
+      navigate(`${location.pathname}?${nextParams.toString()}`, { replace: true })
+    } catch (error) {
+      setLocationError(error.message || 'Location permission is required for this Service PO.')
+    } finally { setCheckingLocation(false) }
+  }
+
+  return (
+    <div className="mx-auto max-w-lg rounded-3xl border border-violet-200 bg-white p-7 text-center shadow-lg sm:p-9">
+      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-violet-100 text-3xl font-black text-violet-700">⌖</div>
+      <p className="mt-5 text-xs font-black uppercase tracking-[0.18em] text-violet-600">Service PO security</p>
+      <h1 className="mt-2 text-2xl font-black text-slate-900">Verify campus location</h1>
+      <p className="mt-3 text-sm leading-6 text-slate-600">This Service PO can be scanned only at the MSEC campus. After location verification, sign in with the service-provider email and password.</p>
+      {locationError && <p className="mt-4 rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{locationError}</p>}
+      <button type="button" onClick={continueToLogin} disabled={checkingLocation} className="mt-6 w-full rounded-xl bg-violet-600 px-5 py-3 text-sm font-black text-white hover:bg-violet-700 disabled:opacity-60">
+        {checkingLocation ? 'Checking Campus Location...' : 'Allow Location & Continue'}
+      </button>
+    </div>
+  )
+}
+
 // Redirect if already logged in
 const RedirectIfAuthenticated = ({ children }) => {
   const location = useLocation()
@@ -300,7 +356,7 @@ function AppContent() {
                   <Route path="/gate/history" element={<ProtectedRoute allowedRoles={['admin', 'super_admin', 'gate']}><GateHistory /></ProtectedRoute>} />
                   <Route path="/service/dashboard" element={<ProtectedRoute allowedRoles={['service_provider', 'vendor', 'manager', 'admin', 'super_admin']}><ServiceDashboard /></ProtectedRoute>} />
                   {/* Signed Service PO QR provides access only to its own workspace. */}
-                  <Route path="/service/po/:id" element={<ServicePOWorkspace />} />
+                  <Route path="/service/po/:id" element={<ServicePoRoute />} />
                   
                   {/* GRN routes */}
                   <Route path="/grn" element={<ProtectedRoute allowedRoles={['admin', 'super_admin', 'receiving_officer', 'accounts', 'manager']}><GRN /></ProtectedRoute>} />

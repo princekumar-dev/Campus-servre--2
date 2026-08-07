@@ -288,6 +288,7 @@ const PurchaseOrderSchema = new mongoose.Schema({
   vendorEmail: { type: String },
   vendorAddress: { type: String },
   adminRequirementType: { type: String },
+  poType: { type: String, enum: ['SERVICE', 'GOODS', 'REPLACEMENT'] },
   adminDescription: { type: String },
   adminAssessmentNote: { type: String },
   version: { type: Number, default: 1 },
