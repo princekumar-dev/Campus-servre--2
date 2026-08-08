@@ -10,6 +10,7 @@ const UserSchema = new mongoose.Schema({
     required: true 
   },
   name: { type: String, required: true },
+  institution: { type: String, enum: ['msec', 'nest', 'mcw', 'mssm', 'iic'] },
   department: { type: String, required: true },
   phoneNumber: { type: String },
   eSignature: { type: String },
@@ -20,6 +21,7 @@ const UserSchema = new mongoose.Schema({
 // Service Request Schema for CampusServe
 const ServiceRequestSchema = new mongoose.Schema({
   requestNumber: { type: String, required: true, unique: true },
+  institution: { type: String, enum: ['msec', 'nest', 'mcw', 'mssm', 'iic'], default: 'msec', required: true },
   title: { type: String, required: true },
   category: { type: String, required: true },
   location: { type: String, required: true },
@@ -611,6 +613,18 @@ EmailVerificationSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 })
 
 const SystemSettingsSchema = new mongoose.Schema({
   key: { type: String, default: 'global', unique: true },
+  institutions: [{
+    _id: false,
+    id: { type: String, required: true, enum: ['msec', 'nest', 'mcw', 'mssm', 'iic'] },
+    shortName: { type: String, required: true },
+    fullName: { type: String, required: true },
+    emailDomain: { type: String, required: true },
+    defaultDepartment: { type: String, required: true },
+    affiliation: { type: String, required: true },
+    documentAddress: { type: String, required: true },
+    contactLine: { type: String, required: true },
+    website: { type: String, required: true }
+  }],
   collegeName: { type: String, default: 'MSEC' },
   collegeFullName: { type: String, default: 'Meenakshi Sundararajan Engineering College' },
   emailDomain: { type: String, default: '@msec.edu.in' },
@@ -621,6 +635,8 @@ const SystemSettingsSchema = new mongoose.Schema({
   enforceEmailDomain: { type: Boolean, default: true },
   enableNotifications: { type: Boolean, default: true },
   enableEmailAlerts: { type: Boolean, default: true },
+  goodsPoGeofenceEnabled: { type: Boolean, default: true },
+  servicePoGeofenceEnabled: { type: Boolean, default: true },
   requireIssuePhoto: { type: Boolean, default: false },
   requireCompletionPhotos: { type: Boolean, default: true },
   maxAttachmentSizeMB: { type: Number, min: 1, max: 25, default: 5 },

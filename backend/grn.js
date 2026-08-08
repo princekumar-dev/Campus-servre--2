@@ -57,7 +57,7 @@ export default async function handler(req, res) {
       }
 
       const { poId: bodyPoId, deliveryScheduleId, items, remarks, qrToken, receiptEvidence, damageEvidence } = req.body
-      if (!requireGateLocation(req, res).allowed) return
+      if (!(await requireGateLocation(req, res)).allowed) return
       if (!bodyPoId || !items || !items.length) {
         return res.status(400).json({ success: false, error: 'poId and items are required' })
       }

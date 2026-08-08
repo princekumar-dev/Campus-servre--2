@@ -3,6 +3,8 @@ import { useNavigate, Link } from 'react-router-dom'
 import { useAlert } from '../components/AlertContext'
 import apiClient from '../utils/apiClient'
 import { User, Mail, Lock, Phone, Landmark, Briefcase, ArrowLeft, ShieldCheck } from 'lucide-react'
+import InstitutionSelector from '../components/InstitutionSelector'
+import { getInstitutionOrganization, isInstitutionUserRole } from '../constants/institutions'
 
 function SignUp({ adminMode = false }) {
   const [formData, setFormData] = useState({
@@ -11,6 +13,7 @@ function SignUp({ adminMode = false }) {
     password: '',
     confirmPassword: '',
     role: 'requester',
+    institution: '',
     department: '',
     phoneNumber: ''
   })
@@ -29,21 +32,28 @@ function SignUp({ adminMode = false }) {
   const selectClass = adminMode
     ? 'border-slate-300 bg-white text-slate-800'
     : 'border-violet-950/60 bg-slate-950/60 text-slate-300'
+  const organization = getInstitutionOrganization(formData.institution)
 
   const handleInputChange = (e) => {
     const { name, value } = e.target
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: value,
+      ...(name === 'role' && !isInstitutionUserRole(value) ? { institution: '' } : {})
     }))
   }
 
   const handleSignUp = async (e) => {
     e.preventDefault()
-    const { name, email, password, confirmPassword, role, department, phoneNumber } = formData
+    const { name, email, password, confirmPassword, role, institution, department, phoneNumber } = formData
 
     if (!name || !email || !password || !confirmPassword || !role || !department) {
       showError('Form Incomplete', 'Please fill in all required fields')
+      return
+    }
+
+    if (isInstitutionUserRole(role) && !institution) {
+      showError('Institution Required', 'Please select the institution for this Faculty, Staff, or HOD account')
       return
     }
 
@@ -64,6 +74,7 @@ function SignUp({ adminMode = false }) {
         email,
         password,
         role,
+        institution,
         department,
         phoneNumber
       })
@@ -98,7 +109,7 @@ function SignUp({ adminMode = false }) {
             <Lock className="h-8 w-8 text-violet-600" />
           </div>
           <h1 className={`mb-2 text-3xl font-black sm:text-4xl ${titleClass}`}>{adminMode ? 'Create New User' : 'Faculty / Staff Sign Up'}</h1>
-          <p className={`text-sm ${subtitleClass}`}>{adminMode ? 'Create and assign a CampusServe user role' : 'Create your MSEC CampusServe requester account'}</p>
+          <p className={`text-sm ${subtitleClass}`}>{adminMode ? 'Create and assign a CampusServe user role' : 'Create your institution CampusServe requester account'}</p>
         </div>
 
         {adminMode && (
@@ -106,12 +117,19 @@ function SignUp({ adminMode = false }) {
             <ShieldCheck className="mt-0.5 shrink-0 text-violet-600" size={20} />
             <div>
               <p className="text-sm font-bold text-slate-800">Super administrator access</p>
-              <p className="mt-1 text-xs leading-5 text-slate-600">Assign the minimum role this person needs. Administrator, manager, finance, and operational accounts can only be created from this protected page.</p>
+              <p className="mt-1 text-xs leading-5 text-slate-600">Create requester, administrator, purchase manager, gate, and service accounts from this protected page.</p>
             </div>
           </div>
         )}
 
         <form onSubmit={handleSignUp} className="space-y-4">
+          {isInstitutionUserRole(formData.role) && (
+            <InstitutionSelector
+              value={formData.institution}
+              onChange={institution => setFormData(prev => ({ ...prev, institution, department: '' }))}
+              tone={adminMode ? 'light' : 'glass'}
+            />
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className={`block text-xs font-semibold uppercase tracking-wider mb-2 ${labelClass}`}>
@@ -151,7 +169,7 @@ function SignUp({ adminMode = false }) {
                   required
                 />
               </div>
-              <p className={`mt-2 text-xs ${subtitleClass}`}>Use your official MSEC email address</p>
+              <p className={`mt-2 text-xs ${subtitleClass}`}>Use your official institution email address</p>
             </div>
           </div>
 
@@ -170,20 +188,12 @@ function SignUp({ adminMode = false }) {
                   onChange={handleInputChange}
                   className={`w-full border focus:border-violet-500 rounded-xl py-3 pl-11 pr-4 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500 transition-all appearance-none ${selectClass}`}
                 >
-                  <option className="bg-slate-950 text-slate-300" value="requester">Requester (Faculty/Staff)</option>
+                  <option className="bg-slate-950 text-slate-300" value="requester">{organization.requesterLabel}</option>
                   {adminMode && <>
-                    <option className="bg-slate-950 text-slate-300" value="manager">Service Manager</option>
-                    <option className="bg-slate-950 text-slate-300" value="technician">Technician</option>
-                    <option className="bg-slate-950 text-slate-300" value="accounts">Accounts Officer</option>
                     <option className="bg-slate-950 text-slate-300" value="admin">Administrator</option>
-                    <option className="bg-slate-950 text-slate-300" value="super_admin">Super Administrator</option>
-                    <option className="bg-slate-950 text-slate-300" value="vendor">Vendor</option>
-                    <option className="bg-slate-950 text-slate-300" value="service_provider">Service Provider</option>
+                    <option className="bg-slate-950 text-slate-300" value="manager">Purchase Manager</option>
                     <option className="bg-slate-950 text-slate-300" value="gate">Gate Officer</option>
-                    <option className="bg-slate-950 text-slate-300" value="receiving_officer">Receiving Officer</option>
-                    <option className="bg-slate-950 text-slate-300" value="delivery_person">Delivery Person</option>
-                    <option className="bg-slate-950 text-slate-300" value="hod">Head of Department</option>
-                    <option className="bg-slate-950 text-slate-300" value="staff">Staff</option>
+                    <option className="bg-slate-950 text-slate-300" value="service_provider">Service</option>
                   </>}
                 </select>
               </div>
@@ -191,7 +201,7 @@ function SignUp({ adminMode = false }) {
 
             <div>
               <label className={`block text-xs font-semibold uppercase tracking-wider mb-2 ${labelClass}`}>
-                Department
+                {organization.unitLabel}
               </label>
               <div className="relative">
                 <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-violet-400/70">
@@ -203,14 +213,8 @@ function SignUp({ adminMode = false }) {
                   onChange={handleInputChange}
                   className={`w-full border focus:border-violet-500 rounded-xl py-3 pl-11 pr-4 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500 transition-all appearance-none ${selectClass}`}
                 >
-                  <option className="bg-gray-800 text-white" value="">Select Department</option>
-                  <option className="bg-slate-950 text-slate-300" value="CSE">CSE</option>
-                  <option className="bg-slate-950 text-slate-300" value="ECE">ECE</option>
-                  <option className="bg-slate-950 text-slate-300" value="MECH">MECH</option>
-                  <option className="bg-slate-950 text-slate-300" value="CIVIL">CIVIL</option>
-                  <option className="bg-slate-950 text-slate-300" value="IT">IT</option>
-                  <option className="bg-slate-950 text-slate-300" value="ADMIN">ADMIN</option>
-                  <option className="bg-slate-950 text-slate-300" value="MAINTENANCE">MAINTENANCE</option>
+                  <option className="bg-gray-800 text-white" value="">Select {organization.unitLabel}</option>
+                  {organization.units.map(unit => <option key={unit} className="bg-slate-950 text-slate-300" value={unit}>{unit}</option>)}
                 </select>
               </div>
             </div>

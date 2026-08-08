@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAlert } from '../components/AlertContext'
 import apiClient from '../utils/apiClient'
+import InstitutionBadge from '../components/InstitutionBadge'
 import { getAuthOrNull } from '../utils/auth'
 import { getWorkflowGuidance } from '../utils/workflowGuidance'
 import { formatDistanceToNow } from 'date-fns'
@@ -550,7 +551,7 @@ function RequestDetails() {
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
         <div className="flex flex-col md:flex-row justify-between items-start gap-4">
           <div>
-            <span className="text-xs font-mono text-violet-600 font-bold tracking-wider">{request.requestNumber}</span>
+            <div className="flex flex-wrap items-center gap-2"><span className="text-xs font-mono text-violet-600 font-bold tracking-wider">{request.requestNumber}</span><InstitutionBadge institution={request.institution} /></div>
             <h1 className="mt-1 break-words text-xl font-black text-slate-800 sm:text-2xl">{request.title}</h1>
             <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-slate-500">
               <span className="flex items-center gap-1"><MapPin size={12} /> {request.location}</span>

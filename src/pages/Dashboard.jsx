@@ -12,6 +12,7 @@ import {
   Eye, ChevronRight, CircleDot
 } from 'lucide-react'
 import { KpiCard, ActionCard, GlassPanel } from '../components/ui'
+import InstitutionBadge from '../components/InstitutionBadge'
 
 const STATUS_COLORS = {
   submitted: '#3b82f6',
@@ -323,9 +324,7 @@ function Dashboard() {
                 >
                   <div className="flex min-w-0 items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
-                      <p className="truncate font-mono text-[11px] font-bold text-violet-600">
-                        {req.requestNumber}
-                      </p>
+                      <div className="flex min-w-0 flex-wrap items-center gap-2"><p className="truncate font-mono text-[11px] font-bold text-violet-600">{req.requestNumber}</p><InstitutionBadge institution={req.institution} compact /></div>
                       <h3 className="mt-1 line-clamp-2 text-sm font-bold leading-5 text-slate-800">
                         {req.title}
                       </h3>
@@ -378,7 +377,7 @@ function Dashboard() {
                 ) : (
                   recentRequests.map((req) => (
                     <tr key={req._id} className="table-row-hover">
-                      <td className="py-3.5 pl-3 font-mono text-xs text-violet-600 font-bold">{req.requestNumber}</td>
+                      <td className="py-3.5 pl-3"><div className="flex flex-col items-start gap-1.5"><span className="font-mono text-xs font-bold text-violet-600">{req.requestNumber}</span><InstitutionBadge institution={req.institution} compact /></div></td>
                       <td className="py-3.5 font-semibold text-slate-800 text-sm">{req.title}</td>
                       <td className="py-3.5">
                         <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${

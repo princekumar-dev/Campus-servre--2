@@ -119,7 +119,7 @@ function AdminUsers() {
                   <td colSpan="6" className="py-12 text-center text-slate-400 text-sm">No users found</td>
                 </tr>
               ) : filtered.map(user => (
-                <tr key={user.id} className="hover:bg-slate-50 transition-colors">
+                <tr key={user.id} className="table-row-hover">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center text-violet-600 text-xs font-bold">

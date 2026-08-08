@@ -79,7 +79,7 @@ export default async function handler(req, res) {
       const [storedQuotations, requests] = await Promise.all([
         VendorQuotation.find(quoteQuery).sort({ createdAt: -1 }).lean(),
         ServiceRequest.find(query)
-          .select('requestNumber title requesterName assignedManagerId assignedManagerName selectedQuotationId status quotation createdAt')
+          .select('requestNumber institution title requesterName assignedManagerId assignedManagerName selectedQuotationId status quotation createdAt')
           .sort({ createdAt: -1 })
           .lean()
       ])
@@ -127,6 +127,7 @@ export default async function handler(req, res) {
         _id: request._id,
         requestId: request._id,
         requestNumber: request.requestNumber,
+        institution: request.institution || 'msec',
         requestTitle: request.title,
         requesterName: request.requesterName,
         assignedManagerId: request.assignedManagerId,
@@ -144,6 +145,7 @@ export default async function handler(req, res) {
         const request = requestById.get(String(quotation.requestId))
         return {
           ...quotation,
+          institution: request?.institution || 'msec',
           requestStatus: request?.status,
           hasPurchaseOrder: poByRequest.has(String(quotation.requestId))
         }

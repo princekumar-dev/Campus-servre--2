@@ -7,6 +7,7 @@ import { getAuthOrNull } from '../utils/auth'
 import { normalizeUnit, UnitOptions } from '../utils/unitOptions'
 import { ShoppingCart, Plus, Search, ChevronRight, Clock, CheckCircle2, AlertCircle, Send, XCircle, RefreshCw, Package, FileText } from 'lucide-react'
 import RefreshButton from '../components/RefreshButton'
+import InstitutionBadge from '../components/InstitutionBadge'
 
 const statusConfig = {
   DRAFT: { label: 'Draft', color: 'bg-zinc-100 text-zinc-700 border-zinc-300 ring-1 ring-zinc-200' },
@@ -135,7 +136,7 @@ function CreatePOModal({ onClose, onSaved, sourceRequest, selectedQuotation }) {
           {sourceRequest && (
             <div className="space-y-3 rounded-2xl border border-violet-100 bg-violet-50/60 p-4">
               <div className="grid gap-3 sm:grid-cols-3">
-                <div><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Request</p><p className="mt-1 text-xs font-extrabold text-violet-700">{sourceRequest.requestNumber}</p></div>
+                <div><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Request</p><p className="mt-1 text-xs font-extrabold text-violet-700">{sourceRequest.requestNumber}</p><InstitutionBadge institution={sourceRequest.institution} compact className="mt-1.5" /></div>
                 <div><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Purpose</p><p className="mt-1 text-xs font-extrabold text-slate-800">{requirementLabel}</p></div>
                 <div><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Requested</p><p className="mt-1 text-xs font-extrabold text-slate-800">{sourceRequest.requestedQuantity || 1} {sourceRequest.requestedUnit || 'pcs'} · {sourceRequest.requestedItem || sourceRequest.title}</p></div>
               </div>

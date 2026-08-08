@@ -91,7 +91,7 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-      const { name, email, password, role, department, phoneNumber } = req.body
+      const { name, email, password, role, institution, department, phoneNumber } = req.body
       if (!name || !email || !password || !role || !department) {
         return res.status(400).json({ success: false, error: 'name, email, password, role and department are required' })
       }
@@ -99,6 +99,21 @@ export default async function handler(req, res) {
       const validRoles = ['admin', 'requester', 'manager', 'technician', 'accounts', 'vendor', 'service_provider', 'super_admin', 'gate', 'receiving_officer', 'delivery_person', 'hod', 'staff']
       if (!validRoles.includes(role)) {
         return res.status(400).json({ success: false, error: `role must be one of: ${validRoles.join(', ')}` })
+      }
+      const institutionRoles = ['requester', 'staff', 'hod']
+      const validInstitutions = ['msec', 'nest', 'mcw', 'mssm', 'iic']
+      const institutionUnits = {
+        msec: ['CSE', 'ECE', 'MECH', 'CIVIL', 'IT', 'EEE', 'AIDS'],
+        nest: ['Early Years', 'Primary Years', 'Middle School', 'Secondary School', 'Student Support', 'Administration'],
+        mcw: ['History', 'Economics', 'English', 'Mathematics', 'Physics', 'Chemistry', 'Plant Biology & Biotechnology', 'Advanced Zoology & Biotechnology', 'Computer Science', 'Commerce', 'Business Administration'],
+        mssm: ['General Management', 'Finance', 'Marketing', 'Human Resources', 'Operations', 'Business Analytics', 'Entrepreneurship', 'Administration'],
+        iic: ['Innovation Council', 'Innovation & Startup', 'Entrepreneurship Development', 'IPR & Technology Transfer', 'Incubation', 'Research & Development', 'Administration']
+      }
+      if (institutionRoles.includes(role) && !validInstitutions.includes(institution)) {
+        return res.status(400).json({ success: false, error: 'A valid institution is required for Faculty, Staff, and HOD accounts.' })
+      }
+      if (institutionRoles.includes(role) && !institutionUnits[institution]?.includes(department)) {
+        return res.status(400).json({ success: false, error: 'Select a valid department, school section, or innovation function for this institution.' })
       }
       const requestingRole = String(req.user?.role || '').toLowerCase()
       const isSuperAdmin = requestingRole === 'super_admin'
@@ -109,8 +124,9 @@ export default async function handler(req, res) {
       if (!isSuperAdmin && role !== 'requester') {
         return res.status(403).json({ success: false, error: 'Public sign-up is limited to Faculty/Staff requester accounts. A super administrator must create all other roles.' })
       }
-      if (!isSuperAdmin && systemSettings.enforceEmailDomain && !email.toLowerCase().endsWith(systemSettings.emailDomain.toLowerCase())) {
-        return res.status(400).json({ success: false, error: `Use an official ${systemSettings.emailDomain} email address` })
+      const institutionSettings = systemSettings.institutions?.find(item => item.id === institution)
+      if (!isSuperAdmin && institutionRoles.includes(role) && systemSettings.enforceEmailDomain && institutionSettings?.emailDomain && !email.toLowerCase().endsWith(institutionSettings.emailDomain.toLowerCase())) {
+        return res.status(400).json({ success: false, error: `Use an official ${institutionSettings.emailDomain} email address for ${institutionSettings.shortName}` })
       }
 
       const existing = await User.findOne({ email: email.toLowerCase() })
@@ -124,6 +140,7 @@ export default async function handler(req, res) {
         email: email.toLowerCase(),
         password: hashed,
         role,
+        ...(institutionRoles.includes(role) ? { institution } : {}),
         department,
         phoneNumber: phoneNumber || ''
       }
@@ -136,6 +153,7 @@ export default async function handler(req, res) {
         name: user.name,
         email: user.email,
         role: user.role,
+        institution: user.institution || '',
         department: user.department,
         phoneNumber: user.phoneNumber
       }

@@ -178,7 +178,7 @@ const ServicePoRoute = () => {
     setCheckingLocation(true)
     setLocationError('')
     try {
-      const campusLocation = await getGateLocation()
+      const campusLocation = await getGateLocation('service')
       const nextParams = new URLSearchParams(location.search)
       new URLSearchParams(locationQuery(campusLocation)).forEach((value, key) => nextParams.set(key, value))
       navigate(`${location.pathname}?${nextParams.toString()}`, { replace: true })

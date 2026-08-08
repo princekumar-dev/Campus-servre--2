@@ -4,10 +4,12 @@ import { useAlert } from '../components/AlertContext'
 import apiClient from '../utils/apiClient'
 import { getDashboardPath } from '../utils/auth'
 import { Lock } from 'lucide-react'
+import InstitutionSelector from '../components/InstitutionSelector'
 
 function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [institution, setInstitution] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -28,7 +30,7 @@ function Login() {
       const requestedPath = searchParams.get('next') || ''
       const requestedPortal = isGatePortal ? 'gate' : isServicePortal ? 'service' : ''
       const scanTarget = requestedPortal ? requestedPath.split('?')[0] : ''
-      const res = await apiClient.post('/api/auth', { email, password, portal: requestedPortal, scanTarget })
+      const res = await apiClient.post('/api/auth', { email, password, institution, portal: requestedPortal, scanTarget })
       if (res.success && res.user) {
         if (isGatePortal && res.user.role !== 'gate') {
           showError('Gate Access Required', 'Sign in with a Gate Officer account.')
@@ -46,6 +48,7 @@ function Login() {
           name: res.user.name,
           role: res.user.role,
           department: res.user.department,
+          institution: res.user.institution,
           phoneNumber: res.user.phoneNumber,
           eSignature: res.user.eSignature,
           // Keep QR login navigation compatible while Vercel and the API host
@@ -78,7 +81,7 @@ function Login() {
 
   return (
     <div className="flex min-h-screen items-center justify-center px-3 py-6 sm:px-4 sm:py-8">
-      <div className="relative z-10 mx-auto w-full max-w-md">
+      <div className="relative z-10 mx-auto w-full max-w-xl">
         <div className="rounded-2xl border border-white/55 bg-white/20 p-5 shadow-[0_24px_70px_rgba(15,23,42,0.24),inset_0_1px_0_rgba(255,255,255,0.65)] backdrop-blur-xl sm:rounded-3xl sm:p-8">
           <div className="mb-6 text-center sm:mb-8">
             <div className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-full bg-violet-100 sm:mb-6 sm:h-16 sm:w-16">
@@ -89,6 +92,9 @@ function Login() {
           </div>
 
           <form onSubmit={handleLogin} className="space-y-5 sm:space-y-6">
+            {!isGatePortal && !isServicePortal && (
+              <InstitutionSelector value={institution} onChange={setInstitution} />
+            )}
             <div>
               <label className="mb-3 block text-sm font-bold text-white [text-shadow:0_1px_5px_rgba(15,23,42,0.9)]">Email Address</label>
               <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" placeholder="Enter your email address" className="w-full rounded-xl border border-white/70 bg-white/95 px-4 py-3 text-slate-950 shadow-sm outline-none backdrop-blur-sm transition-all duration-200 placeholder:text-slate-500 focus:border-violet-300 focus:ring-2 focus:ring-violet-400 sm:rounded-2xl sm:py-4" required />

@@ -14,8 +14,13 @@ export default async function handler(req, res) {
     if (req.user?.role !== 'super_admin') return res.status(403).json({ success: false, error: 'Only the super administrator can update system settings' })
 
     const updates = sanitizeSystemSettings(req.body)
-    if (!updates.collegeName || !updates.collegeFullName || !updates.emailDomain || !updates.defaultDepartment) {
-      return res.status(400).json({ success: false, error: 'Institution name, email domain, and default department are required' })
+    const institutionIds = new Set(updates.institutions?.map(institution => institution.id))
+    const invalidInstitution = updates.institutions?.some(institution =>
+      !institution.shortName || !institution.fullName || !institution.defaultDepartment || !institution.affiliation || !institution.documentAddress || !institution.contactLine || !institution.website ||
+      !/^@[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?\.[a-z]{2,}$/i.test(institution.emailDomain)
+    )
+    if (!updates.institutions || updates.institutions.length !== 5 || institutionIds.size !== 5 || invalidInstitution) {
+      return res.status(400).json({ success: false, error: 'Complete the name, email domain, and document details for all five institutions' })
     }
     const settings = await SystemSettings.findOneAndUpdate(
       { key: 'global' },

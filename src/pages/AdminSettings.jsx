@@ -3,14 +3,22 @@ import { useNavigate } from 'react-router-dom'
 import { useAlert } from '../components/AlertContext'
 import apiClient from '../utils/apiClient'
 import { getAuthOrNull } from '../utils/auth'
-import { Building2, Bell, Save, ShieldCheck, Timer, Paperclip, RotateCcw, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { Building2, Bell, Save, ShieldCheck, Timer, Paperclip, RotateCcw, AlertTriangle, CheckCircle2, MapPin } from 'lucide-react'
 import PageHeader from '../components/ui/PageHeader'
 import { ErrorState, LoadingState } from '../components/EmptyStates'
 
 const defaults = {
+  institutions: [
+    { id: 'msec', shortName: 'MSEC', fullName: 'Meenakshi Sundararajan Engineering College', emailDomain: '@msec.edu.in', defaultDepartment: 'MAINTENANCE', affiliation: 'An Autonomous Institution Affiliated to Anna University', documentAddress: '363, Arcot Road, Kodambakkam, Chennai - 600024', contactLine: 'principal@msec.edu.in', website: 'www.msec.edu.in' },
+    { id: 'nest', shortName: 'The Nest School', fullName: 'The NEST School', emailDomain: '@thenest.school', defaultDepartment: 'Administration', affiliation: 'IB World School | Cambridge International School', documentAddress: '363, Arcot Road, Kodambakkam, Chennai - 600024', contactLine: 'For enquiries: +91 99401 06358', website: 'www.thenest.school' },
+    { id: 'mcw', shortName: 'MCW', fullName: 'Meenakshi College for Women (Autonomous)', emailDomain: '@meenakshicollege.com', defaultDepartment: 'Administration', affiliation: 'Affiliated to the University of Madras', documentAddress: '363, Arcot Road, Kodambakkam, Chennai - 600024', contactLine: 'office@meenakshicollege.com | 044-2472 5466', website: 'www.meenakshicollege.com' },
+    { id: 'mssm', shortName: 'MSSM', fullName: 'Meenakshi Sundararajan School of Management', emailDomain: '@mssm.edu.in', defaultDepartment: 'General Management', affiliation: 'Affiliated to the University of Madras & Approved by AICTE | Co-Educational Institution under the aegis of IIET', documentAddress: '363, Arcot Road, Kodambakkam, Chennai - 600024', contactLine: '+91 98407 21869 | +91 98414 37372 | admissions@mssm.edu.in', website: 'www.mssm.edu.in' },
+    { id: 'iic', shortName: 'IIC', fullName: "Institution's Innovation Council", emailDomain: '@msec.edu.in', defaultDepartment: 'Innovation Council', affiliation: "Ministry of Education's Innovation Cell | AICTE", documentAddress: 'Meenakshi Sundararajan Engineering College, 363 Arcot Road, Kodambakkam, Chennai - 600024', contactLine: 'Institution Innovation Council', website: 'www.msec.edu.in' }
+  ],
   collegeName: 'MSEC', collegeFullName: 'Meenakshi Sundararajan Engineering College',
   emailDomain: '@msec.edu.in', defaultDepartment: 'MAINTENANCE', timezone: 'Asia/Kolkata', currency: 'INR',
   allowPublicSignup: true, enforceEmailDomain: true, enableNotifications: true,
+  goodsPoGeofenceEnabled: true, servicePoGeofenceEnabled: true,
   requireIssuePhoto: false, requireCompletionPhotos: true, maxAttachmentSizeMB: 5,
   requestEditWindowHours: 24, slaLowHours: 72, slaMediumHours: 48, slaHighHours: 24, slaEmergencyHours: 4
 }
@@ -58,6 +66,10 @@ export default function AdminSettings() {
   const [error, setError] = useState('')
   const dirty = useMemo(() => JSON.stringify(settings) !== JSON.stringify(saved), [settings, saved])
   const update = (key, value) => setSettings(current => ({ ...current, [key]: value }))
+  const updateInstitution = (id, key, value) => setSettings(current => ({
+    ...current,
+    institutions: current.institutions.map(institution => institution.id === id ? { ...institution, [key]: value } : institution)
+  }))
 
   const loadSettings = async () => {
     setLoading(true); setError('')
@@ -82,8 +94,9 @@ export default function AdminSettings() {
   }, [dirty])
 
   const saveSettings = async () => {
-    if (!settings.collegeName.trim() || !settings.collegeFullName.trim() || !settings.emailDomain.trim() || !settings.defaultDepartment.trim()) {
-      showError('Missing information', 'Complete all required institution fields.'); return
+    const invalidInstitution = settings.institutions.some(institution => !institution.shortName.trim() || !institution.fullName.trim() || !institution.defaultDepartment.trim() || !institution.affiliation.trim() || !institution.documentAddress.trim() || !institution.contactLine.trim() || !institution.website.trim() || !/^@[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?\.[a-z]{2,}$/i.test(institution.emailDomain.trim()))
+    if (settings.institutions.length !== 5 || new Set(settings.institutions.map(institution => institution.id)).size !== 5 || invalidInstitution) {
+      showError('Invalid institution settings', 'Complete all fields and enter a valid official email domain for all five institutions.'); return
     }
     setSaving(true)
     try {
@@ -108,21 +121,36 @@ export default function AdminSettings() {
     </div>
 
     <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-      <Section icon={Building2} title="Institution & regional defaults" description="Identity and formatting used throughout the application.">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Short name"><input className={fieldClass} value={settings.collegeName} onChange={e => update('collegeName', e.target.value)} /></Field>
-          <Field label="Full institution name"><input className={fieldClass} value={settings.collegeFullName} onChange={e => update('collegeFullName', e.target.value)} /></Field>
-          <Field label="Official email domain" hint="Include the @ symbol, for example @msec.edu.in."><input className={fieldClass} value={settings.emailDomain} onChange={e => update('emailDomain', e.target.value)} /></Field>
-          <Field label="Default department"><input className={fieldClass} value={settings.defaultDepartment} onChange={e => update('defaultDepartment', e.target.value.toUpperCase())} /></Field>
-          <Field label="Timezone"><select className={fieldClass} value={settings.timezone} onChange={e => update('timezone', e.target.value)}><option value="Asia/Kolkata">Asia/Kolkata (IST)</option><option value="UTC">UTC</option><option value="Asia/Singapore">Asia/Singapore</option></select></Field>
-          <Field label="Currency"><select className={fieldClass} value={settings.currency} onChange={e => update('currency', e.target.value)}><option value="INR">INR — Indian Rupee</option><option value="USD">USD — US Dollar</option><option value="EUR">EUR — Euro</option></select></Field>
+      <div className="xl:col-span-2">
+      <Section icon={Building2} title="Institutions" description="Identity and registration policy for each CampusServe institution.">
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          {settings.institutions.map(institution => <div key={institution.id} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+            <div className="mb-3 flex items-center justify-between"><h3 className="text-sm font-extrabold text-slate-900">{institution.shortName || institution.id.toUpperCase()}</h3><span className="rounded-full bg-violet-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-violet-700">{institution.id}</span></div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Field label="Display name"><input className={fieldClass} value={institution.shortName} onChange={e => updateInstitution(institution.id, 'shortName', e.target.value)} /></Field>
+              <Field label="Full institution name"><input className={fieldClass} value={institution.fullName} onChange={e => updateInstitution(institution.id, 'fullName', e.target.value)} /></Field>
+              <Field label="Official email domain" hint="Include @, for example @msec.edu.in."><input className={fieldClass} value={institution.emailDomain} onChange={e => updateInstitution(institution.id, 'emailDomain', e.target.value.toLowerCase())} /></Field>
+              <Field label="Default department"><input className={fieldClass} value={institution.defaultDepartment} onChange={e => updateInstitution(institution.id, 'defaultDepartment', e.target.value.toUpperCase())} /></Field>
+              <Field label="PDF affiliation / accreditation"><input className={fieldClass} value={institution.affiliation} onChange={e => updateInstitution(institution.id, 'affiliation', e.target.value)} /></Field>
+              <Field label="PDF address"><input className={fieldClass} value={institution.documentAddress} onChange={e => updateInstitution(institution.id, 'documentAddress', e.target.value)} /></Field>
+              <Field label="PDF contact"><input className={fieldClass} value={institution.contactLine} onChange={e => updateInstitution(institution.id, 'contactLine', e.target.value)} /></Field>
+              <Field label="Website"><input className={fieldClass} value={institution.website} onChange={e => updateInstitution(institution.id, 'website', e.target.value)} /></Field>
+            </div>
+          </div>)}
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field label="Timezone"><select className={fieldClass} value={settings.timezone} onChange={e => update('timezone', e.target.value)}><option value="Asia/Kolkata">Asia/Kolkata (IST)</option><option value="UTC">UTC</option><option value="Asia/Singapore">Asia/Singapore</option></select></Field>
+            <Field label="Currency"><select className={fieldClass} value={settings.currency} onChange={e => update('currency', e.target.value)}><option value="INR">INR — Indian Rupee</option><option value="USD">USD — US Dollar</option><option value="EUR">EUR — Euro</option></select></Field>
+          </div>
         </div>
       </Section>
+      </div>
 
       <Section icon={ShieldCheck} title="Access & registration" description="Control who may create an account and which identities are accepted." tone="emerald">
         <div className="space-y-3">
-          <Toggle checked={settings.allowPublicSignup} onChange={value => update('allowPublicSignup', value)} label="Allow Faculty/Staff self-registration" description="Public sign-up creates requester accounts only. Privileged roles remain super-admin only." />
-          <Toggle checked={settings.enforceEmailDomain} disabled={!settings.allowPublicSignup} onChange={value => update('enforceEmailDomain', value)} label="Require official institution email" description={`Reject public registrations outside ${settings.emailDomain || 'the configured domain'}.`} />
+          <Toggle checked={settings.allowPublicSignup} onChange={value => update('allowPublicSignup', value)} label="Allow requester self-registration" description="Faculty, teachers, coordinators, and HOD requesters can register against one of the five configured institutions." />
+          <Toggle checked={settings.enforceEmailDomain} disabled={!settings.allowPublicSignup} onChange={value => update('enforceEmailDomain', value)} label="Require selected institution email" description="Validate each public registration against the official email domain configured for its selected institution." />
         </div>
       </Section>
 
@@ -136,6 +164,14 @@ export default function AdminSettings() {
       <Section icon={Bell} title="Notifications" description="Choose which system-generated alerts are created for workflow owners." tone="blue">
         <div className="space-y-3">
           <Toggle checked={settings.enableNotifications} onChange={value => update('enableNotifications', value)} label="In-app workflow notifications" description="Create alerts when responsibility moves to another user." />
+        </div>
+      </Section>
+
+      <Section icon={MapPin} title="PO geofence testing" description="Temporarily control campus-location enforcement while testing QR workflows." tone="amber">
+        <div className="space-y-3">
+          <Toggle checked={settings.goodsPoGeofenceEnabled} onChange={value => update('goodsPoGeofenceEnabled', value)} label="Goods PO geofence" description="When off, gate officers can open, verify, and receive Goods POs without sharing a campus GPS location." />
+          <Toggle checked={settings.servicePoGeofenceEnabled} onChange={value => update('servicePoGeofenceEnabled', value)} label="Service PO geofence" description="When off, service providers can open scanned Service POs without sharing a campus GPS location." />
+          {(!settings.goodsPoGeofenceEnabled || !settings.servicePoGeofenceEnabled) && <div className="flex gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold leading-5 text-amber-800"><AlertTriangle className="mt-0.5 shrink-0" size={16} /> Testing bypass is active. Re-enable geofencing before production use.</div>}
         </div>
       </Section>
 

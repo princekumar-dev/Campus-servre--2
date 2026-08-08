@@ -8,11 +8,31 @@ import { addProductIds } from '../lib/productId.js'
 import fs from 'fs'
 import path from 'path'
 import { createPoQrToken, hashPoQrToken } from '../lib/poQrToken.js'
+import { getSystemSettings } from '../lib/systemSettings.js'
 
 const LOGO_PATH = (() => {
   const logoPath = path.resolve(process.cwd(), 'public', 'images', 'mseclogo.png')
   return fs.existsSync(logoPath) ? logoPath : null
 })()
+
+const INSTITUTION_LOGOS = {
+  msec: ['mseclogo.png'],
+  nest: ['thenestschoollogo.webp', 'camlogo.webp'],
+  mcw: ['MCW logo.jpg'],
+  mssm: ['mssm.png'],
+  iic: ['iic.webp']
+}
+
+async function getPdfBrand(institution = 'msec') {
+  const settings = await getSystemSettings()
+  const profile = settings.institutions?.find(item => item.id === institution) || settings.institutions?.find(item => item.id === 'msec')
+  const logos = []
+  for (const fileName of (INSTITUTION_LOGOS[institution] || INSTITUTION_LOGOS.msec)) {
+    const logoPath = path.resolve(process.cwd(), 'public', 'images', fileName)
+    if (fs.existsSync(logoPath)) logos.push(await sharp(logoPath).png().toBuffer())
+  }
+  return { id: institution, ...profile, primaryLogo: logos[0] || null, secondaryLogo: logos[1] || null }
+}
 
 const PDF = {
   purple: '#5b21b6', darkPurple: '#4c1d95', indigo: '#312e81',
@@ -33,20 +53,21 @@ function getPublicBaseUrl(req) {
   return resolvePublicAppUrl(configured)
 }
 
-function drawInstitutionHeader(doc, title, reference = '') {
+function drawInstitutionHeader(doc, title, reference = '', brand = {}) {
   const left = doc.page.margins.left
   const right = doc.page.width - doc.page.margins.right
   const width = right - left
   const top = 42
-  if (LOGO_PATH) doc.image(LOGO_PATH, left, top, { fit: [66, 72], align: 'center', valign: 'center' })
-  const textX = left + (LOGO_PATH ? 78 : 0)
-  const textWidth = width - (LOGO_PATH ? 78 : 0)
+  if (brand.primaryLogo) doc.image(brand.primaryLogo, left, top, { fit: [66, brand.secondaryLogo ? 48 : 72], align: 'center', valign: 'center' })
+  if (brand.secondaryLogo) doc.image(brand.secondaryLogo, left, top + 50, { fit: [66, 22], align: 'center', valign: 'center' })
+  const textX = left + (brand.primaryLogo ? 78 : 0)
+  const textWidth = width - (brand.primaryLogo ? 78 : 0)
   doc.fillColor(PDF.darkPurple).font('Helvetica-Bold').fontSize(15)
-    .text('MEENAKSHI SUNDARARAJAN ENGINEERING COLLEGE', textX, top + 2, { width: textWidth, align: 'center' })
+    .text(String(brand.fullName || 'MEENAKSHI SUNDARARAJAN ENGINEERING COLLEGE').toUpperCase(), textX, top + 2, { width: textWidth, align: 'center' })
   doc.fillColor(PDF.text).font('Helvetica-Bold').fontSize(10)
-    .text('MSEC CampusServe', textX, top + 24, { width: textWidth, align: 'center' })
+    .text(`${brand.shortName || 'MSEC'} CampusServe`, textX, top + 24, { width: textWidth, align: 'center' })
   doc.fillColor(PDF.muted).font('Helvetica').fontSize(8)
-    .text('College Maintenance & Service Operations Portal', textX, top + 40, { width: textWidth, align: 'center' })
+    .text(brand.documentAddress || '363, Arcot Road, Kodambakkam, Chennai - 600024', textX, top + 40, { width: textWidth, align: 'center' })
   doc.fillColor(PDF.purple).font('Helvetica-Bold').fontSize(12)
     .text(title.toUpperCase(), textX, top + 55, { width: textWidth, align: 'center' })
   if (reference) doc.fillColor(PDF.muted).font('Helvetica').fontSize(7.5)
@@ -136,7 +157,7 @@ function drawTotals(doc, values) {
   })
 }
 
-function addPageFooters(doc) {
+function addPageFooters(doc, brand = {}) {
   const pages = doc.bufferedPageRange()
   const left = doc.page.margins.left
   const right = doc.page.width - doc.page.margins.right
@@ -147,7 +168,7 @@ function addPageFooters(doc) {
     const footerY = doc.page.height - doc.page.margins.bottom - 12
     doc.strokeColor(PDF.border).lineWidth(0.7).moveTo(left, footerY - 6).lineTo(right, footerY - 6).stroke()
     doc.fillColor(PDF.muted).font('Helvetica').fontSize(7)
-      .text('System-generated official document | MSEC CampusServe', left, footerY, { width: 360, lineBreak: false })
+      .text(`System-generated official document | ${brand.shortName || 'MSEC'} CampusServe`, left, footerY, { width: 360, lineBreak: false })
     doc.text(`Page ${page + 1} of ${pages.count}`, right - 100, footerY, { width: 100, align: 'right', lineBreak: false })
   }
 }
@@ -181,7 +202,7 @@ async function loadEvidenceImage(url) {
   }
 }
 
-function renderServiceDocument(res, type, request) {
+function renderServiceDocument(res, type, request, brand) {
   const config = {
     quotation: request.quotation && {
       title: 'Quotation Estimate', reference: request.quotation.quotationNumber,
@@ -248,10 +269,10 @@ function renderServiceDocument(res, type, request) {
   res.setHeader('Content-Type', 'application/pdf')
   res.setHeader('Content-Disposition', `inline; filename="${filename}"`)
   const doc = new PDFDocument({ size: 'A4', margin: 50, bufferPages: true, info: {
-    Title: `${config.title} ${config.reference || ''}`.trim(), Author: 'MSEC CampusServe', Subject: request.title || config.title
+    Title: `${config.title} ${config.reference || ''}`.trim(), Author: `${brand.shortName || 'MSEC'} CampusServe`, Subject: request.title || config.title
   } })
   doc.pipe(res)
-  const repeatHeader = () => drawInstitutionHeader(doc, config.title, config.reference)
+  const repeatHeader = () => drawInstitutionHeader(doc, config.title, config.reference, brand)
   repeatHeader()
   drawSectionTitle(doc, 'Document information')
   drawMetadata(doc, config.metadata)
@@ -279,7 +300,7 @@ function renderServiceDocument(res, type, request) {
   doc.moveTo(right - 150, signatureY).lineTo(right, signatureY).stroke()
   doc.fillColor(PDF.muted).font('Helvetica').fontSize(7.5).text('Prepared / recorded by', left, signatureY + 7, { width: 150, align: 'center' })
   doc.text('Authorized signatory', right - 150, signatureY + 7, { width: 150, align: 'center' })
-  addPageFooters(doc)
+  addPageFooters(doc, brand)
   doc.end()
 }
 
@@ -316,7 +337,8 @@ export default async function handler(req, res) {
       if (!quotation) return res.status(404).json({ success: false, error: 'Quotation not found' })
       const request = await ServiceRequest.findById(quotation.requestId).lean()
       if (!request) return res.status(404).json({ success: false, error: 'Linked request not found' })
-      return renderServiceDocument(res, 'quotation', { ...request, quotation })
+      const brand = await getPdfBrand(request.institution || 'msec')
+      return renderServiceDocument(res, 'quotation', { ...request, quotation }, brand)
     }
 
     if (type === 'purchase-order') {
@@ -332,6 +354,7 @@ export default async function handler(req, res) {
         { $set: { qrTokenHash: hashPoQrToken(poQrToken), qrIssuedAt: new Date() } }
       )
       const linkedRequest = po.requestId ? await ServiceRequest.findById(po.requestId).lean() : null
+      const brand = await getPdfBrand(linkedRequest?.institution || 'msec')
       if (!po.vendorAddress && po.vendorId) {
         const vendor = await Vendor.findById(po.vendorId).select('address').lean()
         if (vendor?.address) po.vendorAddress = vendor.address
@@ -368,7 +391,7 @@ export default async function handler(req, res) {
       res.setHeader('Content-Disposition', `attachment; filename="${po.poNumber}.pdf"`)
       const doc = new PDFDocument({ size: 'A4', margin: 42, bufferPages: true, info: {
         Title: `Purchase Order ${po.poNumber}`,
-        Author: 'MSEC CampusServe',
+        Author: `${brand.shortName} CampusServe`,
         Subject: linkedRequest ? `${poDocumentTitle} for ${linkedRequest.requestNumber}` : `Official ${poDocumentTitle.toLowerCase()}`
       } })
       doc.pipe(res)
@@ -384,9 +407,7 @@ export default async function handler(req, res) {
         accentSoft: '#fbf0dc',
         white: '#ffffff'
       }
-      const monochromeLogo = LOGO_PATH
-        ? await sharp(LOGO_PATH).grayscale().png().toBuffer()
-        : null
+      const institutionLogo = brand.primaryLogo
       const sectionTitle = title => {
         const y = doc.y
         doc.rect(left, y + 3, 18, 2).fill(PO.accent)
@@ -411,19 +432,21 @@ export default async function handler(req, res) {
         const textX = left + logoWidth + 14
         const qrSize = 58
         const textWidth = width - logoWidth - qrSize - 24
-        if (monochromeLogo) doc.image(monochromeLogo, left, headerTop, { width: logoWidth, height: logoHeight })
+        if (institutionLogo) doc.image(institutionLogo, left, headerTop, { fit: [logoWidth, brand.secondaryLogo ? 48 : logoHeight], align: 'center', valign: 'center' })
+        if (brand.secondaryLogo) doc.image(brand.secondaryLogo, left, headerTop + 51, { fit: [logoWidth, 19], align: 'center', valign: 'center' })
         doc.image(gateQrImage, right - qrSize, headerTop, { width: qrSize, height: qrSize })
         doc.fillColor(PO.muted).font('Helvetica-Bold').fontSize(6)
           .text(isServicePo ? 'SERVICE LOGIN' : 'GATE VERIFY', right - qrSize, headerTop + qrSize + 2, { width: qrSize, align: 'center', lineBreak: false })
         doc.fillColor(PO.black).font('Helvetica-Bold').fontSize(10.8)
-          .text('MEENAKSHI SUNDARARAJAN ENGINEERING COLLEGE', textX, headerTop + 3, { width: textWidth, align: 'center', lineBreak: false })
+          .text(String(brand.fullName || brand.shortName).toUpperCase(), textX, headerTop + 3, { width: textWidth, align: 'center', lineBreak: false })
         doc.fillColor(PO.muted).font('Helvetica').fontSize(7.7)
-          .text('AN AUTONOMOUS INSTITUTION AFFILIATED TO ANNA UNIVERSITY', textX, headerTop + 21, { width: textWidth, align: 'center', lineBreak: false })
-        doc.text('363, Arcot Road, Kodambakkam, Chennai - 600024', textX, headerTop + 34, { width: textWidth, align: 'center', lineBreak: false })
+          .text(String(brand.affiliation || '').toUpperCase(), textX, headerTop + 19, { width: textWidth, align: 'center', lineBreak: false })
+        doc.text(brand.documentAddress, textX, headerTop + 31, { width: textWidth, align: 'center', lineBreak: false })
+        doc.fontSize(6.5).text([brand.contactLine, brand.website].filter(Boolean).join(' | '), textX, headerTop + 42, { width: textWidth, align: 'center', lineBreak: false })
         doc.fillColor(PO.black).font('Helvetica-Bold').fontSize(8)
-          .text('MSEC CAMPUSSERVE', textX, headerTop + 48, { width: textWidth, align: 'center', characterSpacing: 0.6, lineBreak: false })
+          .text(`${brand.shortName} CAMPUSSERVE`.toUpperCase(), textX, headerTop + 53, { width: textWidth, align: 'center', characterSpacing: 0.6, lineBreak: false })
         doc.fillColor(PO.black).font('Times-Bold').fontSize(isServicePo ? 15 : 17)
-          .text(subtitle, textX, headerTop + 65, { width: textWidth, align: 'center', characterSpacing: isServicePo ? 0.75 : 1.25, lineBreak: false })
+          .text(subtitle, textX, headerTop + 68, { width: textWidth, align: 'center', characterSpacing: isServicePo ? 0.75 : 1.25, lineBreak: false })
         doc.strokeColor(PO.black).lineWidth(1).moveTo(left, headerTop + 96).lineTo(right, headerTop + 96).stroke()
         doc.strokeColor(PO.accent).lineWidth(2).moveTo(left, headerTop + 96).lineTo(left + 54, headerTop + 96).stroke()
         doc.y = headerTop + 110
@@ -446,8 +469,8 @@ export default async function handler(req, res) {
       field(isServicePo ? 'Service Provider' : 'Vendor', po.vendorName, left + 10, detailsY + 12, 227)
       field('Vendor Address', po.vendorAddress || 'N/A', left + 10, detailsY + 36, 227)
       field('Email', po.vendorEmail || 'N/A', left + 10, detailsY + 60, 227)
-      field(isServicePo ? 'Service At' : 'Deliver To', po.deliveryAddress, 316, detailsY + 12, 227)
-      field(isServicePo ? 'Asset / Location' : 'Location', po.deliveryLocation || linkedRequest?.location || 'MSEC Campus', 316, detailsY + 60, 227)
+      field(isServicePo ? 'Service At' : 'Deliver To', linkedRequest ? brand.documentAddress : (po.deliveryAddress || brand.documentAddress), 316, detailsY + 12, 227)
+      field(isServicePo ? 'Asset / Location' : 'Location', po.deliveryLocation || linkedRequest?.location || `${brand.shortName} Campus`, 316, detailsY + 60, 227)
       doc.y = detailsY + 98
 
       const adminDescription = po.adminDescription || linkedRequest?.description
@@ -606,7 +629,8 @@ export default async function handler(req, res) {
 
     // All service documents use the same institutional PDF system as Academics:
     // crest-led header, bordered metadata, proper tables, signatures and page footers.
-    return renderServiceDocument(res, type, request)
+    const brand = await getPdfBrand(request.institution || 'msec')
+    return renderServiceDocument(res, type, request, brand)
 
     // Set headers for PDF download
     res.setHeader('Content-Type', 'application/pdf')

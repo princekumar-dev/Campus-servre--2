@@ -8,6 +8,7 @@ import { Search, PlusCircle, ChevronRight, X, ChevronLeft, Filter, ClipboardList
 import { PageHeader } from '../components/ui'
 import ConfirmDialog from '../components/ConfirmDialog'
 import RefreshButton from '../components/RefreshButton'
+import InstitutionBadge from '../components/InstitutionBadge'
 import { getRoleActionStatuses, getWorkflowGuidance, getWorkflowPhase } from '../utils/workflowGuidance'
 
 const TRACKING_FILTERS = {
@@ -397,7 +398,7 @@ function Requests() {
                 >
                   <div className="flex min-w-0 items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
-                      <p className="truncate font-mono text-xs font-bold text-violet-600">{req.requestNumber}</p>
+                      <div className="flex min-w-0 flex-wrap items-center gap-2"><p className="truncate font-mono text-xs font-bold text-violet-600">{req.requestNumber}</p><InstitutionBadge institution={req.institution} compact /></div>
                       <h3 className="mt-1 break-words text-sm font-bold leading-snug text-slate-800">{req.title}</h3>
                     </div>
                     <ChevronRight size={18} className="mt-1 flex-shrink-0 text-slate-400" />
@@ -448,7 +449,7 @@ function Requests() {
                   {paginatedRequests.map((req) => (
                     <tr key={req._id} className={`table-row-hover border-l-3 ${getPriorityBorder(req.priority)} ${getWorkflowGuidance(req.status, auth?.role, req).isMyTurn ? 'bg-violet-50/30' : ''}`}>
                       <td className="py-4 px-6">
-                        <span className="font-mono text-xs text-violet-600 font-bold">{req.requestNumber}</span>
+                        <div className="flex flex-col items-start gap-1.5"><span className="font-mono text-xs text-violet-600 font-bold">{req.requestNumber}</span><InstitutionBadge institution={req.institution} compact /></div>
                       </td>
                       <td className="py-4 px-2">
                         <div className="font-semibold text-slate-800 text-xs">{req.title}</div>

@@ -29,7 +29,7 @@ export default async function handler(req, res) {
       if (!['gate', 'admin', 'super_admin'].includes(actorRole)) {
         return res.status(403).json({ success: false, error: 'Gate access is required' })
       }
-      if (!requireGateLocation(req, res).allowed) return
+      if (!(await requireGateLocation(req, res)).allowed) return
       const poCode = String(req.body?.code || '').trim().toUpperCase()
       if (!/^PO-\d{4}-\d{6}$/.test(poCode)) {
         return res.status(400).json({ success: false, error: 'Enter a valid PO number such as PO-2026-123456' })
@@ -75,7 +75,7 @@ export default async function handler(req, res) {
 
     // ── GET /api/gate?action=po-details&token=... — PO QR landing data ───────
     if (req.method === 'GET' && action === 'po-details') {
-      if (!requireGateLocation(req, res).allowed) return
+      if (!(await requireGateLocation(req, res)).allowed) return
       if (actorRole !== 'gate' || req.user?.scanPortal !== 'gate') {
         return res.status(403).json({ success: false, error: 'Fresh Gate Officer login is required for this PO scan' })
       }

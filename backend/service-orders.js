@@ -50,7 +50,7 @@ export default async function serviceOrdersHandler(req, res) {
       if (!qrPoId || qrPoId !== id) {
         return res.status(403).json({ success: false, code: 'INVALID_PO_QR', error: 'Invalid or altered Service PO QR code' })
       }
-      if (!requireGateLocation(req, res, { boundaryBufferMeters: serviceBoundaryBufferMeters }).allowed) return
+      if (!(await requireGateLocation(req, res, { boundaryBufferMeters: serviceBoundaryBufferMeters, settingKey: 'servicePoGeofenceEnabled' })).allowed) return
     }
     if (!id && req.method === 'GET') {
       const serviceRequests = await ServiceRequest.find({ 'adminAssessment.requirementType': 'MAINTENANCE' }).select('_id title location assetCode').lean()

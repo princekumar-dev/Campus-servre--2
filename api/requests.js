@@ -24,6 +24,7 @@ export default async function handler(req, res) {
       if (id) {
         const request = await ServiceRequest.findById(id).lean()
         if (!request) return res.status(404).json({ success: false, error: 'Request not found' })
+        request.institution = request.institution || 'msec'
         request.isEscalated = Boolean(request.slaDueAt && new Date(request.slaDueAt) < new Date() && !['CLOSED', 'REJECTED', 'CANCELLED'].includes(request.status))
         return res.status(200).json({ success: true, data: request })
       }
@@ -50,19 +51,20 @@ export default async function handler(req, res) {
       let requestsQuery = ServiceRequest.find(filter).sort({ createdAt: -1 })
       if (summary === 'dashboard') {
         requestsQuery = requestsQuery
-          .select('requestNumber title priority status updatedAt createdAt slaDueAt')
+          .select('requestNumber institution title priority status updatedAt createdAt slaDueAt')
           .limit(8)
       } else {
         // List screens only render these summary fields. Avoid transferring the
         // embedded evidence, quotation, invoice, work order, and audit history.
         requestsQuery = requestsQuery.select(
-          'requestNumber title category location priority status requesterId requesterName assignedManagerId assignedManagerName adminAssessment.requirementType currentOwnerRole slaDueAt submittedAt createdAt updatedAt'
+          'requestNumber institution title category location priority status requesterId requesterName assignedManagerId assignedManagerName adminAssessment.requirementType currentOwnerRole slaDueAt submittedAt createdAt updatedAt'
         )
       }
       const requests = await requestsQuery.lean()
       const now = Date.now()
       const data = requests.map(item => ({
         ...item,
+        institution: item.institution || 'msec',
         // Legacy requests predate automatic timestamps. Use their latest audit
         // entry (or creation time) so list views never render an empty update.
         updatedAt: item.updatedAt || item.statusHistory?.[item.statusHistory.length - 1]?.createdAt || item.createdAt,
@@ -114,6 +116,7 @@ export default async function handler(req, res) {
 
         const newRequest = new ServiceRequest({
           requestNumber,
+          institution: requester.institution || 'msec',
           title,
           category,
           location,

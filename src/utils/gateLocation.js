@@ -1,4 +1,12 @@
-export function getGateLocation() {
+export async function getGateLocation(scope = 'goods') {
+  try {
+    const response = await fetch('/api/settings')
+    const data = await response.json()
+    const settingKey = scope === 'service' ? 'servicePoGeofenceEnabled' : 'goodsPoGeofenceEnabled'
+    if (data?.success && data.settings?.[settingKey] === false) return { geofenceBypassed: true }
+  } catch {
+    // Fail closed: use normal GPS enforcement if policy cannot be loaded.
+  }
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
       reject(new Error('Location access is not supported by this device.'))
@@ -24,6 +32,7 @@ export function getGateLocation() {
 }
 
 export function locationQuery(location) {
+  if (location?.geofenceBypassed) return ''
   return new URLSearchParams({
     latitude: String(location.latitude),
     longitude: String(location.longitude),

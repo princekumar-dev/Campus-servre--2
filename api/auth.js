@@ -12,7 +12,7 @@ export default async function handler(req, res) {
     try {
       await connectToDatabase()
       
-      const { email, password, portal, scanTarget: requestedScanTarget } = req.body
+      const { email, password, institution, portal, scanTarget: requestedScanTarget } = req.body
 
       if (!email || !password) {
         return res.status(400).json({
@@ -46,6 +46,17 @@ export default async function handler(req, res) {
         })
       }
 
+      const institutionRoles = ['requester', 'staff', 'hod']
+      if (institutionRoles.includes(user.role)) {
+        const accountInstitution = user.institution || 'msec'
+        if (!institution) {
+          return res.status(400).json({ success: false, error: 'Select your institution before signing in.' })
+        }
+        if (institution !== accountInstitution) {
+          return res.status(403).json({ success: false, error: 'This account does not belong to the selected institution.' })
+        }
+      }
+
       const scanPortal = ['gate', 'service'].includes(portal) ? portal : ''
       const scanTarget = String(requestedScanTarget || '').split('?')[0]
       const validScanTarget = scanPortal === 'gate'
@@ -75,6 +86,7 @@ export default async function handler(req, res) {
           email: user.email,
           name: user.name,
           role: user.role,
+          institution: user.institution || (institutionRoles.includes(user.role) ? 'msec' : ''),
           department: user.department,
           phoneNumber: user.phoneNumber,
           eSignature: user.eSignature || null

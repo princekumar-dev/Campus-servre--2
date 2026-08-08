@@ -3506,6 +3506,10 @@ body, button, input, select, textarea, h1, h2, h3, h4, h5, h6, span, p, div, a {
   box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.1);
 }
 
+.institution-swipe::-webkit-scrollbar {
+  display: none;
+}
+
 /* Table row hover */
 .table-row-hover {
   position: relative;
