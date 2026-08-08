@@ -96,7 +96,7 @@ export default function PurchaseOrderDetails() {
   const fetchPO = useCallback(async () => {
     setIsLoading(true)
     try {
-      const res = await apiClient.get(`/api/purchase-orders?id=${id}`)
+      const res = await apiClient.get(`/api/purchase-orders?id=${id}`, { cache: false, dedupe: false })
       if (res.success) setPo(res.data)
       else showError('Not Found', res.error)
     } catch (err) { showError('Error', err.message) }
@@ -120,7 +120,12 @@ export default function PurchaseOrderDetails() {
     setActionLoading(true)
     try {
       const res = await apiClient.post(`/api/purchase-orders?id=${id}&action=${action}`, payload)
-      if (res.success) { showSuccess('Success', `PO ${action.replace(/-/g, ' ')} completed`); fetchPO(); setComment(''); return true }
+      if (res.success) {
+        if (res.data) setPo(res.data)
+        showSuccess('Success', `PO ${action.replace(/-/g, ' ')} completed`)
+        setComment('')
+        return true
+      }
       showError('Action Failed', res.error)
     } catch (err) { showError('Error', err.message) }
     finally { setActionLoading(false) }

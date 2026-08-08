@@ -4,7 +4,7 @@ const guidance = {
   UNDER_ADMIN_REVIEW: { tab: 'Overview', owner: 'admin', title: 'Complete the administrative review', description: 'Approve, reject, or return the request with a clear comment.' },
   CLARIFICATION_REQUIRED: { tab: 'History', owner: null, title: 'Archived clarification record', description: 'This status belongs to the previous service workflow and is available for reference only.' },
   REOPENED: { tab: 'Overview', owner: 'super_admin', title: 'Review the reopened request', description: 'Confirm the new information and move the request forward.' },
-  APPROVED: { tab: 'Overview', owner: 'super_admin', title: 'Assign an operations manager', description: 'Choose the manager who will inspect and scope the work.' },
+  APPROVED: { tab: 'Overview', owner: 'super_admin', title: 'Assign a Purchase Manager', description: 'Choose the Purchase Manager who will prepare the required order.' },
   ASSIGNED_TO_MANAGER: { tab: 'Quotation', owner: 'manager', title: 'Collect and compare quotations', description: 'Add vendor quotations for this indent, select the preferred offer, then generate the PO.' },
   PURCHASE_ORDER_CREATED: { tab: 'Overview', owner: null, title: 'Purchase order generated', description: 'The assigned manager generated the purchase order for this request.' },
   UNDER_INSPECTION: { tab: 'Diagnosis', owner: 'manager', title: 'Finish the inspection', description: 'Complete the diagnosis so a quotation can be prepared.' },

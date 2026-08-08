@@ -294,7 +294,7 @@ export default async function handler(req, res) {
         if (!managerId) return res.status(400).json({ success: false, error: 'Manager is required' })
         const manager = await User.findById(managerId).lean()
         if (!manager || manager.role !== 'manager' || manager.isActive === false) {
-          return res.status(404).json({ success: false, error: 'Select an active manager' })
+          return res.status(404).json({ success: false, error: 'Select an active Purchase Manager' })
         }
         request.adminAssessment = {
           requirementType,

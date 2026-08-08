@@ -27,9 +27,13 @@ async function getPdfBrand(institution = 'msec') {
   const settings = await getSystemSettings()
   const profile = settings.institutions?.find(item => item.id === institution) || settings.institutions?.find(item => item.id === 'msec')
   const logos = []
-  for (const fileName of (INSTITUTION_LOGOS[institution] || INSTITUTION_LOGOS.msec)) {
+  for (const [index, fileName] of (INSTITUTION_LOGOS[institution] || INSTITUTION_LOGOS.msec).entries()) {
     const logoPath = path.resolve(process.cwd(), 'public', 'images', fileName)
-    if (fs.existsSync(logoPath)) logos.push(await sharp(logoPath).png().toBuffer())
+    if (fs.existsSync(logoPath)) {
+      const image = sharp(logoPath)
+      if (index > 0) image.trim({ background: '#ffffff' })
+      logos.push(await image.png().toBuffer())
+    }
   }
   return { id: institution, ...profile, primaryLogo: logos[0] || null, secondaryLogo: logos[1] || null }
 }
@@ -210,7 +214,7 @@ function renderServiceDocument(res, type, request, brand) {
         ['Request reference', request.requestNumber], ['Subject', request.title],
         ['Requester', `${request.requesterName || 'N/A'} (${request.requesterEmail || 'N/A'})`],
         ['Department / Category', request.department || request.category], ['Location', request.location],
-        ['Valid until', dateText(request.quotation.validUntil)], ['Created by', request.quotation.createdBy || 'Service Manager']
+        ['Valid until', dateText(request.quotation.validUntil)], ['Created by', request.quotation.createdBy || 'Purchase Manager']
       ],
       headers: ['#', 'Description', 'Qty', 'Unit price', 'Tax', 'Amount'], widths: [28, 202, 48, 78, 52, 87],
       rows: (request.quotation.items || []).map((item, index) => [index + 1, item.description, item.quantity, money(item.unitPrice), `${Number(item.taxRate || 0)}%`, money(item.lineTotal)]),
@@ -235,7 +239,7 @@ function renderServiceDocument(res, type, request, brand) {
         ['Request reference', request.requestNumber], ['Subject', request.title],
         ['Service provider', 'Campus Maintenance Department'],
         ['Requester', `${request.requesterName || 'N/A'} (${request.requesterEmail || 'N/A'})`],
-        ['Created by', request.invoice.createdBy || 'Service Manager'], ['Invoice date', dateText(request.invoice.createdAt || request.updatedAt)]
+        ['Created by', request.invoice.createdBy || 'Purchase Manager'], ['Invoice date', dateText(request.invoice.createdAt || request.updatedAt)]
       ],
       headers: ['#', 'Description', 'Qty', 'Unit price', 'Amount'], widths: [28, 246, 52, 82, 87],
       rows: (request.invoice.items || []).map((item, index) => [index + 1, item.description, item.quantity, money(item.unitPrice), money(item.lineTotal)]),
@@ -432,8 +436,8 @@ export default async function handler(req, res) {
         const textX = left + logoWidth + 14
         const qrSize = 58
         const textWidth = width - logoWidth - qrSize - 24
-        if (institutionLogo) doc.image(institutionLogo, left, headerTop, { fit: [logoWidth, brand.secondaryLogo ? 48 : logoHeight], align: 'center', valign: 'center' })
-        if (brand.secondaryLogo) doc.image(brand.secondaryLogo, left, headerTop + 51, { fit: [logoWidth, 19], align: 'center', valign: 'center' })
+        if (institutionLogo) doc.image(institutionLogo, left, headerTop, { fit: [logoWidth, brand.secondaryLogo ? 45 : logoHeight], align: 'center', valign: 'center' })
+        if (brand.secondaryLogo) doc.image(brand.secondaryLogo, left - 4, headerTop + 48, { fit: [logoWidth + 8, 38], align: 'center', valign: 'center' })
         doc.image(gateQrImage, right - qrSize, headerTop, { width: qrSize, height: qrSize })
         doc.fillColor(PO.muted).font('Helvetica-Bold').fontSize(6)
           .text(isServicePo ? 'SERVICE LOGIN' : 'GATE VERIFY', right - qrSize, headerTop + qrSize + 2, { width: qrSize, align: 'center', lineBreak: false })
@@ -442,11 +446,10 @@ export default async function handler(req, res) {
         doc.fillColor(PO.muted).font('Helvetica').fontSize(7.7)
           .text(String(brand.affiliation || '').toUpperCase(), textX, headerTop + 19, { width: textWidth, align: 'center', lineBreak: false })
         doc.text(brand.documentAddress, textX, headerTop + 31, { width: textWidth, align: 'center', lineBreak: false })
-        doc.fontSize(6.5).text([brand.contactLine, brand.website].filter(Boolean).join(' | '), textX, headerTop + 42, { width: textWidth, align: 'center', lineBreak: false })
         doc.fillColor(PO.black).font('Helvetica-Bold').fontSize(8)
-          .text(`${brand.shortName} CAMPUSSERVE`.toUpperCase(), textX, headerTop + 53, { width: textWidth, align: 'center', characterSpacing: 0.6, lineBreak: false })
+          .text(`${brand.shortName} CAMPUSSERVE`.toUpperCase(), textX, headerTop + 46, { width: textWidth, align: 'center', characterSpacing: 0.6, lineBreak: false })
         doc.fillColor(PO.black).font('Times-Bold').fontSize(isServicePo ? 15 : 17)
-          .text(subtitle, textX, headerTop + 68, { width: textWidth, align: 'center', characterSpacing: isServicePo ? 0.75 : 1.25, lineBreak: false })
+          .text(subtitle, textX, headerTop + 63, { width: textWidth, align: 'center', characterSpacing: isServicePo ? 0.75 : 1.25, lineBreak: false })
         doc.strokeColor(PO.black).lineWidth(1).moveTo(left, headerTop + 96).lineTo(right, headerTop + 96).stroke()
         doc.strokeColor(PO.accent).lineWidth(2).moveTo(left, headerTop + 96).lineTo(left + 54, headerTop + 96).stroke()
         doc.y = headerTop + 110
@@ -671,7 +674,7 @@ export default async function handler(req, res) {
       doc.font('Helvetica-Bold').text('Requester:', labelX, doc.y).font('Helvetica').text(`${request.requesterName} (${request.requesterEmail})`, valX)
       doc.font('Helvetica-Bold').text('Department & Location:', labelX, doc.y).font('Helvetica').text(`${request.category} - ${request.location}`, valX)
       doc.font('Helvetica-Bold').text('Validity:', labelX, doc.y).font('Helvetica').text(new Date(q.validUntil).toLocaleDateString(), valX)
-      doc.font('Helvetica-Bold').text('Created By:', labelX, doc.y).font('Helvetica').text(q.createdBy || 'Service Manager', valX)
+      doc.font('Helvetica-Bold').text('Created By:', labelX, doc.y).font('Helvetica').text(q.createdBy || 'Purchase Manager', valX)
       doc.moveDown()
 
       doc.strokeColor('#e5e7eb').lineWidth(1).moveTo(50, doc.y).lineTo(545, doc.y).stroke()
@@ -774,7 +777,7 @@ export default async function handler(req, res) {
       doc.font('Helvetica-Bold').text('Subject Title:', labelX, doc.y).font('Helvetica').text(request.title, valX)
       doc.font('Helvetica-Bold').text('Service Provider:', labelX, doc.y).font('Helvetica').text('Campus Maintenance Department', valX)
       doc.font('Helvetica-Bold').text('Requester:', labelX, doc.y).font('Helvetica').text(`${request.requesterName} (${request.requesterEmail})`, valX)
-      doc.font('Helvetica-Bold').text('Created By:', labelX, doc.y).font('Helvetica').text(inv.createdBy || 'Service Manager', valX)
+      doc.font('Helvetica-Bold').text('Created By:', labelX, doc.y).font('Helvetica').text(inv.createdBy || 'Purchase Manager', valX)
       doc.moveDown()
 
       doc.strokeColor('#e5e7eb').lineWidth(1).moveTo(50, doc.y).lineTo(545, doc.y).stroke()

@@ -772,19 +772,19 @@ function RequestDetails() {
                   </div>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div>
-                      <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-600">Assign manager <span className="text-rose-500">*</span></label>
+                      <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-600">Assign Purchase Manager <span className="text-rose-500">*</span></label>
                       <select value={assignedManagerId} onChange={e => setAssignedManagerId(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500">
-                        <option value="">Select an active manager</option>
-                        {managers.map(m => <option key={m._id} value={m._id}>{m.name} ({m.department})</option>)}
+                        <option value="">Select an active Purchase Manager</option>
+                        {managers.map(m => <option key={m._id} value={m._id}>{String(m.name || 'Purchase Manager').replace(/^Service Manager$/i, 'Purchase Manager')}</option>)}
                       </select>
                     </div>
                     <div>
                       <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-600">Assessment note <span className="font-medium normal-case tracking-normal text-slate-400">(optional)</span></label>
-                      <textarea rows={2} placeholder="Add useful context for the manager..." value={adminComment} onChange={e => setAdminComment(e.target.value)} className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500" />
+                      <textarea rows={2} placeholder="Add useful context for the Purchase Manager..." value={adminComment} onChange={e => setAdminComment(e.target.value)} className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500" />
                     </div>
                   </div>
-                  <ActionButton onClick={() => handleWorkflowAction(`/api/requests?action=triage&id=${id}`, { requirementType, managerId: assignedManagerId, note: adminComment }, 'Confirm classification and assign this manager?')} disabled={!assignedManagerId} loading={actionLoading} className="w-full sm:w-auto">
-                    Verify & Assign Manager
+                  <ActionButton onClick={() => handleWorkflowAction(`/api/requests?action=triage&id=${id}`, { requirementType, managerId: assignedManagerId, note: adminComment }, 'Confirm classification and assign this Purchase Manager?')} disabled={!assignedManagerId} loading={actionLoading} className="w-full sm:w-auto">
+                    Verify & Assign Purchase Manager
                   </ActionButton>
                 </div>
               )}
@@ -831,7 +831,7 @@ function RequestDetails() {
                   ['Required Qty', request.requestedItem ? `${request.requestedQuantity} ${request.requestedUnit || 'pcs'}` : 'N/A'],
                   ['Requirement', request.adminAssessment?.requirementType ? request.adminAssessment.requirementType.replace(/_/g, ' ') : 'Pending triage'],
                   ['Created', new Date(request.createdAt).toLocaleDateString()],
-                  ['Manager', request.assignedManagerName || 'Unassigned'],
+                  ['Purchase Manager', String(request.assignedManagerName || 'Unassigned').replace(/^Service Manager$/i, 'Purchase Manager')],
                 ].map(([label, value]) => (
                   <div key={label} className="flex justify-between">
                     <span className="text-slate-500 font-medium">{label}</span>

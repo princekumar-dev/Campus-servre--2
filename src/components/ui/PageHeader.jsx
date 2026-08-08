@@ -1,7 +1,7 @@
 const ROLE_LABELS = {
   admin: 'Administrator',
   super_admin: 'Super Admin',
-  manager: 'Operations Manager',
+  manager: 'Purchase Manager',
   accounts: 'Accounts',
   vendor: 'Vendor Portal',
   gate: 'Gate Security',

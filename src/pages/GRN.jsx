@@ -52,7 +52,8 @@ function CreateGRNModal({ onClose, onSaved }) {
     }
   }
 
-  const updateItem = (idx, field, val) => setItems(p => p.map((item, i) => i === idx ? { ...item, [field]: Number(val) } : item))
+  const updateItem = (idx, field, val) => setItems(p => p.map((item, i) => i === idx ? { ...item, [field]: val === '' ? '' : Number(val) } : item))
+  const normalizeEmptyQuantity = (idx, field) => setItems(p => p.map((item, i) => i === idx && item[field] === '' ? { ...item, [field]: 0 } : item))
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -62,7 +63,13 @@ function CreateGRNModal({ onClose, onSaved }) {
       const res = await apiClient.post('/api/grn', {
         poId: selectedPO._id,
         deliveryScheduleId: selectedDelivery || undefined,
-        items,
+        items: items.map(item => ({
+          ...item,
+          quantityDeliveredNow: Number(item.quantityDeliveredNow || 0),
+          quantityAcceptedNow: Number(item.quantityAcceptedNow || 0),
+          quantityDamaged: Number(item.quantityDamaged || 0),
+          quantityRejected: Number(item.quantityRejected || 0)
+        })),
         remarks
       })
       if (res.success) {
@@ -130,8 +137,10 @@ function CreateGRNModal({ onClose, onSaved }) {
                           <div key={field}>
                             <label className={`text-[11px] font-bold uppercase tracking-wider ${color} mb-1 block`}>{label}</label>
                             <input
-                              type="number" min="0" value={item[field]}
+                              type="number" min="0" inputMode="decimal" value={item[field]}
                               onChange={e => updateItem(idx, field, e.target.value)}
+                              onFocus={e => e.currentTarget.select()}
+                              onBlur={() => normalizeEmptyQuantity(idx, field)}
                               className="w-full bg-white border border-slate-200 rounded-lg p-2 text-sm font-bold text-center focus:outline-none focus:border-violet-500 transition-all"
                             />
                           </div>
