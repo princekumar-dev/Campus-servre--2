@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
-import { CheckCircle2, FileText, Plus, Upload, Wrench } from 'lucide-react'
+import { Camera, CheckCircle2, Images, Plus, Upload, Wrench } from 'lucide-react'
 import apiClient from '../utils/apiClient'
 import { useAlert } from '../components/AlertContext'
 import { getAuthOrNull } from '../utils/auth'
@@ -79,6 +79,29 @@ export default function ServicePOWorkspace() {
     return false
   }
 
+  const selectExpenseBill = async event => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    try {
+      const bill = await readFile(file)
+      setExpense(current => ({ ...current, bill }))
+    } catch (error) {
+      showError('Bill upload failed', error.message)
+    }
+  }
+
+  const selectWorkEvidence = async event => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    try {
+      await run('evidence', { file: await readFile(file) })
+    } catch (error) {
+      showError('Evidence upload failed', error.message)
+    }
+  }
+
   const total = useMemo(() => (data?.data.serviceExecution?.expenses || []).reduce((sum, item) => sum + Number(item.amount || 0), 0), [data])
   if (loading) return <div className="py-20 text-center text-sm text-slate-500">Opening service workspace…</div>
   if (!data) return (
@@ -129,17 +152,17 @@ export default function ServicePOWorkspace() {
             </select>
             <input value={expense.description} onChange={e => setExpense(current => ({ ...current, description: e.target.value }))} placeholder="Cost description (optional)" className="rounded-xl border-slate-200 text-sm"/>
             <input type="number" min="0.01" step="0.01" value={expense.amount} onChange={e => setExpense(current => ({ ...current, amount: e.target.value }))} placeholder="Amount (₹)" className="rounded-xl border-slate-200 text-sm"/>
-            <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-dashed border-violet-300 bg-violet-50 p-3 text-xs font-bold text-violet-700">
-              <Upload size={16}/>{expense.bill?.name || 'Upload scanned bill (image or PDF)'}
-              <input className="hidden" type="file" accept="image/*,.pdf" onChange={async e => {
-                const file = e.target.files?.[0]
-                if (!file) return
-                try {
-                  const bill = await readFile(file)
-                  setExpense(current => ({ ...current, bill }))
-                } catch (error) { showError('Bill upload failed', error.message) }
-              }}/>
-            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-violet-300 bg-violet-50 p-3 text-center text-xs font-bold text-violet-700">
+                <Camera size={16}/> Take Bill Photo
+                <input className="hidden" type="file" accept="image/*" capture="environment" onChange={selectExpenseBill}/>
+              </label>
+              <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-violet-300 bg-white p-3 text-center text-xs font-bold text-violet-700">
+                <Upload size={16}/> Choose Image/PDF
+                <input className="hidden" type="file" accept="image/*,.pdf" onChange={selectExpenseBill}/>
+              </label>
+            </div>
+            {expense.bill && <p className="truncate text-xs font-bold text-violet-700">Selected: {expense.bill.name}</p>}
             {expense.bill && <p className="text-xs font-semibold text-emerald-700">Bill selected. Tap “Add cost and bill” to save it with the amount.</p>}
             <button type="button" disabled={saving} onClick={async () => {
               const amount = Number(expense.amount)
@@ -169,12 +192,16 @@ export default function ServicePOWorkspace() {
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="font-black text-slate-800">Work evidence and completion</h2>
           <p className="mt-1 text-xs text-slate-500">Upload repaired-asset photos, job sheets, or service reports.</p>
-          {!submitted && <label className="mt-5 flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 p-5 text-xs font-bold text-slate-600">
-            <FileText size={17}/> Upload work evidence
-            <input className="hidden" type="file" accept="image/*,.pdf" onChange={async e => {
-              if (e.target.files[0]) await run('evidence', { file: await readFile(e.target.files[0]) })
-            }}/>
-          </label>}
+          {!submitted && <div className="mt-5 grid grid-cols-2 gap-3">
+            <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 p-4 text-center text-xs font-bold text-slate-600">
+              <Camera size={17}/> Take Photo
+              <input className="hidden" type="file" accept="image/*" capture="environment" onChange={selectWorkEvidence}/>
+            </label>
+            <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 p-4 text-center text-xs font-bold text-slate-600">
+              <Images size={17}/> Gallery / File
+              <input className="hidden" type="file" accept="image/*,.pdf" onChange={selectWorkEvidence}/>
+            </label>
+          </div>}
           <p className="mt-3 text-xs font-semibold text-slate-500">{execution.workEvidence?.length || 0} evidence file(s) uploaded</p>
           <textarea disabled={submitted} rows="5" value={summary} onChange={e => setSummary(e.target.value)} placeholder="Describe the fault found, repair completed, and final condition…" className="mt-5 w-full rounded-xl border-slate-200 text-sm"/>
           {!submitted ? <button disabled={saving} onClick={async () => {

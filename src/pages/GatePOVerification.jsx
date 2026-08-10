@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { Building2, Camera, CheckCircle, ClipboardCheck, MapPin, Package, ShieldCheck, XCircle } from 'lucide-react'
+import { Building2, Camera, CheckCircle, ClipboardCheck, Images, MapPin, Package, ShieldCheck, XCircle } from 'lucide-react'
 import apiClient from '../utils/apiClient'
 import { useAlert } from '../components/AlertContext'
 import { getGateLocation, locationQuery } from '../utils/gateLocation'
@@ -83,7 +83,7 @@ export default function GatePOVerification() {
   }
 
   const updateQuantity = (index, field, value) => {
-    const quantity = Math.max(0, Number(value || 0))
+    const quantity = value === '' ? '' : Math.max(0, Number(value))
     setItems(current => current.map((item, itemIndex) =>
       itemIndex === index ? { ...item, [field]: quantity } : item
     ))
@@ -318,7 +318,9 @@ export default function GatePOVerification() {
                 ].map(([field, label, color]) => (
                   <label key={field} className={`text-xs font-bold ${color}`}>
                     {label}
-                    <input type="number" min="0" step="1" value={item[field]} onChange={event => updateQuantity(index, field, event.target.value)}
+                    <input type="number" min="0" step="1" inputMode="numeric" value={item[field]}
+                      onChange={event => updateQuantity(index, field, event.target.value)}
+                      onBlur={event => { if (event.target.value === '') updateQuantity(index, field, '0') }}
                       className="mt-1 w-full rounded-lg border border-slate-200 bg-white p-2.5 text-center text-sm font-bold text-slate-800 outline-none focus:border-violet-500" />
                   </label>
                 ))}
@@ -344,10 +346,16 @@ export default function GatePOVerification() {
               <button type="button" onClick={() => setReceiptEvidence(null)} aria-label="Remove proof photo" className="rounded-full p-1.5 text-slate-400 hover:bg-white hover:text-rose-600"><XCircle size={18} /></button>
             </div>
           ) : (
-            <label className="mt-3 flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-violet-200 bg-violet-50/50 px-4 py-5 text-sm font-bold text-violet-700 transition-colors hover:border-violet-400 hover:bg-violet-50">
-              <Camera size={18} /> Add Received Goods Photo
-              <input type="file" accept="image/jpeg,image/png" onChange={selectReceiptPhoto} className="sr-only" />
-            </label>
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-violet-300 bg-violet-50/50 px-3 py-4 text-center text-sm font-bold text-violet-700">
+                <Camera size={18} /> Take Photo
+                <input type="file" accept="image/jpeg,image/png" capture="environment" onChange={selectReceiptPhoto} className="sr-only" />
+              </label>
+              <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-violet-300 bg-white px-3 py-4 text-center text-sm font-bold text-violet-700">
+                <Images size={18} /> Gallery
+                <input type="file" accept="image/jpeg,image/png" onChange={selectReceiptPhoto} className="sr-only" />
+              </label>
+            </div>
           )}
           <p className="mt-2 text-xs text-slate-400">JPG or PNG, maximum 4 MB. This attachment is optional.</p>
         </div>
@@ -361,7 +369,10 @@ export default function GatePOVerification() {
                 <button type="button" onClick={() => setDamageEvidence(null)} aria-label="Remove damage proof" className="rounded-full p-1.5 text-slate-400 hover:text-rose-600"><XCircle size={18} /></button>
               </div>
             ) : (
-              <label className="mt-3 flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-rose-300 bg-white px-4 py-5 text-sm font-bold text-rose-700"><Camera size={18} /> Add Damage Photo<input type="file" accept="image/jpeg,image/png" onChange={selectDamagePhoto} className="sr-only" /></label>
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-rose-300 bg-white px-3 py-4 text-center text-sm font-bold text-rose-700"><Camera size={18} /> Take Photo<input type="file" accept="image/jpeg,image/png" capture="environment" onChange={selectDamagePhoto} className="sr-only" /></label>
+                <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-rose-300 bg-white px-3 py-4 text-center text-sm font-bold text-rose-700"><Images size={18} /> Gallery<input type="file" accept="image/jpeg,image/png" onChange={selectDamagePhoto} className="sr-only" /></label>
+              </div>
             )}
           </div>
         )}

@@ -430,7 +430,7 @@ export default async function handler(req, res) {
         doc.y = previousY
       }
       const drawHeader = subtitle => {
-        const headerTop = 42
+        const headerTop = 24
         const logoWidth = 64
         const logoHeight = 70
         const textX = left + logoWidth + 14
@@ -457,9 +457,9 @@ export default async function handler(req, res) {
           .text(`${brand.shortName} CAMPUSSERVE`.toUpperCase(), textX, headerTop + 56, { width: textWidth, align: 'center', characterSpacing: 0.6, lineBreak: false })
         doc.fillColor(PO.black).font('Times-Bold').fontSize(isServicePo ? 15 : 17)
           .text(subtitle, textX, headerTop + 72, { width: textWidth, align: 'center', characterSpacing: isServicePo ? 0.75 : 1.25, lineBreak: false })
-        doc.strokeColor(PO.black).lineWidth(1).moveTo(left, headerTop + 105).lineTo(right, headerTop + 105).stroke()
-        doc.strokeColor(PO.accent).lineWidth(2).moveTo(left, headerTop + 105).lineTo(left + 54, headerTop + 105).stroke()
-        doc.y = headerTop + 119
+        doc.strokeColor(PO.black).lineWidth(1).moveTo(left, headerTop + 96).lineTo(right, headerTop + 96).stroke()
+        doc.strokeColor(PO.accent).lineWidth(2).moveTo(left, headerTop + 96).lineTo(left + 54, headerTop + 96).stroke()
+        doc.y = headerTop + 105
       }
 
       drawHeader(poDocumentTitle)
