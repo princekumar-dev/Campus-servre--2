@@ -1,6 +1,6 @@
 import { connectToDatabase } from '../lib/mongo.js'
 import { SystemSettings, AuditLog } from '../models.js'
-import { DEFAULT_SYSTEM_SETTINGS, getSystemSettings, sanitizeSystemSettings } from '../lib/systemSettings.js'
+import { DEFAULT_SYSTEM_SETTINGS, getSystemSettings, invalidateSystemSettingsCache, sanitizeSystemSettings } from '../lib/systemSettings.js'
 
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end()
@@ -19,14 +19,15 @@ export default async function handler(req, res) {
       !institution.shortName || !institution.fullName || !institution.defaultDepartment || !institution.affiliation || !institution.documentAddress || !institution.contactLine || !institution.website ||
       !/^@[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?\.[a-z]{2,}$/i.test(institution.emailDomain)
     )
-    if (!updates.institutions || updates.institutions.length !== 5 || institutionIds.size !== 5 || invalidInstitution) {
-      return res.status(400).json({ success: false, error: 'Complete the name, email domain, and document details for all five institutions' })
+    if (!updates.institutions || updates.institutions.length !== 4 || institutionIds.size !== 4 || invalidInstitution) {
+      return res.status(400).json({ success: false, error: 'Complete the name, email domain, and document details for all four institutions' })
     }
     const settings = await SystemSettings.findOneAndUpdate(
       { key: 'global' },
       { $set: { ...DEFAULT_SYSTEM_SETTINGS, ...updates, updatedBy: req.user.name || req.user.email, updatedAt: new Date() } },
       { new: true, upsert: true, setDefaultsOnInsert: true }
     ).lean()
+    invalidateSystemSettingsCache()
     await AuditLog.create({
       entityType: 'SYSTEM_SETTINGS', entityId: 'global', action: 'UPDATED',
       actorId: req.user.id, actorName: req.user.name, actorRole: req.user.role,

@@ -346,7 +346,9 @@ export default async function handler(req, res) {
     }
 
     if (type === 'purchase-order') {
-      const po = await PurchaseOrder.findById(id).lean()
+      const po = await PurchaseOrder.findById(id)
+        .select('-signedPo.url -documentUrl -serviceExecution.workEvidence.url -serviceExecution.expenses.bill.url -statusHistory')
+        .lean()
       if (!po) return res.status(404).json({ success: false, error: 'Purchase Order not found' })
       const finalGrn = po.status === 'CLOSED'
         ? await GoodsReceipt.findOne({ poId: po._id, grnType: 'FINAL' }).sort({ createdAt: -1 }).lean()

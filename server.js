@@ -113,8 +113,10 @@ app.use((req, res, next) => {
   const start = Date.now();
   res.on('finish', () => {
     const ms = Date.now() - start;
-    // Log only slower requests to avoid noise
-    if (ms > 500) {
+    // Atlas-backed requests commonly take around one network round trip. Keep
+    // the threshold configurable and reserve warnings for actionable latency.
+    const slowRequestThresholdMs = Number(process.env.SLOW_REQUEST_THRESHOLD_MS || 1000);
+    if (ms > slowRequestThresholdMs) {
       console.warn(`Slow request: ${req.method} ${req.originalUrl} - ${ms}ms`);
     }
   });

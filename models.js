@@ -17,6 +17,7 @@ const UserSchema = new mongoose.Schema({
   isActive: { type: Boolean, default: true },
   createdAt: { type: Date, default: Date.now }
 })
+UserSchema.index({ role: 1, isActive: 1, name: 1 })
 
 // Service Request Schema for CampusServe
 const ServiceRequestSchema = new mongoose.Schema({
@@ -238,7 +239,7 @@ const VendorSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now },
   createdBy: { type: String }
 })
-VendorSchema.index({ status: 1 })
+VendorSchema.index({ status: 1, legalName: 1 })
 VendorSchema.index({ email: 1 })
 
 // ─── Vendor Quotation Schema ─────────────────────────────────────────────────

@@ -1,10 +1,10 @@
 import { connectToDatabase } from '../lib/mongo.js'
-import { GateEntry, DeliverySchedule, GoodsReceipt, PurchaseOrder, User, Vendor } from '../models.js'
+import { GateEntry, DeliverySchedule, GoodsReceipt, PurchaseOrder, User } from '../models.js'
 import crypto from 'crypto'
 import { isValidObjectId } from 'mongoose'
 import { createPoQrToken, verifyIssuedPoQrToken } from '../lib/poQrToken.js'
 import { addProductIds } from '../lib/productId.js'
-import { canReceivePo, getPoReceivingBlockReason, isSignedPoVerified } from '../lib/poReceiving.js'
+import { canReceivePo, getPoReceivingBlockReason } from '../lib/poReceiving.js'
 import { requireGateLocation } from '../lib/gateGeofence.js'
 
 const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex')
@@ -86,13 +86,10 @@ export default async function handler(req, res) {
         return res.status(403).json({ success: false, error: 'This Gate Officer login belongs to a different PO scan' })
       }
 
-      const po = await PurchaseOrder.findById(poId).lean()
+      const po = await PurchaseOrder.findById(poId)
+        .select('-signedPo.url -documentUrl -serviceExecution.workEvidence.url -serviceExecution.expenses.bill.url -statusHistory')
+        .lean()
       if (!po) return res.status(404).json({ success: false, error: 'Purchase Order not found' })
-      if (!po.vendorAddress && po.vendorId) {
-        const vendor = await Vendor.findById(po.vendorId).select('address').lean()
-        if (vendor?.address) po.vendorAddress = vendor.address
-      }
-      const signedPoVerified = isSignedPoVerified(po)
       const canReceive = canReceivePo(po)
 
       return res.json({

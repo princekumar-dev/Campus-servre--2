@@ -4,6 +4,24 @@ const roundMoney = value => Math.round((Number(value) + Number.EPSILON) * 100) /
 const normalizeUnit = value => ({ pieces: 'pcs', sets: 'set', units: 'unit', boxes: 'box', meters: 'm' }[String(value || '').toLowerCase()] || String(value || 'pcs').toLowerCase())
 const invalidOrder = message => Object.assign(new Error(message), { status: 400 })
 
+function withoutEmbeddedFiles(value) {
+  const po = typeof value?.toObject === 'function' ? value.toObject() : { ...value }
+  if (po.signedPo) {
+    po.signedPo = { ...po.signedPo, hasFile: Boolean(po.signedPo.url || po.signedPo.name) }
+    delete po.signedPo.url
+  }
+  delete po.documentUrl
+  if (po.serviceExecution) {
+    po.serviceExecution = { ...po.serviceExecution }
+    po.serviceExecution.workEvidence = (po.serviceExecution.workEvidence || []).map(file => ({ ...file, url: undefined }))
+    po.serviceExecution.expenses = (po.serviceExecution.expenses || []).map(expense => ({
+      ...expense,
+      bill: expense.bill ? { ...expense.bill, url: undefined } : expense.bill
+    }))
+  }
+  return po
+}
+
 let legacyQrReconciliationPromise = null
 
 async function reconcileLegacyQrClosures() {
@@ -81,9 +99,18 @@ export default async function handler(req, res) {
     // ── GET /api/purchase-orders ──────────────────────────────────────────────
     if (req.method === 'GET') {
       scheduleLegacyQrReconciliation()
-      if (id) {
-        const po = await PurchaseOrder.findById(id).lean()
+      if (id && action === 'signed-po') {
+        const po = await PurchaseOrder.findById(id).select('signedPo').lean()
         if (!po) return res.status(404).json({ success: false, error: 'PO not found' })
+        if (!po.signedPo?.url) return res.status(404).json({ success: false, error: 'Signed PO file not found' })
+        return res.json({ success: true, data: po.signedPo })
+      }
+      if (id) {
+        const po = await PurchaseOrder.findById(id)
+          .select('-signedPo.url -documentUrl -serviceExecution.workEvidence.url -serviceExecution.expenses.bill.url')
+          .lean()
+        if (!po) return res.status(404).json({ success: false, error: 'PO not found' })
+        if (po.signedPo) po.signedPo.hasFile = Boolean(po.signedPo.name)
         const [vendor, request] = await Promise.all([
           po.vendorId && !po.vendorAddress ? Vendor.findById(po.vendorId).select('address').lean() : null,
           po.requestId && (!po.adminDescription || !po.adminRequirementType || !po.adminAssessmentNote)
@@ -485,7 +512,7 @@ export default async function handler(req, res) {
           }).catch(error => console.warn('Unable to store signed PO workflow notification:', error.message))
         }
       }
-      return res.json({ success: true, data: po })
+      return res.json({ success: true, data: withoutEmbeddedFiles(po) })
     }
 
     // ── PATCH /api/purchase-orders?id= — Edit draft PO ───────────────────────
@@ -517,7 +544,7 @@ export default async function handler(req, res) {
         po.grandTotal = subtotal - discountTotal + taxTotal + (po.deliveryCharge || 0)
       }
       await po.save()
-      return res.json({ success: true, data: po })
+      return res.json({ success: true, data: withoutEmbeddedFiles(po) })
     }
 
     return res.status(405).json({ success: false, error: 'Method not allowed' })

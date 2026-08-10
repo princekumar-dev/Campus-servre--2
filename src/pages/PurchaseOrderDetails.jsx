@@ -87,6 +87,8 @@ export default function PurchaseOrderDetails() {
   const [signedUpload, setSignedUpload] = useState(null)
   const [activeTab, setActiveTab] = useState('Overview')
   const [signedPhotoOpen, setSignedPhotoOpen] = useState(false)
+  const [signedPhotoLoading, setSignedPhotoLoading] = useState(false)
+  const [signedPhotoAttempted, setSignedPhotoAttempted] = useState(false)
   const { showSuccess, showError } = useAlert()
   const auth = getAuthOrNull()
 
@@ -104,6 +106,28 @@ export default function PurchaseOrderDetails() {
   }, [id, showError])
 
   useEffect(() => { fetchPO() }, [fetchPO])
+  const loadSignedPo = useCallback(async () => {
+    if (!po?.signedPo?.hasFile || po.signedPo.url || signedPhotoLoading) return po?.signedPo?.url || ''
+    setSignedPhotoLoading(true)
+    try {
+      const res = await apiClient.get(`/api/purchase-orders?id=${id}&action=signed-po`, { cache: true, dedupe: true })
+      if (!res.success || !res.data?.url) throw new Error(res.error || 'Signed PO file is unavailable')
+      setPo(current => ({ ...current, signedPo: { ...current.signedPo, ...res.data, hasFile: true } }))
+      return res.data.url
+    } catch (error) {
+      showError('Preview unavailable', error.message)
+      return ''
+    } finally {
+      setSignedPhotoLoading(false)
+    }
+  }, [id, po?.signedPo?.hasFile, po?.signedPo?.url, showError, signedPhotoLoading])
+
+  useEffect(() => {
+    if (activeTab === 'Signed PO' && !signedPhotoAttempted) {
+      setSignedPhotoAttempted(true)
+      void loadSignedPo()
+    }
+  }, [activeTab, loadSignedPo, signedPhotoAttempted])
   useEffect(() => {
     if (!signedPhotoOpen) return undefined
     const closeOnEscape = event => { if (event.key === 'Escape') setSignedPhotoOpen(false) }

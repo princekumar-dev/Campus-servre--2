@@ -63,6 +63,11 @@ export default async function handler(req, res) {
       const filter = {}
       if (req.query.status) filter.status = req.query.status
       const vendors = await Vendor.find(filter).sort({ legalName: 1 }).lean()
+      // Active-vendor requests populate selectors and do not display aggregate
+      // order statistics. Avoid a second database round trip on that hot path.
+      if (req.query.status === 'ACTIVE') {
+        return res.json({ success: true, data: vendors, total: vendors.length })
+      }
       const vendorsWithStats = await attachPurchaseOrderStats(vendors)
       return res.json({ success: true, data: vendorsWithStats, total: vendorsWithStats.length })
     }
