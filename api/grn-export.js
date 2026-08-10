@@ -2,10 +2,10 @@ import PDFDocument from 'pdfkit'
 import JSZip from 'jszip'
 import fs from 'fs'
 import path from 'path'
-import { fileURLToPath } from 'url'
 import sharp from 'sharp'
 import { connectToDatabase } from '../lib/mongo.js'
 import { GoodsReceipt, PurchaseOrder, ServiceRequest } from '../models.js'
+import { getSystemSettings } from '../lib/systemSettings.js'
 
 const money = value => `INR ${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
 const roundMoney = value => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100
@@ -17,8 +17,47 @@ const dateTime = value => value ? new Date(value).toLocaleString('en-IN', {
 }) : '—'
 const safeName = value => String(value || 'report').replace(/[^a-z0-9._-]+/gi, '-')
 const statusLabel = value => String(value || 'UNKNOWN').replace(/_/g, ' ').toUpperCase()
-const moduleDir = path.dirname(fileURLToPath(import.meta.url))
-const crestPath = path.join(moduleDir, '..', 'public', 'images', 'mseclogo.png')
+const INSTITUTION_LOGOS = {
+  msec: ['mseclogo.png'],
+  nest: ['thenestschoollogo.webp', 'camlogo.webp'],
+  mcw: ['mseclogo.webp'],
+  mssm: ['mssm.png'],
+  iic: ['mseclogo.webp']
+}
+
+async function getPdfBrand(institution = 'msec') {
+  const settings = await getSystemSettings()
+  const profile = settings.institutions?.find(item => item.id === institution)
+    || settings.institutions?.find(item => item.id === 'msec')
+  const logos = []
+  for (const [index, fileName] of (INSTITUTION_LOGOS[institution] || INSTITUTION_LOGOS.msec).entries()) {
+    const logoPath = path.resolve(process.cwd(), 'public', 'images', fileName)
+    if (!fs.existsSync(logoPath)) continue
+    const image = sharp(logoPath)
+    if (index > 0) image.trim({ background: '#ffffff' })
+    logos.push(await image.png().toBuffer())
+  }
+  return { id: institution, ...profile, primaryLogo: logos[0] || null, secondaryLogo: logos[1] || null }
+}
+
+function institutionHeader(doc, brand, subtitle, { lineY = 119, accent = '#9a5b00', context = '' } = {}) {
+  const left = 42
+  const width = 511
+  const textX = 105
+  const textWidth = 385
+  if (brand.primaryLogo) doc.image(brand.primaryLogo, 48, 42, { fit: [58, 58], align: 'center', valign: 'center' })
+  if (brand.secondaryLogo) doc.image(brand.secondaryLogo, 497, 47, { fit: [48, 48], align: 'center', valign: 'center' })
+  doc.fillColor('#111111').font('Helvetica-Bold').fontSize(10)
+    .text(String(brand.fullName || brand.shortName || 'MSEC').toUpperCase(), textX, 47, { width: textWidth, align: 'center', ellipsis: true })
+  doc.font('Helvetica').fontSize(6.2)
+    .text(String(brand.affiliation || '').toUpperCase(), textX, 62, { width: textWidth, align: 'center', ellipsis: true })
+    .text(brand.documentAddress || '', textX, 72, { width: textWidth, align: 'center', ellipsis: true })
+  doc.font('Helvetica-Bold').fontSize(6.5)
+    .text(`${brand.shortName || 'MSEC'} CAMPUSSERVE${context ? ` · ${context}` : ''}`.toUpperCase(), textX, 82, { width: textWidth, align: 'center', ellipsis: true })
+  doc.font('Times-Bold').fontSize(15).text(subtitle, textX, 96, { width: textWidth, align: 'center', ellipsis: true })
+  doc.moveTo(left, lineY).lineTo(left + width, lineY).lineWidth(1).strokeColor('#111111').stroke()
+  doc.moveTo(left, lineY).lineTo(left + 45, lineY).lineWidth(2).strokeColor(accent).stroke()
+}
 
 function collectPdf(draw) {
   return new Promise((resolve, reject) => {
@@ -103,6 +142,8 @@ async function storedImage(url) {
 }
 
 async function grnPdf(po, grn, request = null) {
+  const institution = request?.institution || po?.institution || grn?.institution || 'msec'
+  const brand = await getPdfBrand(institution)
   const receiptEvidenceBuffer = await storedImage(grn.receiptEvidence?.url)
   const damageEvidenceBuffer = await storedImage(grn.damageEvidence?.url)
   const indentEvidence = []
@@ -147,14 +188,7 @@ async function grnPdf(po, grn, request = null) {
       const expenses = po?.serviceExecution?.expenses || []
       const actualTotal = expenses.reduce((sum, expense) => sum + Number(expense.amount || 0), 0)
       const drawServiceHeader = subtitle => {
-        if (fs.existsSync(crestPath)) doc.image(crestPath, 48, 38, { fit: [62, 62] })
-        doc.fillColor(ink).font('Helvetica-Bold').fontSize(10).text('MEENAKSHI SUNDARARAJAN ENGINEERING COLLEGE', 110, 43, { width: 380, align: 'center' })
-        doc.font('Helvetica').fontSize(6.2).text('AN AUTONOMOUS INSTITUTION AFFILIATED TO ANNA UNIVERSITY', 110, 59, { width: 380, align: 'center' })
-        doc.text('363, Arcot Road, Kodambakkam, Chennai - 600024', 110, 70, { width: 380, align: 'center' })
-        doc.fillColor(violet).font('Helvetica-Bold').fontSize(6.5).text('MSEC CAMPUSSERVE · SERVICE MANAGEMENT', 110, 82, { width: 380, align: 'center' })
-        doc.fillColor(ink).font('Times-Bold').fontSize(15).text(subtitle, 90, 99, { width: 415, align: 'center' })
-        doc.moveTo(left, 124).lineTo(left + width, 124).lineWidth(1).strokeColor(ink).stroke()
-        doc.moveTo(left, 124).lineTo(left + 72, 124).lineWidth(3).strokeColor(violet).stroke()
+        institutionHeader(doc, brand, subtitle, { lineY: 124, accent: violet, context: 'SERVICE MANAGEMENT' })
       }
       const section = (title, y) => {
         doc.fillColor(ink).font('Helvetica-Bold').fontSize(8).text(title.toUpperCase(), left, y)
@@ -278,15 +312,7 @@ async function grnPdf(po, grn, request = null) {
       doc.moveTo(left, y + 13).lineTo(left + 16, y + 13).lineWidth(2).strokeColor(gold).stroke()
     }
 
-    // Institutional header — mirrors the purchase-order document.
-    if (fs.existsSync(crestPath)) doc.image(crestPath, 48, 42, { fit: [62, 62], align: 'center', valign: 'center' })
-    doc.fillColor(ink).font('Helvetica-Bold').fontSize(10).text('MEENAKSHI SUNDARARAJAN ENGINEERING COLLEGE', 105, 47, { width: 385, align: 'center' })
-    doc.font('Helvetica').fontSize(6.2).text('AN AUTONOMOUS INSTITUTION AFFILIATED TO ANNA UNIVERSITY', 105, 62, { width: 385, align: 'center' })
-    doc.text('363, Arcot Road, Kodambakkam, Chennai - 600024', 105, 72, { width: 385, align: 'center' })
-    doc.font('Helvetica-Bold').fontSize(6.5).text('MSEC CAMPUSSERVE', 105, 82, { width: 385, align: 'center' })
-    doc.font('Times-Bold').fontSize(15).text(grn.source === 'SERVICE_PO' ? 'SERVICE COMPLETION RECEIPT (GRN)' : 'GOODS RECEIPT NOTE', 105, 96, { width: 385, align: 'center' })
-    doc.moveTo(left, 119).lineTo(left + width, 119).lineWidth(1).strokeColor(ink).stroke()
-    doc.moveTo(left, 119).lineTo(left + 45, 119).lineWidth(2).strokeColor(gold).stroke()
+    institutionHeader(doc, brand, grn.source === 'SERVICE_PO' ? 'SERVICE COMPLETION RECEIPT (GRN)' : 'GOODS RECEIPT NOTE', { accent: gold })
 
     // Reference block.
     doc.rect(left, 132, width, 55).fillAndStroke(pale, '#d6d3d1')
@@ -375,12 +401,8 @@ async function grnPdf(po, grn, request = null) {
 
     if (items.length > 9) {
       doc.addPage()
-      if (fs.existsSync(crestPath)) doc.image(crestPath, 48, 42, { fit: [58, 58] })
-      doc.fillColor(ink).font('Helvetica-Bold').fontSize(10)
-        .text('MEENAKSHI SUNDARARAJAN ENGINEERING COLLEGE', 105, 51, { width: 385, align: 'center' })
-      doc.font('Times-Bold').fontSize(14).text('GRN ITEM ANNEXURE', 105, 78, { width: 385, align: 'center' })
+      institutionHeader(doc, brand, 'GRN ITEM ANNEXURE', { lineY: 126, accent: gold })
       doc.font('Helvetica-Bold').fontSize(7).text(`${grn.grnNumber} · ${po?.poNumber || grn.poNumber}`, left, 112, { width })
-      doc.moveTo(left, 126).lineTo(left + width, 126).lineWidth(1).strokeColor(ink).stroke()
       doc.y = 146
       itemsTable(doc, items.slice(9))
       doc.moveTo(left, 774).lineTo(left + width, 774).lineWidth(0.4).strokeColor('#d6d3d1').stroke()
@@ -389,13 +411,9 @@ async function grnPdf(po, grn, request = null) {
     }
     if (serviceBills.length) {
       doc.addPage()
-      if (fs.existsSync(crestPath)) doc.image(crestPath, 48, 42, { fit: [58, 58] })
-      doc.fillColor(ink).font('Helvetica-Bold').fontSize(10)
-        .text('MEENAKSHI SUNDARARAJAN ENGINEERING COLLEGE', 105, 48, { width: 385, align: 'center' })
-      doc.font('Times-Bold').fontSize(14).text('SERVICE BILL REGISTER', 105, 78, { width: 385, align: 'center' })
+      institutionHeader(doc, brand, 'SERVICE BILL REGISTER', { lineY: 128, accent: gold, context: 'SERVICE MANAGEMENT' })
       doc.fillColor('#4b5563').font('Helvetica').fontSize(7)
         .text(`${grn.grnNumber} · PO ${po?.poNumber || grn.poNumber} · ${serviceBills.length} verified bill(s)`, left, 112, { width })
-      doc.moveTo(left, 128).lineTo(left + width, 128).lineWidth(1).strokeColor(ink).stroke()
       let billY = 148
       serviceBills.forEach(bill => {
         doc.rect(left, billY, width, 56).fillAndStroke('#ffffff', '#d6d3d1')
@@ -412,12 +430,9 @@ async function grnPdf(po, grn, request = null) {
           try { doc.file(bill.buffer, { name: bill.name, description: `${bill.description} · ${money(bill.amount)}` }) } catch { /* visible annexure remains */ }
         }
         doc.addPage()
-        if (fs.existsSync(crestPath)) doc.image(crestPath, 48, 42, { fit: [58, 58] })
-        doc.fillColor(ink).font('Helvetica-Bold').fontSize(10).text('MEENAKSHI SUNDARARAJAN ENGINEERING COLLEGE', 105, 48, { width: 385, align: 'center' })
-        doc.font('Times-Bold').fontSize(14).text(`SERVICE BILL ${bill.index}`, 105, 78, { width: 385, align: 'center' })
+        institutionHeader(doc, brand, `SERVICE BILL ${bill.index}`, { lineY: 140, accent: gold, context: 'SERVICE MANAGEMENT' })
         doc.fillColor('#4b5563').font('Helvetica-Bold').fontSize(7).text(`${bill.description} · ${bill.category} · ${money(bill.amount)}`, left, 111, { width })
         doc.font('Helvetica').fontSize(6.5).text(`File: ${bill.name} (${bill.mimeType})`, left, 124, { width })
-        doc.moveTo(left, 140).lineTo(left + width, 140).lineWidth(0.7).strokeColor('#d6d3d1').stroke()
         if (bill.preview) {
           doc.rect(left, 152, width, 575).stroke('#d6d3d1')
           doc.image(bill.preview, left + 10, 162, { fit: [width - 20, 555], align: 'center', valign: 'center' })
@@ -433,13 +448,7 @@ async function grnPdf(po, grn, request = null) {
     }
     if (receiptEvidenceBuffer) {
       doc.addPage()
-      if (fs.existsSync(crestPath)) doc.image(crestPath, 48, 42, { fit: [58, 58] })
-      doc.fillColor(ink).font('Helvetica-Bold').fontSize(10)
-        .text('MEENAKSHI SUNDARARAJAN ENGINEERING COLLEGE', 105, 48, { width: 385, align: 'center' })
-      doc.font('Helvetica').fontSize(6.2)
-        .text('MSEC CAMPUSSERVE · GOODS RECEIPT EVIDENCE', 105, 65, { width: 385, align: 'center' })
-      doc.font('Times-Bold').fontSize(14).text('RECEIVED GOODS PHOTO PROOF', 105, 82, { width: 385, align: 'center' })
-      doc.moveTo(left, 112).lineTo(left + width, 112).lineWidth(1).strokeColor(ink).stroke()
+      institutionHeader(doc, brand, 'RECEIVED GOODS PHOTO PROOF', { lineY: 112, accent: gold, context: 'GOODS RECEIPT EVIDENCE' })
       doc.fillColor('#4b5563').font('Helvetica-Bold').fontSize(7)
         .text(`${grn.grnNumber} · PO ${po?.poNumber || grn.poNumber} · ${date(grn.receivedAt || grn.createdAt)}`, left, 124, { width })
       doc.rect(left, 145, width, 590).lineWidth(0.7).strokeColor('#d6d3d1').stroke()
@@ -455,19 +464,14 @@ async function grnPdf(po, grn, request = null) {
     }
     if (damageEvidenceBuffer) {
       doc.addPage()
-      if (fs.existsSync(crestPath)) doc.image(crestPath, 48, 42, { fit: [58, 58] })
-      doc.fillColor(ink).font('Helvetica-Bold').fontSize(10).text('MEENAKSHI SUNDARARAJAN ENGINEERING COLLEGE', 105, 48, { width: 385, align: 'center' })
-      doc.font('Times-Bold').fontSize(14).fillColor('#991b1b').text('DAMAGED GOODS PHOTO PROOF', 105, 82, { width: 385, align: 'center' })
-      doc.fillColor(ink).moveTo(left, 112).lineTo(left + width, 112).lineWidth(1).stroke()
+      institutionHeader(doc, brand, 'DAMAGED GOODS PHOTO PROOF', { lineY: 112, accent: '#991b1b', context: 'GOODS RECEIPT EVIDENCE' })
       doc.rect(left, 145, width, 590).lineWidth(0.7).strokeColor('#fecaca').stroke()
       doc.image(damageEvidenceBuffer, left + 10, 155, { fit: [width - 20, 570], align: 'center', valign: 'center' })
       doc.fillColor('#4b5563').font('Helvetica').fontSize(5.5).text(`Damage evidence · ${grn.damageEvidence.name || 'Damage photo'} · ${grn.grnNumber}`, left, 781, { width, lineBreak: false })
     }
     indentEvidence.forEach(({ evidence, buffer }, index) => {
       doc.addPage()
-      if (fs.existsSync(crestPath)) doc.image(crestPath, 48, 42, { fit: [58, 58] })
-      doc.fillColor(ink).font('Helvetica-Bold').fontSize(10).text('MEENAKSHI SUNDARARAJAN ENGINEERING COLLEGE', 105, 48, { width: 385, align: 'center' })
-      doc.font('Times-Bold').fontSize(14).text(`INDENT PHOTO EVIDENCE ${index + 1}`, 105, 82, { width: 385, align: 'center' })
+      institutionHeader(doc, brand, `INDENT PHOTO EVIDENCE ${index + 1}`, { lineY: 112, accent: gold, context: 'REQUEST EVIDENCE' })
       doc.fillColor('#4b5563').font('Helvetica-Bold').fontSize(7).text(`${request.requestNumber} · ${request.title} · ${evidence.name || 'Uploaded evidence'}`, left, 122, { width })
       doc.rect(left, 145, width, 590).lineWidth(0.7).strokeColor('#d6d3d1').stroke()
       doc.image(buffer, left + 10, 155, { fit: [width - 20, 570], align: 'center', valign: 'center' })
