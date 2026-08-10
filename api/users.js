@@ -92,8 +92,14 @@ export default async function handler(req, res) {
 
     if (req.method === 'POST') {
       const { name, email, password, role, institution, department, phoneNumber } = req.body
-      if (!name || !email || !password || !role || !department) {
+      const normalizedName = String(name || '').trim()
+      const normalizedEmail = String(email || '').trim().toLowerCase()
+      const normalizedPhoneNumber = String(phoneNumber || '').trim()
+      if (!normalizedName || !normalizedEmail || !password || !role || !department) {
         return res.status(400).json({ success: false, error: 'name, email, password, role and department are required' })
+      }
+      if (String(password).length < 6) {
+        return res.status(400).json({ success: false, error: 'Password must be at least 6 characters.' })
       }
 
       const validRoles = ['admin', 'requester', 'manager', 'technician', 'accounts', 'vendor', 'service_provider', 'super_admin', 'gate', 'receiving_officer', 'delivery_person', 'hod', 'staff']
@@ -125,24 +131,24 @@ export default async function handler(req, res) {
         return res.status(403).json({ success: false, error: 'Public sign-up is limited to Faculty/Staff requester accounts. A super administrator must create all other roles.' })
       }
       const institutionSettings = systemSettings.institutions?.find(item => item.id === institution)
-      if (!isSuperAdmin && institutionRoles.includes(role) && systemSettings.enforceEmailDomain && institutionSettings?.emailDomain && !email.toLowerCase().endsWith(institutionSettings.emailDomain.toLowerCase())) {
+      if (!isSuperAdmin && institutionRoles.includes(role) && systemSettings.enforceEmailDomain && institutionSettings?.emailDomain && !normalizedEmail.endsWith(institutionSettings.emailDomain.toLowerCase())) {
         return res.status(400).json({ success: false, error: `Use an official ${institutionSettings.emailDomain} email address for ${institutionSettings.shortName}` })
       }
 
-      const existing = await User.findOne({ email: email.toLowerCase() })
+      const existing = await User.findOne({ email: normalizedEmail })
       if (existing) {
         return res.status(409).json({ success: false, error: 'User already exists' })
       }
 
       const hashed = await bcrypt.hash(password, 10)
       const userData = {
-        name,
-        email: email.toLowerCase(),
+        name: normalizedName,
+        email: normalizedEmail,
         password: hashed,
         role,
         ...(institutionRoles.includes(role) ? { institution } : {}),
         department,
-        phoneNumber: phoneNumber || ''
+        phoneNumber: normalizedPhoneNumber
       }
 
       const user = new User(userData)

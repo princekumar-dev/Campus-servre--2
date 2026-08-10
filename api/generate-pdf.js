@@ -18,9 +18,9 @@ const LOGO_PATH = (() => {
 const INSTITUTION_LOGOS = {
   msec: ['mseclogo.png'],
   nest: ['thenestschoollogo.webp', 'camlogo.webp'],
-  mcw: ['MCW logo.jpg'],
+  mcw: ['mseclogo.webp'],
   mssm: ['mssm.png'],
-  iic: ['iic.webp']
+  iic: ['mseclogo.webp']
 }
 
 async function getPdfBrand(institution = 'msec') {
@@ -444,15 +444,22 @@ export default async function handler(req, res) {
         doc.fillColor(PO.black).font('Helvetica-Bold').fontSize(10.8)
           .text(String(brand.fullName || brand.shortName).toUpperCase(), textX, headerTop + 3, { width: textWidth, align: 'center', lineBreak: false })
         doc.fillColor(PO.muted).font('Helvetica').fontSize(7.7)
-          .text(String(brand.affiliation || '').toUpperCase(), textX, headerTop + 19, { width: textWidth, align: 'center', lineBreak: false })
-        doc.text(brand.documentAddress, textX, headerTop + 31, { width: textWidth, align: 'center', lineBreak: false })
+          .text(String(brand.affiliation || '').toUpperCase(), textX, headerTop + 19, {
+            width: textWidth,
+            height: 20,
+            align: 'center',
+            lineGap: 1,
+            ellipsis: true
+          })
+        doc.fontSize(7.7)
+          .text(brand.documentAddress, textX, headerTop + 42, { width: textWidth, height: 10, align: 'center', ellipsis: true })
         doc.fillColor(PO.black).font('Helvetica-Bold').fontSize(8)
-          .text(`${brand.shortName} CAMPUSSERVE`.toUpperCase(), textX, headerTop + 46, { width: textWidth, align: 'center', characterSpacing: 0.6, lineBreak: false })
+          .text(`${brand.shortName} CAMPUSSERVE`.toUpperCase(), textX, headerTop + 56, { width: textWidth, align: 'center', characterSpacing: 0.6, lineBreak: false })
         doc.fillColor(PO.black).font('Times-Bold').fontSize(isServicePo ? 15 : 17)
-          .text(subtitle, textX, headerTop + 63, { width: textWidth, align: 'center', characterSpacing: isServicePo ? 0.75 : 1.25, lineBreak: false })
-        doc.strokeColor(PO.black).lineWidth(1).moveTo(left, headerTop + 96).lineTo(right, headerTop + 96).stroke()
-        doc.strokeColor(PO.accent).lineWidth(2).moveTo(left, headerTop + 96).lineTo(left + 54, headerTop + 96).stroke()
-        doc.y = headerTop + 110
+          .text(subtitle, textX, headerTop + 72, { width: textWidth, align: 'center', characterSpacing: isServicePo ? 0.75 : 1.25, lineBreak: false })
+        doc.strokeColor(PO.black).lineWidth(1).moveTo(left, headerTop + 105).lineTo(right, headerTop + 105).stroke()
+        doc.strokeColor(PO.accent).lineWidth(2).moveTo(left, headerTop + 105).lineTo(left + 54, headerTop + 105).stroke()
+        doc.y = headerTop + 119
       }
 
       drawHeader(poDocumentTitle)

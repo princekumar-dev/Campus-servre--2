@@ -46,8 +46,11 @@ function SignUp({ adminMode = false }) {
   const handleSignUp = async (e) => {
     e.preventDefault()
     const { name, email, password, confirmPassword, role, institution, department, phoneNumber } = formData
+    const normalizedName = name.trim()
+    const normalizedEmail = email.trim().toLowerCase()
+    const normalizedPhoneNumber = phoneNumber.trim()
 
-    if (!name || !email || !password || !confirmPassword || !role || !department) {
+    if (!normalizedName || !normalizedEmail || !password || !confirmPassword || !role || !department) {
       showError('Form Incomplete', 'Please fill in all required fields')
       return
     }
@@ -70,14 +73,14 @@ function SignUp({ adminMode = false }) {
     setIsLoading(true)
     try {
       const res = await apiClient.post('/api/users', {
-        name,
-        email,
+        name: normalizedName,
+        email: normalizedEmail,
         password,
         role,
         institution,
         department,
-        phoneNumber
-      })
+        phoneNumber: normalizedPhoneNumber
+      }, { timeout: 12000 })
 
       if (res.success) {
         showSuccess(adminMode ? 'User Created!' : 'Account Created!', adminMode ? 'The new user can now sign in.' : 'You can now log in with your credentials.')

@@ -1,9 +1,10 @@
 export const INSTITUTIONS = [
   { id: 'msec', name: 'MSEC', logo: '/images/mseclogo.webp', tileClass: 'w-[76px]', logoClass: 'h-[58px] w-auto' },
   { id: 'nest', name: 'The Nest School', logo: '/images/thenestschoollogo.webp', tileClass: 'w-full', logoClass: 'h-auto w-[82px]' },
-  { id: 'mcw', name: 'MCW', logo: '/images/MCW logo.jpg', tileClass: 'w-[76px]', logoClass: 'h-[58px] w-[58px] rounded-lg' },
+  { id: 'mcw', name: 'MCW', logo: '/images/mseclogo.webp', tileClass: 'w-[76px]', logoClass: 'h-[58px] w-auto' },
   { id: 'mssm', name: 'MSSM', logo: '/images/mssm.png', tileClass: 'w-full', logoClass: 'h-auto w-[86px]' },
-  { id: 'iic', name: 'IIC', logo: '/images/iic.webp', tileClass: 'w-full', logoClass: 'h-auto w-[86px]' }
+  // Keep the legacy `iic` value so existing users and requests remain valid.
+  { id: 'iic', name: 'IIET', logo: '/images/mseclogo.webp', tileClass: 'w-[76px]', logoClass: 'h-[58px] w-auto' }
 ]
 
 export const INSTITUTION_USER_ROLES = ['requester', 'staff', 'hod']
