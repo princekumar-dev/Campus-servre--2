@@ -10,8 +10,6 @@ export default async function handler(req, res) {
 
   if (req.method === 'POST') {
     try {
-      await connectToDatabase()
-      
       const { email, password, institution, portal, scanTarget: requestedScanTarget } = req.body
 
       if (!email || !password) {
@@ -20,6 +18,8 @@ export default async function handler(req, res) {
           error: 'Email and password are required'
         })
       }
+
+      await connectToDatabase()
 
       const normalizedEmail = email.toLowerCase().trim()
       const user = await User.findOne({ email: normalizedEmail })
@@ -95,9 +95,17 @@ export default async function handler(req, res) {
 
     } catch (error) {
       console.error('Authentication error:', error)
-      return res.status(500).json({
+      const databaseUnavailable = [
+        'MongoServerSelectionError',
+        'MongoNetworkError',
+        'MongooseServerSelectionError'
+      ].includes(error?.name) || ['ETIMEDOUT', 'ECONNREFUSED'].includes(error?.code)
+
+      return res.status(databaseUnavailable ? 503 : 500).json({
         success: false,
-        error: 'Internal server error'
+        error: databaseUnavailable
+          ? 'The database is temporarily unavailable. Please try again in a few seconds.'
+          : 'Internal server error'
       })
     }
   } else {

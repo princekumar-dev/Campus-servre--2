@@ -30,7 +30,11 @@ function Login() {
       const requestedPath = searchParams.get('next') || ''
       const requestedPortal = isGatePortal ? 'gate' : isServicePortal ? 'service' : ''
       const scanTarget = requestedPortal ? requestedPath.split('?')[0] : ''
-      const res = await apiClient.post('/api/auth', { email, password, institution, portal: requestedPortal, scanTarget })
+      const res = await apiClient.post(
+        '/api/auth',
+        { email, password, institution, portal: requestedPortal, scanTarget },
+        { timeout: 12000 }
+      )
       if (res.success && res.user) {
         if (isGatePortal && res.user.role !== 'gate') {
           showError('Gate Access Required', 'Sign in with a Gate Officer account.')
