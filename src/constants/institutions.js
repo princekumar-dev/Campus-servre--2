@@ -1,7 +1,6 @@
 export const INSTITUTIONS = [
   { id: 'msec', name: 'MSEC', logo: '/images/mseclogo.webp', tileClass: 'w-[76px]', logoClass: 'h-[58px] w-auto' },
   { id: 'nest', name: 'The Nest School', logo: '/images/thenestschoollogo.webp', tileClass: 'w-full', logoClass: 'h-auto w-[82px]' },
-  { id: 'mcw', name: 'MCW', logo: '/images/mseclogo.webp', tileClass: 'w-[76px]', logoClass: 'h-[58px] w-auto' },
   { id: 'mssm', name: 'MSSM', logo: '/images/mssm.png', tileClass: 'w-full', logoClass: 'h-auto w-[86px]' },
   // Keep the legacy `iic` value so existing users and requests remain valid.
   { id: 'iic', name: 'IIET', logo: '/images/mseclogo.webp', tileClass: 'w-[76px]', logoClass: 'h-[58px] w-auto' }
@@ -21,11 +20,6 @@ export const INSTITUTION_ORGANIZATION = {
     requesterLabel: 'Requester (Coordinator/Teacher)',
     unitLabel: 'School Section',
     units: ['Early Years', 'Primary Years', 'Middle School', 'Secondary School', 'Student Support', 'Administration']
-  },
-  mcw: {
-    requesterLabel: 'Requester (HOD/Faculty)',
-    unitLabel: 'Arts / Science Department',
-    units: ['History', 'Economics', 'English', 'Mathematics', 'Physics', 'Chemistry', 'Plant Biology & Biotechnology', 'Advanced Zoology & Biotechnology', 'Computer Science', 'Commerce', 'Business Administration']
   },
   mssm: {
     requesterLabel: 'Requester (HOD/Faculty)',

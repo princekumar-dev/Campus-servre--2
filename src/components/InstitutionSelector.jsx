@@ -72,7 +72,7 @@ export default function InstitutionSelector({ value, onChange, tone = 'glass' })
       >
         {loopItems.map((institution, index) => institutionButton(institution, `${institution.id}-${index}`, true))}
       </div>
-      <div className="hidden grid-cols-5 gap-3 pt-3 sm:grid" role="radiogroup" aria-label="Institution">
+      <div className="hidden grid-cols-4 gap-3 pt-3 sm:grid" role="radiogroup" aria-label="Institution">
         {INSTITUTIONS.map(institution => institutionButton(institution, institution.id))}
       </div>
     </fieldset>

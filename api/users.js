@@ -107,11 +107,10 @@ export default async function handler(req, res) {
         return res.status(400).json({ success: false, error: `role must be one of: ${validRoles.join(', ')}` })
       }
       const institutionRoles = ['requester', 'staff', 'hod']
-      const validInstitutions = ['msec', 'nest', 'mcw', 'mssm', 'iic']
+      const validInstitutions = ['msec', 'nest', 'mssm', 'iic']
       const institutionUnits = {
         msec: ['CSE', 'ECE', 'MECH', 'CIVIL', 'IT', 'EEE', 'AIDS'],
         nest: ['Early Years', 'Primary Years', 'Middle School', 'Secondary School', 'Student Support', 'Administration'],
-        mcw: ['History', 'Economics', 'English', 'Mathematics', 'Physics', 'Chemistry', 'Plant Biology & Biotechnology', 'Advanced Zoology & Biotechnology', 'Computer Science', 'Commerce', 'Business Administration'],
         mssm: ['General Management', 'Finance', 'Marketing', 'Human Resources', 'Operations', 'Business Analytics', 'Entrepreneurship', 'Administration'],
         iic: ['Innovation Council', 'Innovation & Startup', 'Entrepreneurship Development', 'IPR & Technology Transfer', 'Incubation', 'Research & Development', 'Administration']
       }

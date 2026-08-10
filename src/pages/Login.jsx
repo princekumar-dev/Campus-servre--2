@@ -85,7 +85,7 @@ function Login() {
 
   return (
     <div className="flex min-h-screen items-center justify-center px-3 py-6 sm:px-4 sm:py-8">
-      <div className="relative z-10 mx-auto w-full max-w-xl">
+      <div className="relative z-10 mx-auto w-full max-w-lg">
         <div className="rounded-2xl border border-white/55 bg-white/20 p-5 shadow-[0_24px_70px_rgba(15,23,42,0.24),inset_0_1px_0_rgba(255,255,255,0.65)] backdrop-blur-xl sm:rounded-3xl sm:p-8">
           <div className="mb-6 text-center sm:mb-8">
             <div className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-full bg-violet-100 sm:mb-6 sm:h-16 sm:w-16">
