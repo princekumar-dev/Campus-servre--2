@@ -93,7 +93,12 @@ function CreatePOModal({ onClose, onSaved, sourceRequest, selectedQuotation }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if ((isServicePo ? !form.serviceProviderId : !form.vendorId) || !items.some(i => i.description)) return showError('Missing Info', isServicePo ? 'Select a service provider and confirm the service scope' : 'Select a vendor and add at least one item')
+    if (isServicePo && !form.serviceProviderId) return showError('Service Provider Required', 'Select the service provider assigned to this order.')
+    if (!isServicePo && !form.vendorId) return showError('Vendor Required', 'Select an active vendor for this purchase order.')
+    if (!form.deliveryAddress?.trim()) return showError('Delivery Address Required', 'Enter the service or delivery address.')
+    if (!items.length || items.some(item => !item.description?.trim())) return showError('Item Description Required', 'Add a description for every purchase-order item.')
+    if (items.some(item => !Number.isFinite(Number(item.quantityOrdered)) || Number(item.quantityOrdered) <= 0)) return showError('Invalid Quantity', 'Every purchase-order item must have a quantity greater than zero.')
+    if (items.some(item => !Number.isFinite(Number(item.unitPrice)) || Number(item.unitPrice) < 0)) return showError('Invalid Unit Price', 'Enter a valid non-negative unit price for every purchase-order item.')
     setLoading(true)
     try {
       const normalizedItems = items.map(item => ({ ...item, unitPrice: getLineValues(item).unitPrice }))

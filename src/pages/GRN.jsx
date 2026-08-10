@@ -58,6 +58,15 @@ function CreateGRNModal({ onClose, onSaved }) {
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!selectedPO) return showError('Missing Info', 'Select a Purchase Order')
+    if (!items.some(item => Number(item.quantityDeliveredNow || 0) > 0)) return showError('Delivered Quantity Required', 'Enter the quantity delivered for at least one item.')
+    for (const item of items) {
+      const delivered = Number(item.quantityDeliveredNow || 0)
+      const accepted = Number(item.quantityAcceptedNow || 0)
+      const damaged = Number(item.quantityDamaged || 0)
+      const rejected = Number(item.quantityRejected || 0)
+      if ([delivered, accepted, damaged, rejected].some(value => value < 0)) return showError('Invalid Quantity', 'Quantities cannot be negative.')
+      if (accepted + damaged + rejected > delivered) return showError('Check Quantities', `${item.poItemDescription}: accepted, damaged, and rejected quantities cannot exceed delivered quantity.`)
+    }
     setLoading(true)
     try {
       const res = await apiClient.post('/api/grn', {
@@ -76,6 +85,8 @@ function CreateGRNModal({ onClose, onSaved }) {
         showSuccess('GRN Created', `${res.data.grnNumber} — ${res.grnType} GRN recorded. PO is now ${res.poStatus?.replace(/_/g, ' ')}`)
         onSaved(res.data)
       } else showError('GRN Error', res.error)
+    } catch (error) {
+      showError('GRN Creation Failed', error.message || 'The goods receipt could not be created. Please try again.')
     } finally { setLoading(false) }
   }
 

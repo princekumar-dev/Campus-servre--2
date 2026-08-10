@@ -20,10 +20,11 @@ function Login() {
 
   const handleLogin = async (e) => {
     e.preventDefault()
-    if (!email || !password) {
-      showError('Required Fields', 'Please enter your email and password')
-      return
-    }
+    const normalizedEmail = email.trim().toLowerCase()
+    if (!normalizedEmail && !password) return showError('Email and Password Required', 'Enter your registered email address and password.')
+    if (!normalizedEmail) return showError('Email Required', 'Enter your registered email address.')
+    if (!/^\S+@\S+\.\S+$/.test(normalizedEmail)) return showError('Invalid Email', 'Enter a valid email address, for example name@institution.edu.in.')
+    if (!password) return showError('Password Required', 'Enter your account password.')
 
     setIsLoading(true)
     try {
@@ -32,7 +33,7 @@ function Login() {
       const scanTarget = requestedPortal ? requestedPath.split('?')[0] : ''
       const res = await apiClient.post(
         '/api/auth',
-        { email, password, institution, portal: requestedPortal, scanTarget },
+        { email: normalizedEmail, password, institution, portal: requestedPortal, scanTarget },
         { timeout: 12000 }
       )
       if (res.success && res.user) {
@@ -77,7 +78,18 @@ function Login() {
         showError('Login Failed', res.error || 'Invalid credentials')
       }
     } catch (err) {
-      showError('Authentication Error', err.message || 'Server error occurred during login')
+      const message = err.message || 'Server error occurred during login'
+      const normalizedMessage = message.toLowerCase()
+      const title = normalizedMessage.includes('no account') || normalizedMessage.includes('email address')
+        ? 'Account Not Found'
+        : normalizedMessage.includes('invalid password') || normalizedMessage.includes('incorrect password')
+          ? 'Incorrect Password'
+          : err.status === 429
+            ? 'Too Many Login Attempts'
+            : err.status >= 500
+              ? 'Login Service Unavailable'
+              : 'Login Failed'
+      showError(title, message)
     } finally {
       setIsLoading(false)
     }

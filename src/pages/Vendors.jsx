@@ -94,15 +94,18 @@ function AddVendorModal({ onClose, onSaved }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!form.legalName || !form.contactPerson || !form.email || !form.phone) {
-      showError('Missing Fields', 'Please fill all required fields')
-      return
-    }
+    if (!form.legalName.trim()) return showError('Vendor Name Required', 'Enter the vendor’s registered business name.')
+    if (!form.contactPerson.trim()) return showError('Contact Person Required', 'Enter the primary contact person’s name.')
+    if (!form.email.trim()) return showError('Email Required', 'Enter the vendor’s email address.')
+    if (!/^\S+@\S+\.\S+$/.test(form.email.trim())) return showError('Invalid Email', 'Enter a valid vendor email address.')
+    if (!form.phone.trim()) return showError('Phone Number Required', 'Enter the vendor’s contact number.')
     setLoading(true)
     try {
       const res = await apiClient.post('/api/vendors', form)
       if (res.success) { showSuccess('Vendor Added', `${form.legalName} registered successfully`); onSaved() }
       else showError('Error', res.error)
+    } catch (error) {
+      showError('Vendor Registration Failed', error.message || 'The vendor could not be registered. Please try again.')
     } finally { setLoading(false) }
   }
 

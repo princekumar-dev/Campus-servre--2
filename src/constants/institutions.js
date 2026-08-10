@@ -14,22 +14,22 @@ export const INSTITUTION_ORGANIZATION = {
   msec: {
     requesterLabel: 'Requester (HOD/Faculty)',
     unitLabel: 'Department',
-    units: ['CSE', 'ECE', 'MECH', 'CIVIL', 'IT', 'EEE', 'AIDS']
+    units: ['CSE', 'ECE', 'MECH', 'CIVIL', 'IT', 'EEE', 'AIDS', 'Others']
   },
   nest: {
     requesterLabel: 'Requester (Coordinator/Teacher)',
     unitLabel: 'School Section',
-    units: ['Early Years', 'Primary Years', 'Middle School', 'Secondary School', 'Student Support', 'Administration']
+    units: ['Early Years', 'Primary Years', 'Middle School', 'Secondary School', 'Student Support', 'Administration', 'Others']
   },
   mssm: {
     requesterLabel: 'Requester (HOD/Faculty)',
     unitLabel: 'Management Department',
-    units: ['General Management', 'Finance', 'Marketing', 'Human Resources', 'Operations', 'Business Analytics', 'Entrepreneurship', 'Administration']
+    units: ['General Management', 'Finance', 'Marketing', 'Human Resources', 'Operations', 'Business Analytics', 'Entrepreneurship', 'Administration', 'Others']
   },
   iic: {
     requesterLabel: 'Requester (Coordinator/Member)',
     unitLabel: 'Innovation Function',
-    units: ['Innovation Council', 'Innovation & Startup', 'Entrepreneurship Development', 'IPR & Technology Transfer', 'Incubation', 'Research & Development', 'Administration']
+    units: ['Innovation Council', 'Innovation & Startup', 'Entrepreneurship Development', 'IPR & Technology Transfer', 'Incubation', 'Research & Development', 'Administration', 'Others']
   }
 }
 

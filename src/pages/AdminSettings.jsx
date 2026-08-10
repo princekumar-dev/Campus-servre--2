@@ -94,8 +94,8 @@ export default function AdminSettings() {
 
   const saveSettings = async () => {
     const invalidInstitution = settings.institutions.some(institution => !institution.shortName.trim() || !institution.fullName.trim() || !institution.defaultDepartment.trim() || !institution.affiliation.trim() || !institution.documentAddress.trim() || !institution.contactLine.trim() || !institution.website.trim() || !/^@[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?\.[a-z]{2,}$/i.test(institution.emailDomain.trim()))
-    if (settings.institutions.length !== 5 || new Set(settings.institutions.map(institution => institution.id)).size !== 5 || invalidInstitution) {
-      showError('Invalid institution settings', 'Complete all fields and enter a valid official email domain for all five institutions.'); return
+    if (settings.institutions.length !== 4 || new Set(settings.institutions.map(institution => institution.id)).size !== 4 || invalidInstitution) {
+      showError('Invalid Institution Settings', 'Complete all fields and enter a valid official email domain for all four institutions.'); return
     }
     setSaving(true)
     try {

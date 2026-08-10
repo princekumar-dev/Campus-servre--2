@@ -205,6 +205,10 @@ export default function ServicePOWorkspace() {
           <p className="mt-3 text-xs font-semibold text-slate-500">{execution.workEvidence?.length || 0} evidence file(s) uploaded</p>
           <textarea disabled={submitted} rows="5" value={summary} onChange={e => setSummary(e.target.value)} placeholder="Describe the fault found, repair completed, and final condition…" className="mt-5 w-full rounded-xl border-slate-200 text-sm"/>
           {!submitted ? <button disabled={saving} onClick={async () => {
+              if (!summary.trim()) {
+                showError('Completion Summary Required', 'Describe the fault found, work completed, and final condition before generating the GRN.')
+                return
+              }
               if (await run('submit', { serviceSummary: summary })) await run('approve-grn')
             }} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white"><CheckCircle2 size={17}/> Complete service and generate GRN</button>
             : <div className="mt-4 space-y-3">

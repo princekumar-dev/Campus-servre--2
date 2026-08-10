@@ -14,6 +14,7 @@ const categories = [
   { value: 'IT Hardware & Network', icon: '🌐', desc: 'Computers, network, printers' },
   { value: 'Furniture Repair', icon: '🪑', desc: 'Desks, chairs, fixtures' },
   { value: 'Civil & Painting', icon: '🎨', desc: 'Walls, floors, structures' },
+  { value: 'Other', icon: '📦', desc: 'Any other campus requirement' },
 ]
 
 const priorities = [
@@ -125,7 +126,12 @@ function CreateRequest() {
     if (formData.description.trim().length < 10) errs.description = 'Description must be at least 10 characters'
     if (formData.priority === 'EMERGENCY' && !formData.emergencyReason.trim()) errs.emergencyReason = 'Emergency reason is required'
     setErrors(errs)
-    return Object.keys(errs).length === 0
+    const messages = Object.values(errs)
+    if (messages.length) {
+      alert.showError('Complete Required Fields', messages.length === 1 ? messages[0] : `${messages[0]} Please correct ${messages.length} highlighted fields.`)
+      return false
+    }
+    return true
   }
 
   const handleSubmit = async (submitImmediately) => {

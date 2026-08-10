@@ -99,7 +99,10 @@ export default function ManagerQuotations() {
   const saveQuotation = async event => {
     event.preventDefault()
     if (!vendorId) return showError('Vendor required', 'Select the vendor who supplied this quotation.')
-    if (!items.length || items.some(item => !item.description?.trim())) return showError('Missing information', 'Add a description for every quotation item.')
+    if (!items.length) return showError('Quotation Items Required', 'Add at least one item to the quotation.')
+    if (items.some(item => !item.description?.trim())) return showError('Item Description Required', 'Add a description for every quotation item.')
+    if (items.some(item => !Number.isFinite(Number(item.quantity)) || Number(item.quantity) <= 0)) return showError('Invalid Quantity', 'Every quotation item must have a quantity greater than zero.')
+    if (items.some(item => !Number.isFinite(Number(item.unitPrice)) || Number(item.unitPrice) < 0)) return showError('Invalid Unit Price', 'Enter a valid non-negative unit price for every quotation item.')
     setFormLoading(true)
     try {
       const res = await apiClient.post(`/api/quotations?requestId=${requestId}`, { vendorId, items, terms, validUntil })

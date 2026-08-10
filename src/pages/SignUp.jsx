@@ -50,15 +50,19 @@ function SignUp({ adminMode = false }) {
     const normalizedEmail = email.trim().toLowerCase()
     const normalizedPhoneNumber = phoneNumber.trim()
 
-    if (!normalizedName || !normalizedEmail || !password || !confirmPassword || !role || !department) {
-      showError('Form Incomplete', 'Please fill in all required fields')
-      return
-    }
+    if (!normalizedName) return showError('Name Required', 'Enter the user’s full name.')
+    if (!normalizedEmail) return showError('Email Required', 'Enter an official email address.')
+    if (!/^\S+@\S+\.\S+$/.test(normalizedEmail)) return showError('Invalid Email', 'Enter a valid official email address.')
+    if (!role) return showError('Role Required', 'Select an account role.')
 
     if (isInstitutionUserRole(role) && !institution) {
       showError('Institution Required', 'Please select the institution for this Faculty, Staff, or HOD account')
       return
     }
+
+    if (!department) return showError('Department Required', 'Select a department, section, or Others.')
+    if (!password) return showError('Password Required', 'Create a password with at least 6 characters.')
+    if (!confirmPassword) return showError('Confirm Password', 'Re-enter the password to confirm it.')
 
     if (password !== confirmPassword) {
       showError('Password Mismatch', 'The passwords you entered do not match')

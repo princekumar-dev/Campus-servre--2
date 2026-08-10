@@ -109,10 +109,10 @@ export default async function handler(req, res) {
       const institutionRoles = ['requester', 'staff', 'hod']
       const validInstitutions = ['msec', 'nest', 'mssm', 'iic']
       const institutionUnits = {
-        msec: ['CSE', 'ECE', 'MECH', 'CIVIL', 'IT', 'EEE', 'AIDS'],
-        nest: ['Early Years', 'Primary Years', 'Middle School', 'Secondary School', 'Student Support', 'Administration'],
-        mssm: ['General Management', 'Finance', 'Marketing', 'Human Resources', 'Operations', 'Business Analytics', 'Entrepreneurship', 'Administration'],
-        iic: ['Innovation Council', 'Innovation & Startup', 'Entrepreneurship Development', 'IPR & Technology Transfer', 'Incubation', 'Research & Development', 'Administration']
+        msec: ['CSE', 'ECE', 'MECH', 'CIVIL', 'IT', 'EEE', 'AIDS', 'Others'],
+        nest: ['Early Years', 'Primary Years', 'Middle School', 'Secondary School', 'Student Support', 'Administration', 'Others'],
+        mssm: ['General Management', 'Finance', 'Marketing', 'Human Resources', 'Operations', 'Business Analytics', 'Entrepreneurship', 'Administration', 'Others'],
+        iic: ['Innovation Council', 'Innovation & Startup', 'Entrepreneurship Development', 'IPR & Technology Transfer', 'Incubation', 'Research & Development', 'Administration', 'Others']
       }
       if (institutionRoles.includes(role) && !validInstitutions.includes(institution)) {
         return res.status(400).json({ success: false, error: 'A valid institution is required for Faculty, Staff, and HOD accounts.' })
