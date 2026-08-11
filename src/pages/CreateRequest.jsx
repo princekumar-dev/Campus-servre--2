@@ -4,7 +4,7 @@ import { useAlert } from '../components/AlertContext'
 import apiClient from '../utils/apiClient'
 import { normalizeUnit, UnitOptions } from '../utils/unitOptions'
 import { getAuthOrNull } from '../utils/auth'
-import { ChevronRight, ArrowLeft, PenTool, Loader2, CheckCircle2, AlertTriangle, ImagePlus, Package, X, FileText, MapPin, Camera, Send } from 'lucide-react'
+import { ChevronRight, ArrowLeft, PenTool, Loader2, CheckCircle2, AlertTriangle, Images, Package, X, FileText, MapPin, Camera, Send } from 'lucide-react'
 
 const categories = [
   { value: 'Classroom Equipment', icon: '🖥️', desc: 'Projectors, screens, speakers' },
@@ -361,12 +361,19 @@ function CreateRequest() {
                 <button type="button" onClick={() => setIssuePhoto(null)} aria-label="Remove selected photo" className="rounded-lg p-2 text-slate-500 hover:bg-white hover:text-rose-600"><X size={17} /></button>
               </div>
             ) : (
-              <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-center transition-all hover:border-violet-300 hover:bg-violet-50/40">
-                <ImagePlus size={22} className="text-violet-500" />
-                <span className="mt-2 text-sm font-bold text-slate-700">Add a photo of the issue</span>
-                <span className="mt-0.5 text-xs text-slate-400">JPG, PNG or WebP · up to 2 MB</span>
-                <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handlePhotoChange} className="sr-only" />
-              </label>
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-violet-300 bg-violet-50/50 px-3 py-4 text-center text-sm font-bold text-violet-700 transition-all hover:bg-violet-50">
+                    <Camera size={18} /> Take Photo
+                    <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={handlePhotoChange} className="sr-only" />
+                  </label>
+                  <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-violet-300 bg-white px-3 py-4 text-center text-sm font-bold text-violet-700 transition-all hover:bg-violet-50">
+                    <Images size={18} /> Gallery
+                    <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handlePhotoChange} className="sr-only" />
+                  </label>
+                </div>
+                <p className="mt-2 text-xs text-slate-400">JPG, PNG or WebP · up to 2 MB. This attachment is optional.</p>
+              </>
             )}
             {errors.issuePhoto && <span className="mt-1 flex items-center gap-1 text-xs font-semibold text-rose-500"><AlertTriangle size={10} />{errors.issuePhoto}</span>}
           </div>
