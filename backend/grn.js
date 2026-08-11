@@ -26,15 +26,28 @@ export default async function handler(req, res) {
 
     // ── GET /api/grn ──────────────────────────────────────────────────────────
     if (req.method === 'GET') {
+      if (!['admin', 'super_admin', 'manager', 'receiving_officer', 'accounts'].includes(actorRole)) {
+        return res.status(403).json({ success: false, error: 'You are not authorized to view goods receipts' })
+      }
       if (id) {
         const grn = await GoodsReceipt.findById(id).lean()
         if (!grn) return res.status(404).json({ success: false, error: 'GRN not found' })
+        if (actorRole === 'manager') {
+          const ownedPo = await PurchaseOrder.exists({ _id: grn.poId, createdById: actorId })
+          if (!ownedPo) return res.status(403).json({ success: false, error: 'This GRN is not assigned to you' })
+        }
         return res.json({ success: true, data: grn })
       }
       const filter = {}
       if (poId) filter.poId = poId
       if (deliveryId) filter.deliveryScheduleId = deliveryId
       if (req.query.grnType) filter.grnType = req.query.grnType
+      if (actorRole === 'manager') {
+        const ownedPoIds = await PurchaseOrder.distinct('_id', { createdById: actorId })
+        filter.poId = filter.poId
+          ? { $in: ownedPoIds.filter(ownedId => String(ownedId) === String(filter.poId)) }
+          : { $in: ownedPoIds }
+      }
       const grns = await GoodsReceipt.find(filter).select('-receiptEvidence.url -damageEvidence.url').sort({ createdAt: -1 }).lean()
       grns.forEach(grn => {
         grn.hasReceiptEvidence = Boolean(grn.receiptEvidence?.name)

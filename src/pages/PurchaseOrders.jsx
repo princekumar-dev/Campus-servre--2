@@ -25,6 +25,11 @@ const statusConfig = {
   CANCELLED: { label: 'Cancelled', color: 'bg-slate-200 text-slate-700 border-slate-400 ring-1 ring-slate-300' },
 }
 
+// Only expose states used by the current manager-upload → active → receiving workflow.
+// Legacy approval/vendor states remain displayable on old records but are not offered
+// as filters because users cannot create or act on them anymore.
+const filterableStatuses = ['DRAFT', 'ACTIVE', 'PARTIALLY_FULFILLED', 'FULFILLED', 'CLOSED', 'CANCELLED']
+
 const poTypeConfig = {
   SERVICE: { label: 'Service PO', color: 'bg-cyan-50 text-cyan-700 border-cyan-200' },
   GOODS: { label: 'Goods PO', color: 'bg-blue-50 text-blue-700 border-blue-200' },
@@ -346,16 +351,17 @@ export default function PurchaseOrders() {
 
   // Keep the filters aligned with every status rendered by the PO workflow.
   // CLOSED is distinct from FULFILLED and must have its own count/filter.
-  const statusGroups = ['ALL', ...Object.keys(statusConfig)]
+  const statusGroups = ['ALL', ...filterableStatuses]
 
   return (
     <div className="space-y-6 animate-fadeIn">
       {showCreate && <CreatePOModal sourceRequest={sourceRequest} selectedQuotation={selectedQuotation} onClose={() => setShowCreate(false)} onSaved={(po) => { setShowCreate(false); if (po?._id) navigate(`/purchase-orders/${po._id}`); else fetchPOs() }} />}
 
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
+      <div className="relative flex flex-col gap-5 overflow-hidden rounded-3xl border border-violet-100 bg-gradient-to-br from-white via-white to-violet-50/80 p-6 shadow-[0_18px_50px_rgba(76,29,149,0.08)] sm:flex-row sm:items-center sm:justify-between">
+        <div className="pointer-events-none absolute -right-16 -top-20 h-52 w-52 rounded-full bg-violet-200/30 blur-3xl" />
         <div>
           <h1 className="font-display font-black text-2xl tracking-tight text-slate-800">Purchase Orders</h1>
-          <p className="text-xs text-slate-500 mt-1">Manage all purchase orders from creation to closure</p>
+          <p className="mt-1 text-xs text-slate-500">{canCreate ? 'Create, sign and track your assigned purchase orders.' : 'Read-only purchase-order visibility for your role.'}</p>
         </div>
         <div className="flex w-full flex-wrap items-center gap-2 self-start sm:w-auto sm:justify-end">
           <RefreshButton isLoading={isLoading} onClick={fetchPOs} ariaLabel="Refresh purchase orders" />

@@ -4,7 +4,7 @@ import fs from 'fs'
 import path from 'path'
 import sharp from 'sharp'
 import { connectToDatabase } from '../lib/mongo.js'
-import { GoodsReceipt, PurchaseOrder, ServiceRequest } from '../models.js'
+import { GoodsReceipt, PurchaseOrder, ServiceRequest, DeliverySchedule, GateEntry } from '../models.js'
 import { getSystemSettings } from '../lib/systemSettings.js'
 
 const money = value => `INR ${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
@@ -141,7 +141,127 @@ async function storedImage(url) {
   }
 }
 
-async function grnPdf(po, grn, request = null) {
+function appendWorkflowAnnexure(doc, po, currentGrn, request, context = {}, brand = {}) {
+  const left = 42
+  const width = 511
+  const ink = '#172033'
+  const muted = '#64748b'
+  const violet = '#6d28d9'
+  const green = '#047857'
+  const allGrns = context.allGrns || [currentGrn]
+  const deliveries = context.deliveries || []
+  const gateEntries = context.gateEntries || []
+  const requestHistory = request?.statusHistory || []
+  const poHistory = po?.statusHistory || []
+  const isService = currentGrn.source === 'SERVICE_PO' || po?.poType === 'SERVICE'
+  const accepted = allGrns.reduce((sum, receipt) => sum + (receipt.items || []).reduce((itemSum, item) => itemSum + Number(item.quantityAcceptedNow || 0), 0), 0)
+  const ordered = (po?.items || []).reduce((sum, item) => sum + Number(item.quantityOrdered || 0), 0)
+  const progress = ordered > 0 ? Math.min(100, Math.round((accepted / ordered) * 100)) : (po?.status === 'CLOSED' ? 100 : 0)
+
+  const addPage = title => {
+    doc.addPage()
+    institutionHeader(doc, brand, title, { lineY: 122, accent: violet, context: 'COMPLETE AUDIT TRAIL' })
+    doc.y = 140
+  }
+  const ensure = height => { if (doc.y + height > 755) addPage('WORKFLOW AUDIT TRAIL — CONTINUED') }
+  const title = text => {
+    ensure(32)
+    doc.fillColor(ink).font('Helvetica-Bold').fontSize(8.5).text(text.toUpperCase(), left, doc.y)
+    doc.moveTo(left, doc.y + 14).lineTo(left + width, doc.y + 14).lineWidth(0.6).strokeColor('#cbd5e1').stroke()
+    doc.moveTo(left, doc.y + 14).lineTo(left + 34, doc.y + 14).lineWidth(2).strokeColor(violet).stroke()
+    doc.y += 25
+  }
+  const auditRow = (when, stage, actor, description, tone = ink) => {
+    const descriptionText = String(description || 'Status updated')
+    const rowHeight = Math.max(34, doc.heightOfString(descriptionText, { width: 260 }) + 18)
+    ensure(rowHeight + 3)
+    const y = doc.y
+    doc.rect(left, y, width, rowHeight).fillAndStroke('#ffffff', '#e2e8f0')
+    doc.fillColor(muted).font('Helvetica-Bold').fontSize(6.2).text(dateTime(when), left + 8, y + 9, { width: 92 })
+    doc.fillColor(tone).font('Helvetica-Bold').fontSize(6.8).text(statusLabel(stage), left + 105, y + 9, { width: 100 })
+    doc.fillColor(ink).font('Helvetica-Bold').fontSize(6.5).text(actor || 'CampusServe', left + 210, y + 9, { width: 85, ellipsis: true })
+    doc.fillColor('#334155').font('Helvetica').fontSize(6.5).text(descriptionText, left + 300, y + 8, { width: 202, lineGap: 1 })
+    doc.y = y + rowHeight
+  }
+
+  addPage('PROCUREMENT WORKFLOW RECORD')
+  title('Original intent / request')
+  const requestRows = [
+    ['Request', request?.requestNumber || 'Standalone purchase order'],
+    ['Title and description', `${request?.title || po?.adminDescription || 'Purchase requirement'}${request?.description ? ` — ${request.description}` : ''}`],
+    ['Requested by', request ? `${request.requesterName || '—'} (${request.requesterEmail || '—'})` : '—'],
+    ['Department / location', `${request?.department || request?.category || '—'} · ${request?.location || po?.deliveryLocation || po?.deliveryAddress || '—'}`],
+    ['Requirement', `${request?.adminAssessment?.requirementType || po?.adminRequirementType || po?.poType || '—'} · ${request?.requestedQuantity || '—'} ${request?.requestedUnit || ''} ${request?.requestedItem || ''}`],
+    ['Admin assessment', `${request?.adminAssessment?.note || po?.adminAssessmentNote || 'No additional assessment note'}${request?.adminAssessment?.assessedBy ? ` · Assessed by ${request.adminAssessment.assessedBy}` : ''}`],
+    ['Assigned manager', request?.assignedManagerName || po?.createdBy || 'Purchase Manager'],
+    ['Priority / SLA', `${request?.priority || '—'} · SLA ${dateTime(request?.slaDueAt)}`]
+  ]
+  requestRows.forEach(([labelText, valueText], index) => {
+    const h = Math.max(21, doc.heightOfString(String(valueText), { width: 355 }) + 10)
+    ensure(h)
+    const y = doc.y
+    doc.rect(left, y, width, h).fill(index % 2 ? '#ffffff' : '#f8fafc')
+    doc.fillColor(muted).font('Helvetica-Bold').fontSize(6.5).text(labelText.toUpperCase(), left + 8, y + 7, { width: 135 })
+    doc.fillColor(ink).font('Helvetica').fontSize(7.2).text(String(valueText), left + 148, y + 6, { width: 355 })
+    doc.y = y + h
+  })
+
+  title('Live stage progress')
+  const hasGate = allGrns.some(receipt => receipt.gateVerifiedAt || receipt.source === 'PO_QR') || gateEntries.length > 0
+  const stages = [
+    ['1', 'Intent raised', Boolean(request), request ? `${request.requestNumber} submitted by ${request.requesterName}` : 'Standalone PO'],
+    ['2', 'Reviewed & assigned', Boolean(request?.assignedManagerId || request?.assignedManagerName), request?.adminAssessment?.note || 'Assigned to purchase manager'],
+    ['3', 'Purchase order', Boolean(po), `${po?.poNumber} created by ${po?.createdBy || 'Purchase Manager'}`],
+    ['4', 'Signed PO active', po?.signedPo?.status === 'VERIFIED', po?.signedPo?.status === 'VERIFIED' ? `Uploaded ${dateTime(po.signedPo.uploadedAt)} by ${po.signedPo.uploadedBy || po.createdBy}` : 'Signed PO not recorded'],
+    ['5', isService ? 'Service execution' : 'Gate verification', isService ? ['COMPLETED', 'SUBMITTED'].includes(po?.serviceExecution?.status) : hasGate, isService ? `${statusLabel(po?.serviceExecution?.status)} · ${po?.serviceExecution?.serviceSummary || 'Service progress recorded'}` : (hasGate ? `${allGrns.length} gate receipt verification(s) recorded` : 'Awaiting gate receipt')],
+    ['6', 'GRN receiving', allGrns.length > 0, `${allGrns.length} GRN(s) · ${accepted}/${ordered || accepted} accepted · ${progress}% complete`],
+    ['7', 'Closure', po?.status === 'CLOSED', po?.status === 'CLOSED' ? 'PO and linked request closed' : `Current PO status: ${statusLabel(po?.status)}`]
+  ]
+  stages.forEach(([number, name, complete, description]) => {
+    ensure(35)
+    const y = doc.y
+    doc.circle(left + 13, y + 13, 10).fill(complete ? green : '#e2e8f0')
+    doc.fillColor(complete ? '#ffffff' : muted).font('Helvetica-Bold').fontSize(7).text(number, left + 7, y + 10, { width: 12, align: 'center' })
+    doc.fillColor(ink).font('Helvetica-Bold').fontSize(7.2).text(name, left + 31, y + 5, { width: 115 })
+    doc.fillColor(complete ? green : muted).font('Helvetica-Bold').fontSize(6).text(complete ? 'COMPLETE' : 'PENDING / ACTIVE', left + 148, y + 5, { width: 88 })
+    doc.fillColor('#334155').font('Helvetica').fontSize(6.5).text(description, left + 239, y + 4, { width: 264, height: 26, ellipsis: true })
+    doc.y = y + 34
+  })
+
+  title(`GRN sequence and cumulative receiving (${allGrns.length})`)
+  allGrns.forEach((receipt, index) => {
+    const receiptAccepted = (receipt.items || []).reduce((sum, item) => sum + Number(item.quantityAcceptedNow || 0), 0)
+    const receiptDelivered = (receipt.items || []).reduce((sum, item) => sum + Number(item.quantityDeliveredNow || 0), 0)
+    auditRow(receipt.receivedAt || receipt.createdAt, `${index + 1}. ${receipt.grnType}${String(receipt._id) === String(currentGrn._id) ? ' · THIS PDF' : ''}`, receipt.receivedByName, `${receipt.grnNumber} · Delivered ${receiptDelivered}, accepted ${receiptAccepted} · ${money(receipt.grandTotal)} · ${receipt.remarks || 'No additional remarks'}`, receipt.grnType === 'FINAL' ? green : violet)
+  })
+
+  if (deliveries.length || gateEntries.length || hasGate) {
+    title('Delivery and gate verification')
+    deliveries.forEach(delivery => auditRow(delivery.scheduledDate || delivery.createdAt, delivery.status, delivery.deliveryPersonName, `${delivery.deliveryNumber} · Vehicle ${delivery.vehicleNumber || '—'} · ${delivery.deliveryLocation || po?.deliveryLocation || '—'} · Challan ${delivery.challanNumber || '—'}`, violet))
+    gateEntries.forEach(entry => auditRow(entry.entryTime || entry.createdAt, `Gate ${entry.decision}`, entry.securityUserName, `${entry.verificationMethod} verification · Person ${entry.actualDeliveryPersonName || '—'} · Vehicle ${entry.actualVehicleNumber || '—'}${entry.rejectionReason ? ` · Reason: ${entry.rejectionReason}` : ''}${entry.exitTime ? ` · Exit ${dateTime(entry.exitTime)}` : ''}`, entry.decision === 'APPROVED' ? green : '#991b1b'))
+    if (!gateEntries.length) allGrns.filter(receipt => receipt.gateVerifiedAt || receipt.source === 'PO_QR').forEach(receipt => auditRow(receipt.gateVerifiedAt || receipt.receivedAt, 'Gate PO QR verified', receipt.receivedByName, `${receipt.grnNumber} created after PO QR and physical receipt verification`, green))
+  }
+
+  title('Complete status history')
+  requestHistory.forEach(entry => auditRow(entry.createdAt, `Request · ${entry.newStatus}`, entry.actorName, entry.comment))
+  poHistory.forEach(entry => auditRow(entry.createdAt, `PO · ${entry.newStatus}`, entry.actorName, entry.comment, violet))
+  doc.fillColor(muted).font('Helvetica').fontSize(6).text(`Live audit snapshot generated ${dateTime(new Date())} · Current GRN ${currentGrn.grnNumber}`, left, Math.min(770, doc.y + 12), { width })
+}
+
+async function loadWorkflowContext(po) {
+  const allGrns = await GoodsReceipt.find({ poId: po._id }).sort({ receivedAt: 1, createdAt: 1 }).lean()
+  const deliveries = await DeliverySchedule.find({ poId: po._id }).sort({ scheduledDate: 1, createdAt: 1 }).lean()
+  const deliveryIds = deliveries.map(delivery => delivery._id)
+  const gateEntries = await GateEntry.find({
+    $or: [
+      { poId: po._id },
+      ...(deliveryIds.length ? [{ deliveryScheduleId: { $in: deliveryIds } }] : [])
+    ]
+  }).sort({ entryTime: 1, createdAt: 1 }).lean()
+  return { allGrns, deliveries, gateEntries }
+}
+
+async function grnPdf(po, grn, request = null, workflowContext = {}) {
   const institution = request?.institution || po?.institution || grn?.institution || 'msec'
   const brand = await getPdfBrand(institution)
   const receiptEvidenceBuffer = await storedImage(grn.receiptEvidence?.url)
@@ -263,6 +383,7 @@ async function grnPdf(po, grn, request = null) {
           doc.fillColor(muted).font('Helvetica').fontSize(8).text('Open this PDF’s attachments panel to view the original scanned PDF bill.', left + 30, 335, { width: width - 60, align: 'center' })
         }
       })
+      appendWorkflowAnnexure(doc, po, grn, request, workflowContext, brand)
     })
   }
   return collectPdf(doc => {
@@ -477,10 +598,12 @@ async function grnPdf(po, grn, request = null) {
       doc.image(buffer, left + 10, 155, { fit: [width - 20, 570], align: 'center', valign: 'center' })
       doc.fillColor('#4b5563').font('Helvetica').fontSize(5.5).text(`Original indent evidence · ${(evidence.kind || 'PHOTO').replace(/_/g, ' ')} · ${grn.grnNumber}`, left, 781, { width, lineBreak: false })
     })
+    appendWorkflowAnnexure(doc, po, grn, request, workflowContext, brand)
   })
 }
 
-async function poPdf(po, grns) {
+async function poPdf(po, grns, request = null, workflowContext = {}) {
+  const brand = await getPdfBrand(request?.institution || po?.institution || 'msec')
   return collectPdf(doc => {
     header(doc, 'COMPLETED PURCHASE ORDER REPORT', po.poNumber)
     section(doc, 'Purchase order')
@@ -511,6 +634,7 @@ async function poPdf(po, grns) {
       quantityRemaining: item.quantityRemaining || 0,
     }))
     itemsTable(doc, summaryItems)
+    if (grns.length) appendWorkflowAnnexure(doc, po, grns[grns.length - 1], request, workflowContext, brand)
   })
 }
 
@@ -518,8 +642,9 @@ export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ success: false, error: 'Method not allowed' })
   try {
     const actorRole = req.user?.role || req.headers['x-user-role'] || ''
-    if (!['admin', 'super_admin', 'manager', 'receiving_officer', 'accounts', 'vendor'].includes(actorRole)) {
-      return res.status(403).json({ success: false, error: 'You are not authorized to export purchase-order receipts' })
+    const actorId = req.user?.id || req.headers['x-user-id'] || ''
+    if (actorRole !== 'manager') {
+      return res.status(403).json({ success: false, error: 'Only the responsible manager can download PO and GRN reports' })
     }
     await connectToDatabase()
     const { type, grnId, poId } = req.query
@@ -527,8 +652,12 @@ export default async function handler(req, res) {
       const grn = await GoodsReceipt.findById(grnId).lean()
       if (!grn) return res.status(404).json({ success: false, error: 'GRN not found' })
       const po = await PurchaseOrder.findById(grn.poId).lean()
+      if (!po || String(po.createdById || '') !== String(actorId)) {
+        return res.status(403).json({ success: false, error: 'You can download only GRNs for purchase orders assigned to you' })
+      }
       const request = po?.requestId ? await ServiceRequest.findById(po.requestId).lean() : null
-      const pdf = await grnPdf(po, grn, request)
+      const workflowContext = await loadWorkflowContext(po)
+      const pdf = await grnPdf(po, grn, request, workflowContext)
       res.setHeader('Content-Type', 'application/pdf')
       res.setHeader('Content-Disposition', `attachment; filename="${safeName(grn.grnNumber)}.pdf"`)
       return res.end(pdf)
@@ -536,12 +665,16 @@ export default async function handler(req, res) {
     if (type === 'po-package') {
       const po = await PurchaseOrder.findById(poId).lean()
       if (!po) return res.status(404).json({ success: false, error: 'Purchase order not found' })
+      if (String(po.createdById || '') !== String(actorId)) {
+        return res.status(403).json({ success: false, error: 'You can download only purchase orders assigned to you' })
+      }
       const grns = await GoodsReceipt.find({ poId }).sort({ createdAt: 1 }).lean()
       const request = po.requestId ? await ServiceRequest.findById(po.requestId).lean() : null
+      const workflowContext = await loadWorkflowContext(po)
       const zip = new JSZip()
-      zip.file(`${safeName(po.poNumber)}-complete-report.pdf`, await poPdf(po, grns))
+      zip.file(`${safeName(po.poNumber)}-complete-report.pdf`, await poPdf(po, grns, request, workflowContext))
       const folder = zip.folder('GRNs')
-      for (const grn of grns) folder.file(`${safeName(grn.grnNumber)}.pdf`, await grnPdf(po, grn, request))
+      for (const grn of grns) folder.file(`${safeName(grn.grnNumber)}.pdf`, await grnPdf(po, grn, request, workflowContext))
       zip.file('README.txt', `${po.poNumber}\nStatus: ${po.status}\nVendor: ${po.vendorName}\nGRNs included: ${grns.length}\nGenerated: ${new Date().toISOString()}\n`)
       const archive = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' })
       res.setHeader('Content-Type', 'application/zip')

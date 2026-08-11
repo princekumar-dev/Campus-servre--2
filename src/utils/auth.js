@@ -26,7 +26,6 @@ export function getAuthOrNull() {
 export function getDashboardPath(role) {
   const roleDashboards = {
     gate: '/gate/dashboard',
-    vendor: '/vendor/dashboard',
     service_provider: '/service/dashboard',
     receiving_officer: '/receiving/dashboard',
     accounts: '/accounts/dashboard'

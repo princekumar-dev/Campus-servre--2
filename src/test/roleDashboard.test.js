@@ -4,7 +4,6 @@ import { getDashboardPath } from '../utils/auth'
 describe('role dashboard routing', () => {
   it.each([
     ['gate', '/gate/dashboard'],
-    ['vendor', '/vendor/dashboard'],
     ['receiving_officer', '/receiving/dashboard'],
     ['accounts', '/accounts/dashboard']
   ])('routes %s to its dedicated dashboard', (role, expectedPath) => {
@@ -19,7 +18,8 @@ describe('role dashboard routing', () => {
     'hod',
     'staff',
     'technician',
-    'delivery_person'
+    'delivery_person',
+    'vendor'
   ])('routes %s to the role-aware main dashboard', (role) => {
     expect(getDashboardPath(role)).toBe('/dashboard')
   })

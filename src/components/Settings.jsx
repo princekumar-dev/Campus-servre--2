@@ -63,6 +63,15 @@ function Settings({ isOpen, onClose, userEmail, userRole, isMobile = false }) {
   const [passwordError, setPasswordError] = useState('')
   const [passwordLoading, setPasswordLoading] = useState(false)
 
+  // Profile name states
+  const initialAuth = (() => {
+    try { return JSON.parse(localStorage.getItem('auth') || '{}') } catch { return {} }
+  })()
+  const [currentName, setCurrentName] = useState(initialAuth.name || '')
+  const [nameInput, setNameInput] = useState(initialAuth.name || '')
+  const [showNameModal, setShowNameModal] = useState(false)
+  const [nameLoading, setNameLoading] = useState(false)
+
   const [isInitializing, setIsInitializing] = useState(false)
   const [headerOffset, setHeaderOffset] = useState(0)
   const notificationsEnabledRef = useRef(notificationsEnabled)
@@ -506,6 +515,32 @@ function Settings({ isOpen, onClose, userEmail, userRole, isMobile = false }) {
     clearSignature()
   }
 
+  const saveName = async () => {
+    const normalizedName = nameInput.trim().replace(/\s+/g, ' ')
+    if (normalizedName.length < 2 || normalizedName.length > 80) {
+      return showError('Invalid name', 'Name must be between 2 and 80 characters')
+    }
+    setNameLoading(true)
+    try {
+      const auth = JSON.parse(localStorage.getItem('auth') || '{}')
+      const userId = auth.id || localStorage.getItem('userId')
+      if (!userId) throw new Error('Your account session is unavailable')
+      const response = await apiClient.patch(`/api/users?action=update-profile&userId=${encodeURIComponent(userId)}`, { name: normalizedName })
+      if (!response?.success) throw new Error(response?.error || 'Unable to update name')
+      auth.name = response.user?.name || normalizedName
+      localStorage.setItem('auth', JSON.stringify(auth))
+      setCurrentName(auth.name)
+      setNameInput(auth.name)
+      setShowNameModal(false)
+      window.dispatchEvent(new Event('authStateChanged'))
+      showSuccess('Name updated', 'Your account name was changed successfully')
+    } catch (error) {
+      showError('Update failed', error.message || 'Unable to update your name')
+    } finally {
+      setNameLoading(false)
+    }
+  }
+
   // Logout
   const handleLogout = () => {
     try {
@@ -538,8 +573,8 @@ function Settings({ isOpen, onClose, userEmail, userRole, isMobile = false }) {
   // ============ RENDER ============
 
   const SettingsContent = () => {
-    const displayName = userEmail
-    const displayInitial = userEmail?.charAt(0).toUpperCase() || '?'
+    const displayName = currentName || userEmail
+    const displayInitial = displayName?.charAt(0).toUpperCase() || '?'
 
     return (
       <>
@@ -589,7 +624,8 @@ function Settings({ isOpen, onClose, userEmail, userRole, isMobile = false }) {
               type="button"
               onClick={(e) => {
                 e.stopPropagation()
-                setShowSignatureModal(true)
+                setNameInput(currentName || '')
+                setShowNameModal(true)
               }}
               className="w-full flex items-center gap-3 p-3 rounded-lg bg-white/6 hover:bg-white/12 hover:shadow-sm active:bg-white/5 transition-all duration-200 text-left min-h-[52px] cursor-pointer group"
               style={{ touchAction: 'manipulation', pointerEvents: 'auto' }}
@@ -598,8 +634,8 @@ function Settings({ isOpen, onClose, userEmail, userRole, isMobile = false }) {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
               </svg>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-[#111418] group-hover:text-[#0b1220] transition-colors duration-200">Add Signature</p>
-                <p className="text-xs text-[#60758a] group-hover:text-[#4a5568] mt-0.5 transition-colors duration-200">Draw your digital signature for PDFs</p>
+                <p className="text-sm font-medium text-[#111418] group-hover:text-[#0b1220] transition-colors duration-200">Change Name</p>
+                <p className="text-xs text-[#60758a] group-hover:text-[#4a5568] mt-0.5 transition-colors duration-200">Update the name shown across CampusServe</p>
               </div>
               <svg className="w-4 h-4 text-[#60758a] group-hover:text-[#4a5568] group-hover:translate-x-1 flex-shrink-0 transition-all duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -762,6 +798,31 @@ function Settings({ isOpen, onClose, userEmail, userRole, isMobile = false }) {
 
   const settingsSubModals = (
     <>
+      {showNameModal && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm" onClick={(event) => { if (event.currentTarget === event.target && !nameLoading) setShowNameModal(false) }}>
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl" onClick={event => event.stopPropagation()}>
+            <h2 className="text-2xl font-bold text-gray-900">Change Name</h2>
+            <p className="mt-1 text-sm text-gray-500">This name will appear in your profile and activity records.</p>
+            <label className="mt-5 block text-sm font-semibold text-gray-700" htmlFor="account-name">Full name</label>
+            <input
+              id="account-name"
+              type="text"
+              value={nameInput}
+              onChange={event => setNameInput(event.target.value)}
+              onKeyDown={event => { if (event.key === 'Enter' && !nameLoading) saveName() }}
+              maxLength={80}
+              autoComplete="name"
+              autoFocus
+              className="mt-2 w-full rounded-xl border-2 border-gray-200 px-4 py-3 text-base outline-none focus:border-violet-500 focus:ring-4 focus:ring-violet-100"
+              placeholder="Enter your full name"
+            />
+            <div className="mt-6 flex gap-3">
+              <button type="button" onClick={() => setShowNameModal(false)} disabled={nameLoading} className="flex-1 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60">Cancel</button>
+              <button type="button" onClick={saveName} disabled={nameLoading || nameInput.trim().length < 2} className="flex-1 rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md hover:bg-violet-700 disabled:opacity-60">{nameLoading ? 'Saving…' : 'Save Name'}</button>
+            </div>
+          </div>
+        </div>
+      )}
       {showPasswordModal && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 backdrop-blur-sm"
           onClick={(e) => {
@@ -838,7 +899,7 @@ function Settings({ isOpen, onClose, userEmail, userRole, isMobile = false }) {
         </div>
       )}
 
-      {showSignatureModal && (
+      {false && showSignatureModal && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 backdrop-blur-sm"
           onClick={(e) => {
             if (e.currentTarget === e.target) {

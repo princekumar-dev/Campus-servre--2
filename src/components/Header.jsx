@@ -99,7 +99,7 @@ function Header() {
       {user.role === 'admin' && (
         <>
           <Link className={linkClass('/requests')} to="/requests">Request Triage</Link>
-          <Link className={linkClass('/purchase-orders')} to="/purchase-orders">PO Verification</Link>
+          <Link className={linkClass('/purchase-orders')} to="/purchase-orders">Purchase Orders</Link>
           <Link className={linkClass('/reports')} to="/reports">Reports</Link>
         </>
       )}

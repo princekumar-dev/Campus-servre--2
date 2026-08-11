@@ -3,7 +3,7 @@ import { useAlert } from '../components/AlertContext'
 import ModalShell from '../components/ModalShell'
 import apiClient from '../utils/apiClient'
 import { getAuthOrNull } from '../utils/auth'
-import { ClipboardCheck, Plus, Package, CheckCircle, AlertTriangle, XCircle, ChevronDown, ChevronUp, Download, FileArchive, ExternalLink, Image as ImageIcon } from 'lucide-react'
+import { ClipboardCheck, Package, CheckCircle, AlertTriangle, XCircle, ChevronDown, ChevronUp, Download, FileArchive, ExternalLink, Image as ImageIcon } from 'lucide-react'
 import RefreshButton from '../components/RefreshButton'
 
 const grnTypeColors = {
@@ -211,7 +211,7 @@ function EvidencePreview({ evidence, title, tone = 'violet' }) {
   )
 }
 
-function GRNCard({ grn, po, onDownload }) {
+function GRNCard({ grn, po, onDownload, canDownload }) {
   const [expanded, setExpanded] = useState(false)
   const [receiptEvidence, setReceiptEvidence] = useState(grn.receiptEvidence?.url ? grn.receiptEvidence : null)
   const [damageEvidence, setDamageEvidence] = useState(grn.damageEvidence?.url ? grn.damageEvidence : null)
@@ -247,13 +247,13 @@ function GRNCard({ grn, po, onDownload }) {
             {grn.source === 'SERVICE_PO' && <span className="text-xs font-bold px-2 py-0.5 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-200">SERVICE PO</span>}
             <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${grnTypeColors[grn.grnType]}`}>{grn.grnType}</span>
             <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${grn.status === 'FINALIZED' ? 'bg-slate-100 text-slate-500 border-slate-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>{grn.status}</span>
-            <button
+            {canDownload && <button
               onClick={() => onDownload(grn)}
               className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-2.5 py-1.5 text-[11px] font-bold text-white hover:bg-violet-700"
               title={`Download ${grn.grnNumber} report`}
             >
               <Download size={12} /> PDF
-            </button>
+            </button>}
           </div>
         </div>
 
@@ -341,7 +341,7 @@ function GRNCard({ grn, po, onDownload }) {
   )
 }
 
-function POGroup({ group, onDownloadGrn, onDownloadPackage }) {
+function POGroup({ group, onDownloadGrn, onDownloadPackage, canDownload }) {
   const [expanded, setExpanded] = useState(false)
   const { po, grns } = group
   const partial = grns.filter(grn => grn.grnType === 'PARTIAL').length
@@ -392,15 +392,15 @@ function POGroup({ group, onDownloadGrn, onDownloadPackage }) {
 
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <h3 className="text-xs font-black uppercase tracking-wider text-slate-500">Related Goods Receipts</h3>
-            <button
+            {canDownload && <button
               onClick={() => onDownloadPackage(po, grns)}
               className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white hover:bg-slate-800"
             >
               <FileArchive size={14} /> Download PO + All GRNs (.zip)
-            </button>
+            </button>}
           </div>
           <div className="space-y-3">
-            {grns.map(grn => <GRNCard key={grn._id} grn={grn} po={po} onDownload={onDownloadGrn} />)}
+            {grns.map(grn => <GRNCard key={grn._id} grn={grn} po={po} onDownload={onDownloadGrn} canDownload={canDownload} />)}
           </div>
         </div>
       )}
@@ -413,11 +413,10 @@ export default function GRN() {
   const [purchaseOrders, setPurchaseOrders] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [filter, setFilter] = useState('ALL')
-  const [showCreate, setShowCreate] = useState(false)
   const { showError, showSuccess } = useAlert()
   const auth = getAuthOrNull()
 
-  const canRecord = ['admin', 'super_admin', 'manager', 'receiving_officer'].includes(auth?.role)
+  const canDownload = auth?.role === 'manager'
 
   const fetchGRNs = useCallback(async () => {
     setIsLoading(true)
@@ -460,20 +459,14 @@ export default function GRN() {
 
   return (
     <div className="space-y-6 animate-fadeIn">
-      {showCreate && <CreateGRNModal onClose={() => setShowCreate(false)} onSaved={() => { setShowCreate(false); fetchGRNs() }} />}
-
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
+      <div className="relative flex flex-col gap-5 overflow-hidden rounded-3xl border border-violet-100 bg-gradient-to-br from-white via-white to-violet-50/80 p-6 shadow-[0_18px_50px_rgba(76,29,149,0.08)] sm:flex-row sm:items-center sm:justify-between">
+        <div className="pointer-events-none absolute -right-16 -top-20 h-52 w-52 rounded-full bg-violet-200/30 blur-3xl" />
         <div>
           <h1 className="font-display font-black text-2xl tracking-tight text-slate-800">Goods Receipts (GRN)</h1>
-          <p className="text-xs text-slate-500 mt-1">Record and track all inbound goods receipts with quantity validation</p>
+          <p className="mt-1 text-xs text-slate-500">Track verified inbound receipts and delivery evidence.{canDownload ? ' Manager report downloads are enabled.' : ' Reports are view-only for your role.'}</p>
         </div>
         <div className="flex w-full items-center gap-2 sm:w-auto">
           <RefreshButton isLoading={isLoading} onClick={fetchGRNs} ariaLabel="Refresh goods receipts" />
-          {canRecord && (
-          <button onClick={() => setShowCreate(true)} className="bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs py-2.5 px-5 rounded-xl flex items-center space-x-2 transition-all shadow-sm shadow-violet-600/20 self-start">
-            <Plus size={15} /><span>Record GRN</span>
-          </button>
-          )}
         </div>
       </div>
 
@@ -509,6 +502,7 @@ export default function GRN() {
               group={group}
               onDownloadGrn={handleDownloadGrn}
               onDownloadPackage={handleDownloadPackage}
+              canDownload={canDownload}
             />
           ))}
         </div>

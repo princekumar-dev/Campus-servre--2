@@ -346,10 +346,21 @@ export default async function handler(req, res) {
     }
 
     if (type === 'purchase-order') {
+      const actorRole = req.user?.role || req.headers['x-user-role'] || ''
+      const actorId = req.user?.id || req.headers['x-user-id'] || ''
+      if (actorRole !== 'manager') {
+        return res.status(403).json({ success: false, error: 'Only the responsible manager can download a purchase order' })
+      }
       const po = await PurchaseOrder.findById(id)
         .select('-signedPo.url -documentUrl -serviceExecution.workEvidence.url -serviceExecution.expenses.bill.url -statusHistory')
         .lean()
       if (!po) return res.status(404).json({ success: false, error: 'Purchase Order not found' })
+      if (
+        (po.createdById && String(po.createdById) !== String(actorId)) ||
+        (!po.createdById && req.user?.name && po.createdBy !== req.user.name)
+      ) {
+        return res.status(403).json({ success: false, error: 'You can download only purchase orders assigned to you' })
+      }
       const finalGrn = po.status === 'CLOSED'
         ? await GoodsReceipt.findOne({ poId: po._id, grnType: 'FINAL' }).sort({ createdAt: -1 }).lean()
         : null

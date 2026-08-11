@@ -4,6 +4,15 @@ import { Landmark, TrendingUp, ShieldCheck, Users } from 'lucide-react'
 import { PageHeader } from '../components/ui'
 import { ErrorState, LoadingState } from '../components/EmptyStates'
 
+const formatCurrency = value => new Intl.NumberFormat('en-IN', {
+  style: 'currency',
+  currency: 'INR',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2
+}).format(Number.isFinite(Number(value)) ? Number(value) : 0)
+
+const formatCount = value => new Intl.NumberFormat('en-IN').format(Number.isFinite(Number(value)) ? Number(value) : 0)
+
 function Reports() {
   const [stats, setStats] = useState({
     totalRequests: 0,
@@ -64,7 +73,7 @@ function Reports() {
         <div className="premium-card p-6 flex items-center justify-between">
           <div>
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Total Expenditure</span>
-            <span className="text-2xl font-black text-slate-800 mt-2 block">₹{Number(stats.totalExpenses || 0).toFixed(2)}</span>
+            <span className="text-2xl font-black text-slate-800 mt-2 block">{formatCurrency(stats.totalExpenses)}</span>
             <span className="text-xs text-slate-500 mt-1 block">Cleared payments</span>
           </div>
           <div className="p-4 bg-emerald-50 rounded-xl text-emerald-600">
@@ -75,7 +84,7 @@ function Reports() {
         <div className="premium-card p-6 flex items-center justify-between">
           <div>
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Approved Budget</span>
-            <span className="text-2xl font-black text-slate-800 mt-2 block">₹{Number(stats.totalPOValue ?? stats.totalQuotations ?? 0).toFixed(2)}</span>
+            <span className="text-2xl font-black text-slate-800 mt-2 block">{formatCurrency(stats.totalPOValue ?? stats.totalQuotations)}</span>
             <span className="text-xs text-slate-500 mt-1 block">Committed purchase-order value</span>
           </div>
           <div className="p-4 bg-violet-50 rounded-xl text-violet-600">
@@ -89,7 +98,7 @@ function Reports() {
             <span className="text-2xl font-black text-slate-800 mt-2 block">
               {stats.totalRequests > 0 ? Math.round((stats.closed / stats.totalRequests) * 100) : 0}%
             </span>
-            <span className="text-xs text-slate-500 mt-1 block">{stats.closed} resolved of {stats.totalRequests}</span>
+            <span className="text-xs text-slate-500 mt-1 block">{formatCount(stats.closed)} resolved of {formatCount(stats.totalRequests)}</span>
           </div>
           <div className="p-4 bg-indigo-50 rounded-xl text-indigo-650">
             <ShieldCheck size={24} />
@@ -114,7 +123,7 @@ function Reports() {
                   <div key={idx} className="space-y-1">
                     <div className="flex justify-between text-xs font-medium text-slate-700">
                       <span>{d.name}</span>
-                      <span className="font-bold">₹{d.cost.toFixed(2)}</span>
+                      <span className="font-bold tabular-nums">{formatCurrency(d.cost)}</span>
                     </div>
                     <div className="w-full h-2 rounded bg-slate-100 overflow-hidden">
                       <div className="h-full bg-gradient-to-r from-violet-500 to-indigo-500 rounded" style={{ width: `${percent}%` }}></div>
@@ -140,7 +149,7 @@ function Reports() {
                   <div key={idx} className="space-y-1">
                     <div className="flex justify-between text-xs font-medium text-slate-700">
                       <span>{c.name}</span>
-                      <span className="font-bold">{c.value} requests</span>
+                      <span className="font-bold tabular-nums">{formatCount(c.value)} {Number(c.value) === 1 ? 'request' : 'requests'}</span>
                     </div>
                     <div className="w-full h-2 rounded bg-slate-100 overflow-hidden">
                       <div className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded" style={{ width: `${percent}%` }}></div>
@@ -180,8 +189,8 @@ function Reports() {
                     return (
                       <tr key={idx} className="hover:bg-slate-50/50">
                         <td className="py-2.5 font-semibold text-slate-800">{t.name}</td>
-                        <td className="py-2.5 text-right">{t.assigned}</td>
-                        <td className="py-2.5 text-right">{t.completed}</td>
+                        <td className="py-2.5 text-right tabular-nums">{formatCount(t.assigned)}</td>
+                        <td className="py-2.5 text-right tabular-nums">{formatCount(t.completed)}</td>
                         <td className="py-2.5 text-right font-bold text-violet-650">{rate}%</td>
                       </tr>
                     )

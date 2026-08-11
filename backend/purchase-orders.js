@@ -3,6 +3,7 @@ import { PurchaseOrder, Vendor, VendorQuotation, User, ServiceRequest, GoodsRece
 const roundMoney = value => Math.round((Number(value) + Number.EPSILON) * 100) / 100
 const normalizeUnit = value => ({ pieces: 'pcs', sets: 'set', units: 'unit', boxes: 'box', meters: 'm' }[String(value || '').toLowerCase()] || String(value || 'pcs').toLowerCase())
 const invalidOrder = message => Object.assign(new Error(message), { status: 400 })
+const displayManagerName = value => String(value || '').trim().replace(/^Service Manager$/i, 'Purchase Manager') || 'Purchase Manager'
 
 function withoutEmbeddedFiles(value) {
   const po = typeof value?.toObject === 'function' ? value.toObject() : { ...value }
@@ -75,7 +76,6 @@ function scheduleLegacyQrReconciliation() {
 
 import { connectToDatabase } from '../lib/mongo.js'
 import { addProductIds, generateProductId, getProductId } from '../lib/productId.js'
-import { storeNotification } from '../lib/notificationService.js'
 
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end()
@@ -100,8 +100,17 @@ export default async function handler(req, res) {
     if (req.method === 'GET') {
       scheduleLegacyQrReconciliation()
       if (id && action === 'signed-po') {
-        const po = await PurchaseOrder.findById(id).select('signedPo').lean()
+        const po = await PurchaseOrder.findById(id).select('signedPo createdById vendorId').lean()
         if (!po) return res.status(404).json({ success: false, error: 'PO not found' })
+        if (userRole === 'manager' && String(po.createdById || '') !== String(actorId)) {
+          return res.status(403).json({ success: false, error: 'This purchase order is not assigned to you' })
+        }
+        if (userRole === 'vendor') {
+          const vendor = await Vendor.findOne({ email: actor?.email }).select('_id').lean()
+          if (!vendor || String(po.vendorId || '') !== String(vendor._id)) {
+            return res.status(403).json({ success: false, error: 'This purchase order is not assigned to your vendor account' })
+          }
+        }
         if (!po.signedPo?.url) return res.status(404).json({ success: false, error: 'Signed PO file not found' })
         return res.json({ success: true, data: po.signedPo })
       }
@@ -110,13 +119,24 @@ export default async function handler(req, res) {
           .select('-signedPo.url -documentUrl -serviceExecution.workEvidence.url -serviceExecution.expenses.bill.url')
           .lean()
         if (!po) return res.status(404).json({ success: false, error: 'PO not found' })
+        if (userRole === 'manager' && String(po.createdById || '') !== String(actorId)) {
+          return res.status(403).json({ success: false, error: 'This purchase order is not assigned to you' })
+        }
+        if (userRole === 'vendor') {
+          const vendor = await Vendor.findOne({ email: actor?.email }).select('_id').lean()
+          if (!vendor || String(po.vendorId || '') !== String(vendor._id)) {
+            return res.status(403).json({ success: false, error: 'This purchase order is not assigned to your vendor account' })
+          }
+        }
         if (po.signedPo) po.signedPo.hasFile = Boolean(po.signedPo.name)
-        const [vendor, request] = await Promise.all([
+        const [vendor, request, creator] = await Promise.all([
           po.vendorId && !po.vendorAddress ? Vendor.findById(po.vendorId).select('address').lean() : null,
           po.requestId && (!po.adminDescription || !po.adminRequirementType || !po.adminAssessmentNote)
             ? ServiceRequest.findById(po.requestId).select('description adminAssessment').lean()
-            : null
+            : null,
+          po.createdById ? User.findById(po.createdById).select('name').lean() : null
         ])
+        po.createdBy = displayManagerName(creator?.name || po.createdBy)
         if (vendor?.address) po.vendorAddress = vendor.address
         if (request) {
           po.adminRequirementType ||= request.adminAssessment?.requirementType || ''
@@ -134,10 +154,12 @@ export default async function handler(req, res) {
       if (req.query.status) filter.status = req.query.status
       if (req.query.vendorId) filter.vendorId = req.query.vendorId
       if (req.query.requestId) filter.requestId = req.query.requestId
+      if (userRole === 'manager') filter.createdById = actorId
       if (userRole === 'vendor') {
         // Vendors see their own POs only
         const vendor = await Vendor.findOne({ email: actor?.email }).select('_id').lean()
-        if (vendor) filter.vendorId = vendor._id
+        if (!vendor) return res.json({ success: true, data: [], total: 0 })
+        filter.vendorId = vendor._id
       }
       const pos = await PurchaseOrder.find(filter)
         .select('-signedPo.url -documentUrl -serviceExecution.workEvidence.url -serviceExecution.expenses.bill.url -statusHistory')
@@ -150,7 +172,13 @@ export default async function handler(req, res) {
         ? await ServiceRequest.find({ _id: { $in: requestIds } }).select('adminAssessment.requirementType').lean()
         : []
       const requirementByRequest = new Map(linkedRequests.map(request => [String(request._id), request.adminAssessment?.requirementType]))
+      const creatorIds = [...new Set(pos.filter(po => po.createdById).map(po => String(po.createdById)))]
+      const creators = creatorIds.length
+        ? await User.find({ _id: { $in: creatorIds } }).select('name').lean()
+        : []
+      const creatorNameById = new Map(creators.map(creator => [String(creator._id), displayManagerName(creator.name)]))
       pos.forEach(po => {
+        po.createdBy = creatorNameById.get(String(po.createdById || '')) || displayManagerName(po.createdBy)
         const requirementType = requirementByRequest.get(String(po.requestId || '')) || po.adminRequirementType
         po.adminRequirementType = requirementType || ''
         po.poType = requirementType === 'MAINTENANCE'
@@ -228,7 +256,7 @@ export default async function handler(req, res) {
         if (!isServiceRequest && serviceRequest.selectedQuotationId && String(serviceRequest.selectedQuotationId) !== String(selectedQuotationId || '')) {
           return res.status(400).json({ success: false, error: 'Generate the PO from the quotation selected for this indent' })
         }
-        const existingPo = await PurchaseOrder.findOne({ requestId }).lean()
+        const existingPo = await PurchaseOrder.findOne({ requestId, status: { $ne: 'CANCELLED' } }).lean()
         // Repeated clicks reopen the order already generated for this request.
         if (existingPo) {
           existingPo.items = addProductIds(existingPo.items)
@@ -342,16 +370,15 @@ export default async function handler(req, res) {
       const po = await PurchaseOrder.findById(id)
       if (!po) return res.status(404).json({ success: false, error: 'PO not found' })
       const oldStatus = po.status
+      let linkedRequestToReopen = null
 
       // Role authorization for PO actions
       const poRoles = {
         'upload-signed-po': ['manager'],
-        'verify-signed-po': ['admin', 'super_admin'],
-        'reject-signed-po': ['admin', 'super_admin'],
+        'cancel': ['manager'],
         'approve': ['admin', 'super_admin'],
         'reject': ['admin', 'super_admin'],
-        'request-revision': ['admin', 'super_admin'],
-        'send-to-vendor': ['admin', 'super_admin', 'manager']
+        'request-revision': ['admin', 'super_admin']
       }
       if (poRoles[action]) {
         if (!poRoles[action].includes(userRole)) {
@@ -383,42 +410,20 @@ export default async function handler(req, res) {
           url,
           mimeType,
           size: parsedSize,
-          status: 'PENDING_VERIFICATION',
+          status: 'VERIFIED',
           previousPoStatus: oldStatus,
           uploadedBy: actorName,
           uploadedById: actorId,
-          uploadedAt: new Date()
+          uploadedAt: new Date(),
+          verifiedBy: actorName,
+          verifiedById: actorId,
+          verifiedAt: new Date(),
+          verificationComment: 'Automatically verified when the signed official PO was uploaded'
         }
-        po.status = 'SUBMITTED_FOR_APPROVAL'
-        pushHistory(po, oldStatus, po.status, `Signed official PO uploaded: ${String(name).slice(0, 160)}. Awaiting verification.`)
-      }
-      else if (action === 'verify-signed-po') {
-        if (po.status !== 'SUBMITTED_FOR_APPROVAL' || !po.signedPo?.url || po.signedPo?.status !== 'PENDING_VERIFICATION') {
-          return res.status(409).json({ success: false, error: 'A pending signed PO upload is required before verification' })
-        }
-        po.signedPo.status = 'VERIFIED'
-        po.signedPo.verifiedBy = actorName
-        po.signedPo.verifiedById = actorId
-        po.signedPo.verifiedAt = new Date()
-        po.signedPo.verificationComment = req.body.comment || 'Signed official PO verified'
         po.approvedBy = actorName
         po.approvedAt = new Date()
         po.status = po.signedPo.previousPoStatus === 'PARTIALLY_FULFILLED' ? 'PARTIALLY_FULFILLED' : 'ACTIVE'
-        pushHistory(po, oldStatus, po.status, `Signed official PO verified by ${actorName}. PO activated for QR receiving.${req.body.comment ? ` ${req.body.comment}` : ''}`)
-      }
-      else if (action === 'reject-signed-po') {
-        if (po.status !== 'SUBMITTED_FOR_APPROVAL' || !po.signedPo?.url) {
-          return res.status(409).json({ success: false, error: 'A signed PO awaiting verification is required' })
-        }
-        const decisionComment = String(req.body.comment || '').trim()
-        if (!decisionComment) return res.status(400).json({ success: false, error: 'A rejection reason is required' })
-        po.signedPo.status = 'REJECTED'
-        po.signedPo.verifiedBy = actorName
-        po.signedPo.verifiedById = actorId
-        po.signedPo.verifiedAt = new Date()
-        po.signedPo.verificationComment = decisionComment
-        po.status = 'REVISION_REQUIRED'
-        pushHistory(po, oldStatus, po.status, `Signed PO rejected by ${actorName}: ${decisionComment}`)
+        pushHistory(po, oldStatus, po.status, `Signed official PO uploaded by ${actorName}, automatically verified, and activated for QR receiving.`)
       }
       else if (action === 'submit') {
         if (po.status !== 'DRAFT' && po.status !== 'REVISION_REQUIRED') {
@@ -452,30 +457,43 @@ export default async function handler(req, res) {
         po.status = 'REVISION_REQUIRED'
         pushHistory(po, oldStatus, 'REVISION_REQUIRED', `Revision requested: ${comment}`)
       }
-      else if (action === 'send-to-vendor') {
-        if (po.status !== 'APPROVED') return res.status(400).json({ success: false, error: 'PO must be APPROVED before sending to vendor' })
-        po.status = 'SENT_TO_VENDOR'
-        pushHistory(po, oldStatus, 'SENT_TO_VENDOR', `PO sent to vendor ${po.vendorName}`)
-      }
-      else if (action === 'vendor-accept') {
-        if (po.status !== 'SENT_TO_VENDOR') return res.status(400).json({ success: false, error: 'PO must be in SENT_TO_VENDOR state' })
-        po.status = 'VENDOR_ACCEPTED'
-        po.vendorAcceptedAt = new Date()
-        pushHistory(po, oldStatus, 'VENDOR_ACCEPTED', `PO accepted by vendor ${po.vendorName}`)
-        // Move to ACTIVE
-        po.status = 'ACTIVE'
-        pushHistory(po, 'VENDOR_ACCEPTED', 'ACTIVE', 'PO is now active and ready for delivery scheduling')
-      }
-      else if (action === 'vendor-reject') {
-        const { reason } = req.body
-        po.status = 'VENDOR_REJECTED'
-        po.vendorRejectionReason = reason || 'No reason provided'
-        pushHistory(po, oldStatus, 'VENDOR_REJECTED', `Vendor rejected PO: ${po.vendorRejectionReason}`)
-      }
       else if (action === 'cancel') {
-        if (['FULFILLED', 'CLOSED'].includes(po.status)) return res.status(400).json({ success: false, error: 'Cannot cancel a fulfilled or closed PO' })
+        if (
+          (po.createdById && String(po.createdById) !== String(actorId)) ||
+          (!po.createdById && po.createdBy && po.createdBy !== actorName)
+        ) {
+          return res.status(403).json({ success: false, error: 'Only the manager who generated this PO can cancel it' })
+        }
+        if (!['DRAFT', 'ACTIVE'].includes(po.status)) {
+          return res.status(409).json({ success: false, error: 'Only draft or active POs with no received goods can be cancelled' })
+        }
+        const comment = String(req.body?.comment || '').trim()
+        if (comment.length < 5 || comment.length > 500) {
+          return res.status(400).json({ success: false, error: 'Provide a cancellation reason between 5 and 500 characters' })
+        }
+        const hasReceipt = await GoodsReceipt.exists({ poId: po._id })
+        if (hasReceipt) {
+          return res.status(409).json({ success: false, error: 'This PO has a goods receipt and can no longer be cancelled' })
+        }
         po.status = 'CANCELLED'
-        pushHistory(po, oldStatus, 'CANCELLED', req.body.comment || 'PO cancelled')
+        pushHistory(po, oldStatus, 'CANCELLED', `Cancelled by ${actorName}. Reason: ${comment}`)
+        if (po.requestId) {
+          linkedRequestToReopen = await ServiceRequest.findById(po.requestId)
+          if (linkedRequestToReopen && linkedRequestToReopen.status === 'PURCHASE_ORDER_CREATED') {
+            const previousRequestStatus = linkedRequestToReopen.status
+            linkedRequestToReopen.status = 'ASSIGNED_TO_MANAGER'
+            linkedRequestToReopen.currentOwnerRole = 'manager'
+            linkedRequestToReopen.statusHistory.push({
+              oldStatus: previousRequestStatus,
+              newStatus: 'ASSIGNED_TO_MANAGER',
+              actorId,
+              actorName,
+              comment: `Purchase order ${po.poNumber} cancelled: ${comment}. Request returned to the manager for a replacement order.`
+            })
+          } else {
+            linkedRequestToReopen = null
+          }
+        }
       }
       else if (action === 'close') {
         po.status = 'CLOSED'
@@ -486,32 +504,7 @@ export default async function handler(req, res) {
       }
 
       await po.save()
-      if (action === 'upload-signed-po') {
-        const approvers = await User.find({ role: { $in: ['admin', 'super_admin'] }, isActive: true }).select('email').lean()
-        await Promise.allSettled(approvers.map(approver => storeNotification({
-          userEmail: approver.email,
-          title: `Signed PO awaiting verification: ${po.poNumber}`,
-          body: `${actorName} uploaded the signed official PO for ${po.vendorName}.`,
-          url: `/purchase-orders/${po._id}`,
-          type: 'signed_po_uploaded',
-          data: { poId: po._id, poNumber: po.poNumber }
-        })))
-      }
-      if (['verify-signed-po', 'reject-signed-po'].includes(action) && po.createdById) {
-        const manager = await User.findById(po.createdById).select('email').lean()
-        if (manager?.email) {
-          await storeNotification({
-            userEmail: manager.email,
-            title: action === 'verify-signed-po' ? `PO verified and active: ${po.poNumber}` : `Signed PO needs revision: ${po.poNumber}`,
-            body: action === 'verify-signed-po'
-              ? 'The signed official PO was verified. Gate QR receiving and GRN creation are now enabled.'
-              : `The signed PO was rejected: ${po.signedPo.verificationComment}`,
-            url: `/purchase-orders/${po._id}`,
-            type: action === 'verify-signed-po' ? 'signed_po_verified' : 'signed_po_rejected',
-            data: { poId: po._id, poNumber: po.poNumber }
-          }).catch(error => console.warn('Unable to store signed PO workflow notification:', error.message))
-        }
-      }
+      if (linkedRequestToReopen) await linkedRequestToReopen.save()
       return res.json({ success: true, data: withoutEmbeddedFiles(po) })
     }
 
@@ -519,6 +512,9 @@ export default async function handler(req, res) {
     if (req.method === 'PATCH' && id) {
       const po = await PurchaseOrder.findById(id)
       if (!po) return res.status(404).json({ success: false, error: 'PO not found' })
+      if (userRole !== 'manager' || String(po.createdById || '') !== String(actorId)) {
+        return res.status(403).json({ success: false, error: 'Only the responsible manager can edit this purchase order' })
+      }
       if (!['DRAFT', 'REVISION_REQUIRED'].includes(po.status)) {
         return res.status(400).json({ success: false, error: 'Only DRAFT or REVISION_REQUIRED POs can be edited' })
       }
