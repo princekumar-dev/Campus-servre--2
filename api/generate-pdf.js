@@ -23,6 +23,16 @@ const INSTITUTION_LOGOS = {
   iic: ['mseclogo.webp']
 }
 
+const AUTHORITY_SEALS = [
+  { label: 'Purchase Manager', fileName: 'purchase-manager.png' },
+  { label: 'Finance Manager', fileName: 'finance-manager.png' },
+  { label: 'COO', fileName: 'coo.png' },
+  { label: 'Secretary', fileName: 'secretary.png' }
+].map(seal => {
+  const sealPath = path.resolve(process.cwd(), 'public', 'images', 'seals', seal.fileName)
+  return { ...seal, path: fs.existsSync(sealPath) ? sealPath : null }
+})
+
 async function getPdfBrand(institution = 'msec') {
   const settings = await getSystemSettings()
   const profile = settings.institutions?.find(item => item.id === institution) || settings.institutions?.find(item => item.id === 'msec')
@@ -589,7 +599,7 @@ export default async function handler(req, res) {
       const approvalWidth = width
       const approvalHeight = 88
       const approvalColumnWidth = approvalWidth / 4
-      const approvalLabels = ['Purchase Manager', 'Finance Manager', 'COO', 'Secretary']
+      const showAuthoritySeals = po.signedPo?.status === 'VERIFIED' && Boolean(po.signedPo?.uploadedAt)
 
       doc.rect(approvalX, approvalY, approvalWidth, approvalHeight).fillAndStroke(PO.white, PO.line)
       // Match the accent, heading weight, and divider used by every other PO section.
@@ -601,7 +611,7 @@ export default async function handler(req, res) {
       doc.fillColor(PO.ink).font('Helvetica').fontSize(7.2)
         .text('Certified that this purchase is necessary, budgeted, technically verified, and approved under institutional procurement policy.', approvalX + 12, approvalY + 35, { width: approvalWidth - 24, height: 13, ellipsis: true })
 
-      approvalLabels.forEach((label, index) => {
+      AUTHORITY_SEALS.forEach((seal, index) => {
         const columnX = approvalX + (index * approvalColumnWidth)
         if (index > 0) {
           doc.strokeColor(PO.line).lineWidth(0.5)
@@ -610,12 +620,23 @@ export default async function handler(req, res) {
         const signatureX = columnX + 16
         const signatureWidth = approvalColumnWidth - 32
         const signatureLineY = approvalY + 65
-        doc.strokeColor(PO.black).lineWidth(0.8)
-          .moveTo(signatureX, signatureLineY)
-          .lineTo(signatureX + signatureWidth, signatureLineY)
-          .stroke()
+        if (showAuthoritySeals && seal.path) {
+          const sealSize = 38
+          doc.save()
+            .opacity(0.34)
+            .image(seal.path, columnX + ((approvalColumnWidth - sealSize) / 2), approvalY + 46, {
+              width: sealSize,
+              height: sealSize
+            })
+            .restore()
+        } else {
+          doc.strokeColor(PO.black).lineWidth(0.8)
+            .moveTo(signatureX, signatureLineY)
+            .lineTo(signatureX + signatureWidth, signatureLineY)
+            .stroke()
+        }
         doc.fillColor(PO.black).font('Times-Bold').fontSize(8)
-          .text(label, signatureX, signatureLineY + 6, { width: signatureWidth, align: 'center', height: 14 })
+          .text(seal.label, signatureX, approvalY + 72, { width: signatureWidth, align: 'center', height: 14 })
       })
       doc.y = approvalY + approvalHeight + 6
 
