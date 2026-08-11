@@ -97,23 +97,33 @@ function row(doc, label, value, x = 42, width = 511) {
 
 function itemsTable(doc, items = []) {
   const columns = [
-    ['Product / Item', 170], ['Ordered', 48], ['Previous', 48], ['Received', 52],
-    ['Accepted Now / Total', 62], ['Damaged', 43], ['Rejected', 43], ['Remaining', 45]
+    ['Product / Item', 165], ['Ordered', 46], ['Previous', 48], ['Received', 48],
+    ['Accepted\nNow / Total', 65], ['Damaged', 45], ['Rejected', 45], ['Remaining', 49]
   ]
+  const drawHeader = y => {
+    doc.rect(42, y, 511, 28).fill('#ede9fe')
+    let x = 42
+    columns.forEach(([label, width], column) => {
+      doc.fillColor('#5b21b6').font('Helvetica-Bold').fontSize(6)
+        .text(label.toUpperCase(), x + 3, y + 7, { width: width - 6, align: column === 0 ? 'left' : 'center', lineGap: 0 })
+      x += width
+    })
+    return y + 28
+  }
   let y = doc.y
-  doc.rect(42, y, 511, 22).fill('#ede9fe')
-  let x = 42
-  columns.forEach(([label, width]) => {
-    doc.fillColor('#5b21b6').font('Helvetica-Bold').fontSize(7).text(label.toUpperCase(), x + 4, y + 7, { width: width - 8, align: label === 'Item' ? 'left' : 'right' })
-    x += width
-  })
-  y += 22
+  y = drawHeader(y)
   items.forEach((item, index) => {
-    if (y > 755) { doc.addPage(); y = 52 }
-    if (index % 2 === 0) doc.rect(42, y, 511, 28).fill('#f8fafc')
-    x = 42
+    const itemText = `${item.productId || ''}${item.poItemDescription ? ` · ${item.poItemDescription}` : ''}\n${money(item.unitPrice)} each · ${money(item.lineTotal)}`.trim()
+    doc.font('Helvetica').fontSize(7)
+    const rowHeight = Math.max(32, doc.heightOfString(itemText, { width: columns[0][1] - 8 }) + 12)
+    if (y + rowHeight > 770) {
+      doc.addPage()
+      y = drawHeader(52)
+    }
+    if (index % 2 === 0) doc.rect(42, y, 511, rowHeight).fill('#f8fafc')
+    let x = 42
     const values = [
-      `${item.productId || ''} ${item.poItemDescription || ''} | ${money(item.unitPrice)} each | ${money(item.lineTotal)}`.trim(),
+      itemText,
       item.quantityOrdered || 0,
       item.quantityPreviouslyAccepted || 0,
       item.quantityDeliveredNow || 0,
@@ -122,12 +132,12 @@ function itemsTable(doc, items = []) {
       item.quantityRejected || 0,
       item.quantityRemaining || 0
     ]
-    columns.forEach(([label, width], column) => {
-      doc.fillColor('#334155').font(column === 0 ? 'Helvetica' : 'Helvetica-Bold').fontSize(7.5)
-        .text(String(values[column]), x + 4, y + 8, { width: width - 8, align: column === 0 ? 'left' : 'right', ellipsis: true })
+    columns.forEach(([, width], column) => {
+      doc.fillColor('#334155').font(column === 0 ? 'Helvetica' : 'Helvetica-Bold').fontSize(7)
+        .text(String(values[column]), x + 4, y + 8, { width: width - 8, align: column === 0 ? 'left' : 'center' })
       x += width
     })
-    y += 28
+    y += rowHeight
   })
   doc.y = y
 }
@@ -165,15 +175,17 @@ function appendWorkflowAnnexure(doc, po, currentGrn, request, context = {}, bran
   }
   const ensure = height => { if (doc.y + height > 755) addPage('WORKFLOW AUDIT TRAIL — CONTINUED') }
   const title = text => {
-    ensure(32)
-    doc.fillColor(ink).font('Helvetica-Bold').fontSize(8.5).text(text.toUpperCase(), left, doc.y)
-    doc.moveTo(left, doc.y + 14).lineTo(left + width, doc.y + 14).lineWidth(0.6).strokeColor('#cbd5e1').stroke()
-    doc.moveTo(left, doc.y + 14).lineTo(left + 34, doc.y + 14).lineWidth(2).strokeColor(violet).stroke()
-    doc.y += 25
+    ensure(40)
+    const y = doc.y + 8
+    doc.fillColor(ink).font('Helvetica-Bold').fontSize(8.5).text(text.toUpperCase(), left, y)
+    doc.moveTo(left, y + 16).lineTo(left + width, y + 16).lineWidth(0.6).strokeColor('#cbd5e1').stroke()
+    doc.moveTo(left, y + 16).lineTo(left + 34, y + 16).lineWidth(2).strokeColor(violet).stroke()
+    doc.y = y + 27
   }
+  const auditRowHeight = description => Math.max(34, doc.heightOfString(String(description || 'Status updated'), { width: 260 }) + 18)
   const auditRow = (when, stage, actor, description, tone = ink) => {
     const descriptionText = String(description || 'Status updated')
-    const rowHeight = Math.max(34, doc.heightOfString(descriptionText, { width: 260 }) + 18)
+    const rowHeight = auditRowHeight(descriptionText)
     ensure(rowHeight + 3)
     const y = doc.y
     doc.rect(left, y, width, rowHeight).fillAndStroke('#ffffff', '#e2e8f0')
@@ -235,16 +247,29 @@ function appendWorkflowAnnexure(doc, po, currentGrn, request, context = {}, bran
     auditRow(receipt.receivedAt || receipt.createdAt, `${index + 1}. ${receipt.grnType}${String(receipt._id) === String(currentGrn._id) ? ' · THIS PDF' : ''}`, receipt.receivedByName, `${receipt.grnNumber} · Delivered ${receiptDelivered}, accepted ${receiptAccepted} · ${money(receipt.grandTotal)} · ${receipt.remarks || 'No additional remarks'}`, receipt.grnType === 'FINAL' ? green : violet)
   })
 
-  if (deliveries.length || gateEntries.length || hasGate) {
+  const gateVerifiedGrns = !gateEntries.length
+    ? allGrns.filter(receipt => receipt.gateVerifiedAt || receipt.source === 'PO_QR')
+    : []
+  if (deliveries.length || gateEntries.length || gateVerifiedGrns.length) {
+    const firstGateDescription = deliveries.length
+      ? `${deliveries[0].deliveryNumber} · Vehicle ${deliveries[0].vehicleNumber || '—'} · ${deliveries[0].deliveryLocation || po?.deliveryLocation || '—'} · Challan ${deliveries[0].challanNumber || '—'}`
+      : gateEntries.length
+        ? `${gateEntries[0].verificationMethod} verification · Person ${gateEntries[0].actualDeliveryPersonName || '—'} · Vehicle ${gateEntries[0].actualVehicleNumber || '—'}${gateEntries[0].rejectionReason ? ` · Reason: ${gateEntries[0].rejectionReason}` : ''}${gateEntries[0].exitTime ? ` · Exit ${dateTime(gateEntries[0].exitTime)}` : ''}`
+        : `${gateVerifiedGrns[0].grnNumber} created after PO QR and physical receipt verification`
+    ensure(40 + auditRowHeight(firstGateDescription))
     title('Delivery and gate verification')
     deliveries.forEach(delivery => auditRow(delivery.scheduledDate || delivery.createdAt, delivery.status, delivery.deliveryPersonName, `${delivery.deliveryNumber} · Vehicle ${delivery.vehicleNumber || '—'} · ${delivery.deliveryLocation || po?.deliveryLocation || '—'} · Challan ${delivery.challanNumber || '—'}`, violet))
     gateEntries.forEach(entry => auditRow(entry.entryTime || entry.createdAt, `Gate ${entry.decision}`, entry.securityUserName, `${entry.verificationMethod} verification · Person ${entry.actualDeliveryPersonName || '—'} · Vehicle ${entry.actualVehicleNumber || '—'}${entry.rejectionReason ? ` · Reason: ${entry.rejectionReason}` : ''}${entry.exitTime ? ` · Exit ${dateTime(entry.exitTime)}` : ''}`, entry.decision === 'APPROVED' ? green : '#991b1b'))
-    if (!gateEntries.length) allGrns.filter(receipt => receipt.gateVerifiedAt || receipt.source === 'PO_QR').forEach(receipt => auditRow(receipt.gateVerifiedAt || receipt.receivedAt, 'Gate PO QR verified', receipt.receivedByName, `${receipt.grnNumber} created after PO QR and physical receipt verification`, green))
+    gateVerifiedGrns.forEach(receipt => auditRow(receipt.gateVerifiedAt || receipt.receivedAt, 'Gate PO QR verified', receipt.receivedByName, `${receipt.grnNumber} created after PO QR and physical receipt verification`, green))
   }
 
-  title('Complete status history')
-  requestHistory.forEach(entry => auditRow(entry.createdAt, `Request · ${entry.newStatus}`, entry.actorName, entry.comment))
-  poHistory.forEach(entry => auditRow(entry.createdAt, `PO · ${entry.newStatus}`, entry.actorName, entry.comment, violet))
+  if (requestHistory.length || poHistory.length) {
+    const firstHistory = requestHistory[0] || poHistory[0]
+    ensure(40 + auditRowHeight(firstHistory.comment))
+    title('Complete status history')
+    requestHistory.forEach(entry => auditRow(entry.createdAt, `Request · ${entry.newStatus}`, entry.actorName, entry.comment))
+    poHistory.forEach(entry => auditRow(entry.createdAt, `PO · ${entry.newStatus}`, entry.actorName, entry.comment, violet))
+  }
   doc.fillColor(muted).font('Helvetica').fontSize(6).text(`Live audit snapshot generated ${dateTime(new Date())} · Current GRN ${currentGrn.grnNumber}`, left, Math.min(770, doc.y + 12), { width })
 }
 
@@ -627,6 +652,10 @@ async function poPdf(po, grns, request = null, workflowContext = {}) {
     const summaryItems = (po.items || []).map(item => ({
       productId: item.productId,
       poItemDescription: item.description,
+      unitPrice: item.unitPrice,
+      lineTotal: item.lineTotal,
+      quantityOrdered: item.quantityOrdered || 0,
+      quantityPreviouslyAccepted: 0,
       quantityDeliveredNow: item.quantityAccepted || 0,
       quantityAcceptedNow: item.quantityAccepted || 0,
       quantityDamaged: 0,
