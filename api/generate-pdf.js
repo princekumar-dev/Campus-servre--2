@@ -55,7 +55,10 @@ const PDF = {
 }
 
 const money = value => `Rs. ${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-const dateText = value => value ? new Date(value).toLocaleDateString('en-IN') : 'Not specified'
+const dateText = value => value ? new Date(value).toLocaleDateString('en-IN', {
+  dateStyle: 'medium',
+  timeZone: 'Asia/Kolkata'
+}) : 'Not specified'
 const dateTimeText = value => value ? new Date(value).toLocaleString('en-IN', {
   dateStyle: 'medium',
   timeStyle: 'short',
