@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { getRoleActionStatuses, getWorkflowGuidance, getWorkflowPhase } from '../utils/workflowGuidance'
+import { getRoleActionStatuses, getWorkflowGuidance, getWorkflowPhase, getWorkflowStatusLabel } from '../utils/workflowGuidance'
 
 describe('workflow guidance', () => {
   it('directs managers through quotation selection before PO generation', () => {
@@ -23,5 +23,12 @@ describe('workflow guidance', () => {
   it('builds role-specific action queues', () => {
     expect(getRoleActionStatuses('admin')).toEqual(['SUBMITTED'])
     expect(getRoleActionStatuses('manager')).toEqual(['ASSIGNED_TO_MANAGER', 'QUOTATION_IN_PROGRESS', 'QUOTATION_REVISION_REQUIRED', 'QUOTATION_REJECTED'])
+  })
+
+  it('presents workflow codes as clear operational stages', () => {
+    expect(getWorkflowStatusLabel('SUBMITTED')).toBe('Admin Review')
+    expect(getWorkflowStatusLabel('APPROVED')).toBe('Awaiting Manager Assignment')
+    expect(getWorkflowStatusLabel('QUOTATION_SUBMITTED')).toBe('Quotation Approval Pending')
+    expect(getWorkflowStatusLabel('SOME_FUTURE_STATUS')).toBe('Some Future Status')
   })
 })

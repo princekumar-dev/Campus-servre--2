@@ -40,6 +40,51 @@ const roleLabels = {
 
 const normalizeRole = role => ['hod', 'staff'].includes(role) ? 'requester' : role
 
+// These labels are the single display vocabulary for request workflow statuses.
+// API/database codes remain unchanged so transitions and filters stay stable.
+export const WORKFLOW_STATUS_LABELS = {
+  DRAFT: 'Draft',
+  SUBMITTED: 'Admin Review',
+  UNDER_ADMIN_REVIEW: 'Admin Review',
+  CLARIFICATION_REQUIRED: 'Clarification Required',
+  REOPENED: 'Reopened for Review',
+  APPROVED: 'Awaiting Manager Assignment',
+  ASSIGNED_TO_MANAGER: 'Assigned to Purchase Manager',
+  PURCHASE_ORDER_CREATED: 'Purchase Order Created',
+  UNDER_INSPECTION: 'Under Inspection',
+  QUOTATION_IN_PROGRESS: 'Quotation in Progress',
+  QUOTATION_REVISION_REQUIRED: 'Quotation Revision Required',
+  QUOTATION_SUBMITTED: 'Quotation Approval Pending',
+  QUOTATION_APPROVED: 'Quotation Approved',
+  QUOTATION_REJECTED: 'Quotation Rejected',
+  WORK_ORDER_CREATED: 'Work Order Created',
+  TECHNICIAN_ASSIGNED: 'Technician Assigned',
+  WORK_ACCEPTED: 'Work Accepted',
+  WORK_DECLINED: 'Work Declined',
+  PAUSED: 'Work Paused',
+  IN_PROGRESS: 'Work in Progress',
+  ADDITIONAL_COST_PENDING: 'Additional Cost Approval Pending',
+  TECHNICIAN_COMPLETED: 'Technician Work Completed',
+  SERVICE_VERIFIED: 'Service Verified',
+  INVOICE_IN_PROGRESS: 'Invoice in Progress',
+  INVOICE_REVISION_REQUIRED: 'Invoice Revision Required',
+  INVOICE_SUBMITTED: 'Invoice Approval Pending',
+  INVOICE_REJECTED: 'Invoice Rejected',
+  PAYMENT_PENDING: 'Payment Pending',
+  PARTIALLY_PAID: 'Partially Paid',
+  CLOSED: 'Closed',
+  REJECTED: 'Rejected',
+  CANCELLED: 'Cancelled',
+}
+
+export function getWorkflowStatusLabel(status) {
+  if (!status) return 'Status Unknown'
+  return WORKFLOW_STATUS_LABELS[status] || String(status)
+    .toLowerCase()
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, letter => letter.toUpperCase())
+}
+
 export const WORKFLOW_PHASES = [
   { key: 'request', label: 'Intent Request', short: 'Request', statuses: ['DRAFT'] },
   { key: 'review', label: 'Admin Review', short: 'Review', statuses: ['SUBMITTED'] },

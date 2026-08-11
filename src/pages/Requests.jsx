@@ -9,7 +9,7 @@ import { PageHeader } from '../components/ui'
 import ConfirmDialog from '../components/ConfirmDialog'
 import RefreshButton from '../components/RefreshButton'
 import InstitutionBadge from '../components/InstitutionBadge'
-import { getRoleActionStatuses, getWorkflowGuidance, getWorkflowPhase } from '../utils/workflowGuidance'
+import { getRoleActionStatuses, getWorkflowGuidance, getWorkflowPhase, getWorkflowStatusLabel } from '../utils/workflowGuidance'
 
 const TRACKING_FILTERS = {
   requester: [
@@ -39,7 +39,7 @@ const STATUS_PRESENTATION = {
 }
 
 const normalizeRole = role => ['hod', 'staff'].includes(role) ? 'requester' : role
-const getStatusPresentation = status => STATUS_PRESENTATION[status] || { label: status?.replace(/_/g, ' ') || 'Unknown', helper: 'Legacy workflow record', color: 'bg-slate-100 text-slate-600 border-slate-200' }
+const getStatusPresentation = status => STATUS_PRESENTATION[status] || { label: getWorkflowStatusLabel(status), helper: 'Current workflow stage', color: 'bg-slate-100 text-slate-600 border-slate-200' }
 const PO_TYPE_PRESENTATION = {
   MAINTENANCE: { label: 'Service PO', color: 'bg-cyan-50 text-cyan-700 border-cyan-200' },
   NEW_PURCHASE: { label: 'Goods PO', color: 'bg-blue-50 text-blue-700 border-blue-200' },

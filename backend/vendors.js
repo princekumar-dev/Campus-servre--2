@@ -2,6 +2,7 @@ import { connectToDatabase } from '../lib/mongo.js'
 import { Vendor, DeliveryPerson, Vehicle, User, PurchaseOrder } from '../models.js'
 
 const excludedOrderStatuses = ['CANCELLED', 'REJECTED', 'VENDOR_REJECTED']
+const PAN_PATTERN = /^[A-Z]{5}[0-9]{4}[A-Z]$/
 
 async function attachPurchaseOrderStats(vendors) {
   if (!vendors.length) return vendors
@@ -75,13 +76,18 @@ export default async function handler(req, res) {
     // ── POST /api/vendors — Create vendor ────────────────────────────────────
     if (req.method === 'POST' && !id && !subResource) {
       const { legalName, contactPerson, email, phone, taxNumber, address } = req.body
-      if (!legalName || !contactPerson || !email || !phone) {
-        return res.status(400).json({ success: false, error: 'legalName, contactPerson, email and phone are required' })
+      const panNumber = String(req.body.panNumber || '').trim().toUpperCase()
+      if (!legalName?.trim() || !contactPerson?.trim() || !email?.trim() || !phone?.trim() || !panNumber) {
+        return res.status(400).json({ success: false, error: 'Legal business name, contact person, email, phone and PAN number are required' })
       }
+      if (!/^\S+@\S+\.\S+$/.test(email.trim())) return res.status(400).json({ success: false, error: 'Enter a valid email address' })
+      if (!PAN_PATTERN.test(panNumber)) return res.status(400).json({ success: false, error: 'Enter a valid PAN number in the format ABCDE1234F' })
+      const existingPan = await Vendor.findOne({ panNumber }).select('_id').lean()
+      if (existingPan) return res.status(409).json({ success: false, error: 'A vendor with this PAN number is already registered' })
       const year = new Date().getFullYear()
       const rnd = Math.floor(Math.random() * 90000) + 10000
       const vendorCode = `VND-${year}-${rnd}`
-      const vendor = new Vendor({ vendorCode, legalName, contactPerson, email, phone, taxNumber, address, createdBy: actorName })
+      const vendor = new Vendor({ vendorCode, legalName: legalName.trim(), contactPerson: contactPerson.trim(), email: email.trim().toLowerCase(), phone: phone.trim(), panNumber, taxNumber: taxNumber?.trim(), address: address?.trim(), createdBy: actorName })
       await vendor.save()
       return res.status(201).json({ success: true, data: vendor })
     }
@@ -141,7 +147,14 @@ export default async function handler(req, res) {
     if (req.method === 'PATCH' && id) {
       const vendor = await Vendor.findById(id)
       if (!vendor) return res.status(404).json({ success: false, error: 'Vendor not found' })
-      const allowed = ['legalName', 'contactPerson', 'email', 'phone', 'taxNumber', 'address', 'notes']
+      const allowed = ['legalName', 'contactPerson', 'email', 'phone', 'panNumber', 'taxNumber', 'address', 'notes']
+      if (req.body.panNumber !== undefined) {
+        const panNumber = String(req.body.panNumber).trim().toUpperCase()
+        if (!PAN_PATTERN.test(panNumber)) return res.status(400).json({ success: false, error: 'Enter a valid PAN number in the format ABCDE1234F' })
+        const existingPan = await Vendor.findOne({ panNumber, _id: { $ne: id } }).select('_id').lean()
+        if (existingPan) return res.status(409).json({ success: false, error: 'A vendor with this PAN number is already registered' })
+        req.body.panNumber = panNumber
+      }
       allowed.forEach(f => { if (req.body[f] !== undefined) vendor[f] = req.body[f] })
       await vendor.save()
       return res.json({ success: true, data: vendor })

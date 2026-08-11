@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { KpiCard, ActionCard, GlassPanel } from '../components/ui'
 import InstitutionBadge from '../components/InstitutionBadge'
+import { getWorkflowStatusLabel } from '../utils/workflowGuidance'
 
 const STATUS_COLORS = {
   submitted: '#3b82f6',
@@ -149,7 +150,7 @@ function Dashboard() {
   const pieData = stats.byStatus && typeof stats.byStatus === 'object' ? Object.entries(stats.byStatus)
     .filter(([, v]) => v > 0)
     .map(([name, value]) => ({
-      name: name.replace(/_/g, ' '),
+      name: getWorkflowStatusLabel(name),
       value,
       color: STATUS_COLORS[name] || '#94a3b8'
     })) : []
@@ -348,7 +349,7 @@ function Dashboard() {
                       {req.priority || 'LOW'}
                     </span>
                     <span className={`status-badge max-w-full truncate status-${String(req.status || 'pending').toLowerCase()}`}>
-                      {String(req.status || 'PENDING').replace(/_/g, ' ')}
+                      {getWorkflowStatusLabel(req.status)}
                     </span>
                   </div>
                 </article>
@@ -391,7 +392,7 @@ function Dashboard() {
                       </td>
                       <td className="py-3.5">
                         <span className={`status-badge status-${String(req.status || 'pending').toLowerCase()}`}>
-                          {String(req.status || 'PENDING').replace(/_/g, ' ')}
+                          {getWorkflowStatusLabel(req.status)}
                         </span>
                       </td>
                       <td className="py-3.5 text-right">
@@ -426,7 +427,7 @@ function Dashboard() {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-slate-700 truncate">{req.title}</p>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    {String(req.status || 'PENDING').replace(/_/g, ' ')} · {formatRelativeTime(req.updatedAt)}
+                    {getWorkflowStatusLabel(req.status)} · {formatRelativeTime(req.updatedAt)}
                   </p>
                 </div>
                 <Link to={`/requests/${req._id}`} className="opacity-0 group-hover:opacity-100 transition-opacity">

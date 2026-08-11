@@ -229,6 +229,8 @@ const VendorSchema = new mongoose.Schema({
   contactPerson: { type: String, required: true },
   email: { type: String, required: true },
   phone: { type: String, required: true },
+  // Legacy vendor records may not have PAN; new registrations enforce it in the API.
+  panNumber: { type: String, uppercase: true, trim: true },
   taxNumber: { type: String },
   address: { type: String },
   status: { type: String, enum: ['ACTIVE', 'INACTIVE', 'BLACKLISTED'], default: 'ACTIVE' },
@@ -241,6 +243,7 @@ const VendorSchema = new mongoose.Schema({
 })
 VendorSchema.index({ status: 1, legalName: 1 })
 VendorSchema.index({ email: 1 })
+VendorSchema.index({ panNumber: 1 }, { sparse: true })
 
 // ─── Vendor Quotation Schema ─────────────────────────────────────────────────
 // Kept as separate records so one indent/request can compare multiple vendors.

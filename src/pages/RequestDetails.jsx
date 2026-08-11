@@ -5,7 +5,7 @@ import { useAlert } from '../components/AlertContext'
 import apiClient from '../utils/apiClient'
 import InstitutionBadge from '../components/InstitutionBadge'
 import { getAuthOrNull } from '../utils/auth'
-import { getWorkflowGuidance } from '../utils/workflowGuidance'
+import { getWorkflowGuidance, getWorkflowStatusLabel } from '../utils/workflowGuidance'
 import { formatDistanceToNow } from 'date-fns'
 import {
   ArrowLeft, CheckCircle2, AlertCircle, Wrench, Download, Clock,
@@ -32,7 +32,7 @@ const STATUS_META = {
   CANCELLED: { label: 'Cancelled', color: 'border-slate-200 bg-slate-100 text-slate-600' },
 }
 
-const statusMeta = status => STATUS_META[status] || { label: status?.replace(/_/g, ' ') || 'Unknown', color: 'border-slate-200 bg-slate-100 text-slate-600' }
+const statusMeta = status => STATUS_META[status] || { label: getWorkflowStatusLabel(status), color: 'border-slate-200 bg-slate-100 text-slate-600' }
 
 const STATUS_ORDER = WORKFLOW_STEPS.map(s => s.key)
 

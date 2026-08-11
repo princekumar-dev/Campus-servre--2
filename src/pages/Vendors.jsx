@@ -88,7 +88,7 @@ function VendorCard({ vendor, onAction, actionLoading }) {
 }
 
 function AddVendorModal({ onClose, onSaved }) {
-  const [form, setForm] = useState({ legalName: '', contactPerson: '', email: '', phone: '', taxNumber: '', address: '' })
+  const [form, setForm] = useState({ legalName: '', contactPerson: '', email: '', phone: '', panNumber: '', taxNumber: '', address: '' })
   const [loading, setLoading] = useState(false)
   const { showSuccess, showError } = useAlert()
 
@@ -99,6 +99,8 @@ function AddVendorModal({ onClose, onSaved }) {
     if (!form.email.trim()) return showError('Email Required', 'Enter the vendor’s email address.')
     if (!/^\S+@\S+\.\S+$/.test(form.email.trim())) return showError('Invalid Email', 'Enter a valid vendor email address.')
     if (!form.phone.trim()) return showError('Phone Number Required', 'Enter the vendor’s contact number.')
+    if (!form.panNumber.trim()) return showError('PAN Number Required', 'Enter the vendor’s 10-character PAN number.')
+    if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(form.panNumber.trim().toUpperCase())) return showError('Invalid PAN Number', 'Use the format ABCDE1234F: five letters, four digits, and one letter.')
     setLoading(true)
     try {
       const res = await apiClient.post('/api/vendors', form)
@@ -116,21 +118,28 @@ function AddVendorModal({ onClose, onSaved }) {
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl font-bold">×</button>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
+          <p className="text-xs font-semibold text-slate-500"><span className="text-rose-500">*</span> Required fields</p>
           {[
-            { name: 'legalName', label: 'Legal Business Name *', placeholder: 'e.g. ABC Electronics Pvt Ltd' },
-            { name: 'contactPerson', label: 'Contact Person *', placeholder: 'e.g. Rajan Kumar' },
-            { name: 'email', label: 'Email Address *', placeholder: 'vendor@company.com' },
-            { name: 'phone', label: 'Phone Number *', placeholder: '+91 9876543210' },
-            { name: 'taxNumber', label: 'GST / Tax Number', placeholder: 'GSTIN...' },
-            { name: 'address', label: 'Registered Address', placeholder: 'Full address...' },
+            { name: 'legalName', label: 'Legal Business Name', placeholder: 'e.g. ABC Electronics Pvt Ltd', required: true },
+            { name: 'contactPerson', label: 'Contact Person', placeholder: 'e.g. Rajan Kumar', required: true },
+            { name: 'email', label: 'Email Address', placeholder: 'vendor@company.com', required: true, type: 'email' },
+            { name: 'phone', label: 'Phone Number', placeholder: '+91 9876543210', required: true, type: 'tel' },
+            { name: 'panNumber', label: 'PAN Number', placeholder: 'ABCDE1234F', required: true, maxLength: 10 },
+            { name: 'taxNumber', label: 'GST / Tax Number', placeholder: 'GSTIN...', required: false },
+            { name: 'address', label: 'Registered Address', placeholder: 'Full address...', required: false },
           ].map(f => (
             <div key={f.name}>
-              <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">{f.label}</label>
+              <label htmlFor={`vendor-${f.name}`} className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">
+                {f.label} {f.required ? <span className="text-rose-500" aria-hidden="true">*</span> : <span className="font-medium normal-case text-slate-400">(optional)</span>}
+              </label>
               <input
-                type="text" value={form[f.name]} placeholder={f.placeholder}
-                onChange={e => setForm(p => ({ ...p, [f.name]: e.target.value }))}
+                id={`vendor-${f.name}`} type={f.type || 'text'} value={form[f.name]} placeholder={f.placeholder}
+                required={f.required} maxLength={f.maxLength}
+                autoCapitalize={f.name === 'panNumber' ? 'characters' : undefined}
+                onChange={e => setForm(p => ({ ...p, [f.name]: f.name === 'panNumber' ? e.target.value.toUpperCase().replace(/\s/g, '') : e.target.value }))}
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-all"
               />
+              {f.name === 'panNumber' && <p className="mt-1 text-[11px] text-slate-400">Format: ABCDE1234F</p>}
             </div>
           ))}
           <div className="flex gap-3 pt-2">
