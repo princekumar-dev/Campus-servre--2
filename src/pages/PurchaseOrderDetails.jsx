@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useAlert } from '../components/AlertContext'
 import apiClient from '../utils/apiClient'
 import { getAuthOrNull } from '../utils/auth'
-import { ArrowLeft, Send, CheckCircle, XCircle, RefreshCw, Package, Truck, FileText, Clock, AlertCircle, Download, Upload, Eye, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, Send, CheckCircle, XCircle, RefreshCw, Package, Truck, FileText, Clock, AlertCircle, Download, Upload, Eye } from 'lucide-react'
 
 const statusConfig = {
   DRAFT: { label: 'Draft', color: 'bg-zinc-100 text-zinc-700 border-zinc-300 ring-1 ring-zinc-200', step: 0 },
@@ -83,17 +83,18 @@ export default function PurchaseOrderDetails() {
   const [isLoading, setIsLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
   const [pdfLoading, setPdfLoading] = useState(false)
-  const [comment, setComment] = useState('')
   const [signedUpload, setSignedUpload] = useState(null)
   const [activeTab, setActiveTab] = useState('Overview')
   const [signedPhotoOpen, setSignedPhotoOpen] = useState(false)
   const [signedPhotoLoading, setSignedPhotoLoading] = useState(false)
   const [signedPhotoAttempted, setSignedPhotoAttempted] = useState(false)
+  const [cancelOpen, setCancelOpen] = useState(false)
+  const [cancelReason, setCancelReason] = useState('')
   const { showSuccess, showError } = useAlert()
   const auth = getAuthOrNull()
 
-  const isAdmin = ['admin', 'super_admin'].includes(auth?.role)
   const isManager = auth?.role === 'manager'
+  const canDownload = isManager && (!po?.createdById || String(po.createdById) === String(auth?.id || auth?._id))
 
   const fetchPO = useCallback(async () => {
     setIsLoading(true)
@@ -147,7 +148,6 @@ export default function PurchaseOrderDetails() {
       if (res.success) {
         if (res.data) setPo(res.data)
         showSuccess('Success', `PO ${action.replace(/-/g, ' ')} completed`)
-        setComment('')
         return true
       }
       showError('Action Failed', res.error)
@@ -181,6 +181,16 @@ export default function PurchaseOrderDetails() {
     if (!signedUpload) return showError('Photo Required', 'Select the signed official PO photo first')
     const completed = await doAction('upload-signed-po', { document: signedUpload })
     if (completed) setSignedUpload(null)
+  }
+
+  const cancelPurchaseOrder = async () => {
+    const reason = cancelReason.trim()
+    if (reason.length < 5) return showError('Reason Required', 'Enter at least 5 characters explaining why this PO is being cancelled')
+    const completed = await doAction('cancel', { comment: reason })
+    if (completed) {
+      setCancelOpen(false)
+      setCancelReason('')
+    }
   }
 
   const downloadPdf = async () => {
@@ -218,12 +228,31 @@ export default function PurchaseOrderDetails() {
   const cfg = statusConfig[po.status] || {}
   const items = Array.isArray(po.items) ? po.items.filter(item => item && typeof item === 'object') : []
   const statusHistory = Array.isArray(po.statusHistory) ? po.statusHistory.filter(entry => entry && typeof entry === 'object') : []
-  const isPendingSignedPoVerification =
-    po.status === 'SUBMITTED_FOR_APPROVAL' &&
-    po.signedPo?.status === 'PENDING_VERIFICATION'
-
+  const canCancel = isManager && canDownload && ['DRAFT', 'ACTIVE'].includes(po.status)
   return (
     <div className="space-y-6 animate-fadeIn">
+      {cancelOpen && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-white/45 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="cancel-po-title" onClick={() => !actionLoading && setCancelOpen(false)}>
+          <div className="w-full max-w-lg overflow-hidden rounded-3xl border border-white/80 bg-white shadow-[0_28px_80px_rgba(15,23,42,0.28)]" onClick={event => event.stopPropagation()}>
+            <div className="border-b border-rose-100 bg-gradient-to-br from-rose-50 to-white p-6">
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-100 text-rose-600"><AlertCircle size={24} /></div>
+              <h2 id="cancel-po-title" className="text-xl font-black text-slate-900">Cancel {po.poNumber}?</h2>
+              <p className="mt-2 text-sm leading-6 text-slate-600">This stops receiving against the PO. If it belongs to a request, that request returns to the manager so a replacement PO can be created.</p>
+            </div>
+            <div className="space-y-2 p-6">
+              <label htmlFor="cancel-po-reason" className="text-xs font-black uppercase tracking-wider text-slate-600">Cancellation reason</label>
+              <textarea id="cancel-po-reason" value={cancelReason} onChange={event => setCancelReason(event.target.value.slice(0, 500))} rows={4} autoFocus placeholder="Explain why this purchase order must be cancelled..." className="w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-rose-400 focus:bg-white focus:ring-4 focus:ring-rose-100" />
+              <p className="text-right text-[11px] text-slate-400">{cancelReason.length}/500</p>
+              <div className="flex flex-col-reverse gap-3 pt-3 sm:flex-row sm:justify-end">
+                <button type="button" onClick={() => setCancelOpen(false)} disabled={actionLoading} className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50">Keep PO</button>
+                <button type="button" onClick={cancelPurchaseOrder} disabled={actionLoading || cancelReason.trim().length < 5} className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 px-5 py-2.5 text-sm font-black text-white shadow-lg shadow-rose-200 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0">
+                  {actionLoading ? <RefreshCw size={16} className="animate-spin" /> : <XCircle size={16} />}{actionLoading ? 'Cancelling...' : 'Cancel PO'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {signedPhotoOpen && po.signedPo?.url && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-slate-950/55 p-3 backdrop-blur-md sm:p-6" role="dialog" aria-modal="true" aria-label="Full signed purchase order photo" onClick={() => setSignedPhotoOpen(false)}>
           <div className="relative flex h-[calc(100dvh-1.5rem)] max-h-[900px] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-white/70 bg-white/95 shadow-[0_32px_90px_rgba(15,23,42,0.24),0_8px_30px_rgba(124,58,237,0.12)] ring-1 ring-violet-100/70 backdrop-blur-xl sm:h-[calc(100dvh-3rem)]" onClick={event => event.stopPropagation()}>
@@ -248,7 +277,8 @@ export default function PurchaseOrderDetails() {
       </button>
 
       {/* Hero */}
-      <div className="flex flex-col items-start justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:flex-row md:items-center">
+      <div className="relative flex flex-col items-start justify-between gap-5 overflow-hidden rounded-3xl border border-violet-100 bg-gradient-to-br from-white via-white to-violet-50/80 p-6 shadow-[0_18px_50px_rgba(76,29,149,0.08)] md:flex-row md:items-center">
+        <div className="pointer-events-none absolute -right-16 -top-20 h-52 w-52 rounded-full bg-violet-200/30 blur-3xl" />
         <div className="min-w-0 max-w-full">
           <span className="text-xs font-mono text-violet-600 font-bold">{po.poNumber}</span>
           <h1 className="text-xl font-black text-slate-800 mt-1">{po.vendorName}</h1>
@@ -257,10 +287,10 @@ export default function PurchaseOrderDetails() {
         <div className="flex w-full flex-col gap-3 md:w-auto md:min-w-fit md:items-end">
           <span className={`self-end whitespace-nowrap rounded-full border px-3 py-1 text-xs font-bold ${cfg.color}`}>{cfg.label || po.status}</span>
           <div className="flex w-full items-end justify-between gap-4 md:w-auto md:justify-end">
-            <button type="button" onClick={downloadPdf} disabled={pdfLoading} className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-xs font-bold text-violet-700 hover:bg-violet-100 disabled:cursor-wait disabled:opacity-60">
+            {canDownload && <button type="button" onClick={downloadPdf} disabled={pdfLoading} className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 px-4 py-2.5 text-xs font-black text-white shadow-lg shadow-violet-200 transition-all hover:-translate-y-0.5 hover:shadow-xl disabled:cursor-wait disabled:opacity-60">
               {pdfLoading ? <RefreshCw size={15} className="animate-spin" /> : <Download size={15} />}
               {pdfLoading ? 'Preparing PDF...' : 'Download PDF'}
-            </button>
+            </button>}
             <div className="min-w-fit text-right">
               <div className="text-xs text-slate-400">Grand Total</div>
               <div className="whitespace-nowrap text-2xl font-black text-violet-700">₹{money(po.grandTotal)}</div>
@@ -280,7 +310,7 @@ export default function PurchaseOrderDetails() {
         <div className="bg-white p-6 rounded-xl border border-violet-200 shadow-sm space-y-4 text-left">
           <div>
             <h3 className="flex items-center gap-2 text-sm font-black text-slate-800"><Upload size={17} className="text-violet-600" />Upload Signed Official PO</h3>
-            <p className="mt-1 text-xs text-slate-500">Download the PO, obtain the required official signatures, then upload a clear photo for admin verification.</p>
+            <p className="mt-1 text-xs text-slate-500">Download the PO, obtain the required official signatures, then upload a clear photo. The PO becomes verified and active immediately.</p>
           </div>
           {po.status === 'REVISION_REQUIRED' && po.signedPo?.verificationComment && (
             <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700"><strong>Previous upload rejected:</strong> {po.signedPo.verificationComment}</div>
@@ -295,42 +325,22 @@ export default function PurchaseOrderDetails() {
               <img src={signedUpload.url} alt="Signed PO preview" className="h-28 w-full rounded-lg bg-slate-50 object-contain sm:w-40" />
               <div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-slate-800">{signedUpload.name}</p><p className="text-xs text-slate-500">{(signedUpload.size / 1024 / 1024).toFixed(2)} MB</p></div>
               <button onClick={uploadSignedPo} disabled={actionLoading} className="inline-flex items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 py-2.5 text-xs font-black text-white hover:bg-violet-700 disabled:opacity-50">
-                <Send size={14} />{actionLoading ? 'Uploading...' : 'Upload for Verification'}
+                <Send size={14} />{actionLoading ? 'Uploading...' : 'Upload & Activate PO'}
               </button>
             </div>
           )}
         </div>
       )}
 
-      {isAdmin && isPendingSignedPoVerification && (
-        <div className="bg-white p-6 rounded-xl border border-amber-200 shadow-sm space-y-4 text-left">
-          <h3 className="text-sm font-bold text-amber-700 flex items-center space-x-2"><ShieldCheck size={16} /><span>Verify Signed Official PO</span></h3>
-          <div className="flex flex-col gap-4 rounded-xl border border-slate-200 p-4 sm:flex-row sm:items-center">
-            {po.signedPo.url ? (
-              <img src={po.signedPo.url} alt="Uploaded signed PO" className="h-36 w-full rounded-lg bg-slate-50 object-contain sm:w-48" />
-            ) : (
-              <div className="flex h-36 w-full items-center justify-center rounded-lg bg-slate-50 text-slate-300 sm:w-48">
-                <FileText size={42} />
-              </div>
-            )}
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-bold text-slate-800">{po.signedPo.name || 'Signed official PO'}</p>
-              <p className="mt-1 text-xs text-slate-500">
-                Uploaded by {po.signedPo.uploadedBy || 'Manager'}
-                {po.signedPo.uploadedAt ? ` · ${new Date(po.signedPo.uploadedAt).toLocaleString('en-IN')}` : ''}
-              </p>
-              {po.signedPo.url ? (
-                <button type="button" onClick={() => setSignedPhotoOpen(true)} className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-violet-700"><Eye size={14} />Open full photo</button>
-              ) : (
-                <p className="mt-3 text-xs font-semibold text-amber-700">The attachment preview is unavailable, but this PO is awaiting your verification.</p>
-              )}
-            </div>
+      {canCancel && (
+        <div className="flex flex-col gap-4 rounded-2xl border border-rose-200/80 bg-gradient-to-r from-white via-white to-rose-50/70 p-5 shadow-[0_12px_35px_rgba(225,29,72,0.06)] sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="flex items-center gap-2 text-sm font-black text-slate-800"><AlertCircle size={17} className="text-rose-600" />Need to stop this order?</h3>
+            <p className="mt-1 text-xs leading-5 text-slate-500">Cancellation is restricted to the manager who created the PO and requires an auditable reason.</p>
           </div>
-          <textarea rows={2} placeholder="Verification notes or rejection reason..." value={comment} onChange={e => setComment(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm focus:outline-none focus:border-violet-400 resize-none" />
-          <div className="flex flex-wrap gap-2">
-            <button onClick={() => doAction('verify-signed-po', { comment })} disabled={actionLoading} className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-xs font-bold transition-all disabled:opacity-50">✓ Verify & Activate PO</button>
-            <button onClick={() => doAction('reject-signed-po', { comment })} disabled={actionLoading || !comment.trim()} className="bg-rose-600 hover:bg-rose-500 text-white px-4 py-2 rounded-lg text-xs font-bold transition-all disabled:opacity-50">✗ Reject Photo</button>
-          </div>
+          <button type="button" onClick={() => setCancelOpen(true)} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-rose-200 bg-white px-4 py-2.5 text-xs font-black text-rose-700 shadow-sm transition hover:-translate-y-0.5 hover:border-rose-300 hover:bg-rose-50">
+            <XCircle size={15} />Cancel Purchase Order
+          </button>
         </div>
       )}
 

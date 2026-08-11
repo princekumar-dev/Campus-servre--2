@@ -160,7 +160,7 @@ function Dashboard() {
     if (auth?.role === 'admin' || auth?.role === 'super_admin') {
       return [
         { label: 'Requests to Classify', value: stats.requestsToClassify, icon: ClipboardCheck, bg: 'bg-rose-50', textColor: 'text-rose-600', sub: 'Awaiting triage' },
-        { label: 'Signed POs to Verify', value: stats.signedPOsPending, icon: FileCheck, bg: 'bg-amber-50', textColor: 'text-amber-600', sub: 'Proof awaiting review' },
+        { label: 'Total POs', value: stats.totalPOs, icon: FileCheck, bg: 'bg-amber-50', textColor: 'text-amber-600', sub: 'All purchase orders' },
         { label: 'Active POs', value: stats.activePOs, icon: ShoppingCart, bg: 'bg-blue-50', textColor: 'text-blue-600', sub: 'Gate receiving enabled' },
         { label: 'Closed POs', value: stats.closedPOs, icon: CheckCircle2, bg: 'bg-emerald-50', textColor: 'text-emerald-600', sub: 'Workflow completed' },
       ]
@@ -169,7 +169,7 @@ function Dashboard() {
       return [
         { label: 'Assigned Requests', value: stats.assignedRequests, icon: ClipboardCheck, bg: 'bg-violet-50', textColor: 'text-violet-600', sub: 'Ready for PO creation' },
         { label: 'Draft / Revision POs', value: stats.draftPOs, icon: FileCheck, bg: 'bg-amber-50', textColor: 'text-amber-600', sub: 'Signed proof required' },
-        { label: 'Awaiting Admin Verification', value: stats.signedPOsPending, icon: Clock, bg: 'bg-blue-50', textColor: 'text-blue-600', sub: 'Signed proof submitted' },
+        { label: 'Active POs', value: stats.activePOs, icon: ShoppingCart, bg: 'bg-blue-50', textColor: 'text-blue-600', sub: 'Signed and ready for receiving' },
         { label: 'Completed POs', value: (stats.fulfilledPOs || 0) + (stats.closedPOs || 0), icon: CheckCircle2, bg: 'bg-emerald-50', textColor: 'text-emerald-600', sub: 'Fulfilled or closed' },
       ]
     }

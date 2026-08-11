@@ -1,6 +1,13 @@
 import { connectToDatabase } from '../lib/mongo.js'
 import { ServiceRequest, User, PurchaseOrder, DeliverySchedule, GateEntry, GoodsReceipt } from '../models.js'
 
+const finiteAmount = value => {
+  const amount = Number(value)
+  return Number.isFinite(amount) ? amount : 0
+}
+
+const roundMoney = value => Math.round((finiteAmount(value) + Number.EPSILON) * 100) / 100
+
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end()
 
@@ -32,7 +39,7 @@ export default async function handler(req, res) {
       // admin, accounts, super_admin see all
 
       const requests = await ServiceRequest.find(filter)
-        .select('status currentOwnerRole category requesterId quotation.grandTotal payments.amount workOrder.technicianName workOrder.status')
+        .select('status currentOwnerRole category requesterId quotation.grandTotal payments.amount workOrder.technicianId workOrder.technicianName workOrder.status')
         .lean()
       const requestIds = requests.map(request => request._id)
       const poFilter = {}
@@ -88,8 +95,9 @@ export default async function handler(req, res) {
       const activePOs = purchaseOrders.filter(po => ['ACTIVE', 'PARTIALLY_FULFILLED'].includes(po.status)).length
       const fulfilledPOs = purchaseOrders.filter(po => po.status === 'FULFILLED').length
       const closedPOs = purchaseOrders.filter(po => po.status === 'CLOSED').length
-      const reportablePOs = purchaseOrders.filter(po => !['DRAFT', 'REVISION_REQUIRED', 'REJECTED'].includes(po.status))
-      const totalPOValue = reportablePOs.reduce((sum, po) => sum + Number(po.grandTotal || 0), 0)
+      const committedStatuses = new Set(['ACTIVE', 'PARTIALLY_FULFILLED', 'FULFILLED', 'CLOSED'])
+      const reportablePOs = purchaseOrders.filter(po => committedStatuses.has(po.status) && po.signedPo?.status === 'VERIFIED')
+      const totalPOValue = roundMoney(reportablePOs.reduce((sum, po) => sum + finiteAmount(po.grandTotal), 0))
 
       const byStatus = requests.reduce((counts, request) => {
         const key = String(request.status || 'UNKNOWN').toLowerCase()
@@ -117,30 +125,31 @@ export default async function handler(req, res) {
       const requestById = new Map(requests.map(request => [String(request._id), request]))
 
       technicians.forEach(technician => {
-        techStats[technician.name] = { assigned: 0, completed: 0 }
+        techStats[String(technician._id)] = { name: technician.name, assigned: 0, completed: 0 }
       })
 
       for (const r of requests) {
         // Category count
-        categories[r.category] = (categories[r.category] || 0) + 1
+        const category = String(r.category || 'Uncategorized').trim() || 'Uncategorized'
+        categories[category] = (categories[category] || 0) + 1
 
         // Financials
-        const approvedCost = r.quotation ? r.quotation.grandTotal : 0
+        const approvedCost = finiteAmount(r.quotation?.grandTotal)
         totalQuotations += approvedCost
 
         // Actual expense (total of recorded payments)
-        const totalPaid = r.payments ? r.payments.reduce((sum, p) => sum + p.amount, 0) : 0
+        const totalPaid = Array.isArray(r.payments) ? r.payments.reduce((sum, payment) => sum + finiteAmount(payment?.amount), 0) : 0
         totalExpenses += totalPaid
 
         // Tech stats
         if (r.workOrder && r.workOrder.technicianName) {
-          const tech = r.workOrder.technicianName
-          if (!techStats[tech]) {
-            techStats[tech] = { assigned: 0, completed: 0 }
+          const techKey = String(r.workOrder.technicianId || `name:${r.workOrder.technicianName}`)
+          if (!techStats[techKey]) {
+            techStats[techKey] = { name: r.workOrder.technicianName, assigned: 0, completed: 0 }
           }
-          techStats[tech].assigned += 1
+          techStats[techKey].assigned += 1
           if (r.workOrder.status === 'COMPLETED' || r.status === 'CLOSED') {
-            techStats[tech].completed += 1
+            techStats[techKey].completed += 1
           }
         }
       }
@@ -149,27 +158,31 @@ export default async function handler(req, res) {
       for (const po of reportablePOs) {
         const request = requestById.get(String(po.requestId || ''))
         const dept = departmentByRequester.get(String(request?.requesterId || '')) || 'General'
-        departmentCosts[dept] = (departmentCosts[dept] || 0) + Number(po.grandTotal || 0)
+        departmentCosts[dept] = roundMoney((departmentCosts[dept] || 0) + finiteAmount(po.grandTotal))
       }
 
       // Turn categories object into array for charting
       const categoryData = Object.keys(categories).map(name => ({
         name,
         value: categories[name]
-      }))
+      })).sort((a, b) => b.value - a.value || a.name.localeCompare(b.name))
 
       // Turn departmentCosts into array
       const departmentData = Object.keys(departmentCosts).map(name => ({
         name,
         cost: departmentCosts[name]
-      }))
+      })).sort((a, b) => b.cost - a.cost || a.name.localeCompare(b.name))
 
       // Turn tech stats into array
-      const technicianData = Object.keys(techStats).map(name => ({
-        name,
-        assigned: techStats[name].assigned,
-        completed: techStats[name].completed
-      }))
+      const technicianData = Object.values(techStats).map(technician => ({
+        name: technician.name,
+        assigned: technician.assigned,
+        completed: technician.completed
+      })).filter(technician => technician.assigned > 0)
+        .sort((a, b) => b.assigned - a.assigned || a.name.localeCompare(b.name))
+
+      totalExpenses = roundMoney(totalExpenses)
+      totalQuotations = roundMoney(totalQuotations)
 
       return res.status(200).json({
         success: true,

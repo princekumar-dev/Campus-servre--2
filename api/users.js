@@ -102,7 +102,7 @@ export default async function handler(req, res) {
         return res.status(400).json({ success: false, error: 'Password must be at least 6 characters.' })
       }
 
-      const validRoles = ['admin', 'requester', 'manager', 'technician', 'accounts', 'vendor', 'service_provider', 'super_admin', 'gate', 'receiving_officer', 'delivery_person', 'hod', 'staff']
+      const validRoles = ['admin', 'requester', 'manager', 'technician', 'accounts', 'service_provider', 'super_admin', 'gate', 'receiving_officer', 'delivery_person', 'hod', 'staff']
       if (!validRoles.includes(role)) {
         return res.status(400).json({ success: false, error: `role must be one of: ${validRoles.join(', ')}` })
       }
@@ -233,10 +233,21 @@ export default async function handler(req, res) {
 
       if (action === 'update-profile') {
         const { name, phoneNumber } = req.body
+        const requestingUserId = req.user?.id || req.headers['x-user-id'] || ''
+        if (!requestingUserId || String(requestingUserId) !== String(userId)) {
+          return res.status(403).json({ success: false, error: 'You can update only your own profile' })
+        }
         const updateData = {}
-        if (name) updateData.name = name
+        if (name !== undefined) {
+          const normalizedName = String(name).trim().replace(/\s+/g, ' ')
+          if (normalizedName.length < 2 || normalizedName.length > 80) {
+            return res.status(400).json({ success: false, error: 'Name must be between 2 and 80 characters' })
+          }
+          updateData.name = normalizedName
+        }
         if (phoneNumber) updateData.phoneNumber = phoneNumber
         const u = await User.findByIdAndUpdate(userId, updateData, { new: true }).lean()
+        if (!u) return res.status(404).json({ success: false, error: 'User not found' })
         return res.status(200).json({ success: true, user: { id: u._id, name: u.name, phoneNumber: u.phoneNumber } })
       }
 

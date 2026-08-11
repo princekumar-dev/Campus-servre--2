@@ -44,9 +44,6 @@ const GatePOVerification = lazy(() => import('./pages/GatePOVerification'))
 const ServicePOWorkspace = lazy(() => import('./pages/ServicePOWorkspace'))
 const ServiceDashboard = lazy(() => import('./pages/ServiceDashboard'))
 const GRN = lazy(() => import('./pages/GRN'))
-const VendorDashboard = lazy(() => import('./pages/VendorDashboard'))
-const VendorInvoices = lazy(() => import('./pages/VendorInvoices'))
-const VendorPayments = lazy(() => import('./pages/VendorPayments'))
 const ReceivingDashboard = lazy(() => import('./pages/ReceivingDashboard'))
 const ReceivingDamaged = lazy(() => import('./pages/ReceivingDamaged'))
 const AccountsDashboard = lazy(() => import('./pages/AccountsDashboard'))
@@ -350,11 +347,11 @@ function AppContent() {
                   <Route path="/quotations" element={<ProtectedRoute allowedRoles={['super_admin', 'manager']}><ManagerQuotations /></ProtectedRoute>} />
                   
                   {/* Purchase Orders */}
-                  <Route path="/purchase-orders" element={<ProtectedRoute allowedRoles={['admin', 'super_admin', 'manager', 'vendor']}><PurchaseOrders /></ProtectedRoute>} />
-                  <Route path="/purchase-orders/:id" element={<ProtectedRoute allowedRoles={['admin', 'super_admin', 'manager', 'vendor']}><PurchaseOrderDetails /></ProtectedRoute>} />
+                  <Route path="/purchase-orders" element={<ProtectedRoute allowedRoles={['admin', 'super_admin', 'manager']}><PurchaseOrders /></ProtectedRoute>} />
+                  <Route path="/purchase-orders/:id" element={<ProtectedRoute allowedRoles={['admin', 'super_admin', 'manager']}><PurchaseOrderDetails /></ProtectedRoute>} />
                   
                   {/* Delivery routes */}
-                  <Route path="/deliveries" element={<ProtectedRoute allowedRoles={['super_admin', 'receiving_officer', 'vendor']}><Deliveries /></ProtectedRoute>} />
+                  <Route path="/deliveries" element={<ProtectedRoute allowedRoles={['super_admin', 'receiving_officer']}><Deliveries /></ProtectedRoute>} />
                   
                   {/* Gate routes */}
                   <Route path="/gate" element={<ProtectedRoute allowedRoles={['admin', 'super_admin', 'gate']}><GateScanner /></ProtectedRoute>} />
@@ -369,9 +366,6 @@ function AppContent() {
                   <Route path="/grn" element={<ProtectedRoute allowedRoles={['admin', 'super_admin', 'receiving_officer', 'accounts', 'manager']}><GRN /></ProtectedRoute>} />
                   
                   {/* Vendor Portal */}
-                  <Route path="/vendor/dashboard" element={<ProtectedRoute allowedRoles={['vendor']}><VendorDashboard /></ProtectedRoute>} />
-                  <Route path="/vendor/invoices" element={<ProtectedRoute allowedRoles={['vendor']}><VendorInvoices /></ProtectedRoute>} />
-                  <Route path="/vendor/payments" element={<ProtectedRoute allowedRoles={['vendor']}><VendorPayments /></ProtectedRoute>} />
                   
                   {/* Receiving Officer routes */}
                   <Route path="/receiving/dashboard" element={<ProtectedRoute allowedRoles={['admin', 'super_admin', 'receiving_officer']}><ReceivingDashboard /></ProtectedRoute>} />

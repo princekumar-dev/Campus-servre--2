@@ -46,6 +46,13 @@ export default async function handler(req, res) {
         })
       }
 
+      if (user.role === 'vendor') {
+        return res.status(403).json({
+          success: false,
+          error: 'Vendor portal login is not available. Purchase managers manage supplier records and purchase orders internally.'
+        })
+      }
+
       const institutionRoles = ['requester', 'staff', 'hod']
       if (institutionRoles.includes(user.role)) {
         const accountInstitution = user.institution || 'msec'
