@@ -8,6 +8,8 @@
 [![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-3.4-38B2AC.svg)](https://tailwindcss.com/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
+**[🔗 Live App](https://msec-campusserve.vercel.app)**
+
 **CampusServe** is a full-stack, enterprise-grade campus facility maintenance, procurement, service execution, gate logistics, and financial settlement platform. Built specifically for educational institutions and multi-campus environments (supporting institutions like **MSEC**, **NEST**, **MCW**, **MSSM**, and **IIC**), CampusServe unifies the entire lifecycle of campus operations into a single auditable, transparent, and SLA-driven workflow.
 
 ---
